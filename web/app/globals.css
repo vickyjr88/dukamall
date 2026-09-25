@@ -1,0 +1,92 @@
+:root {
+  --shop-primary: #2438a8;
+  --shop-accent: #0f7a40;
+  --shop-font-display: 'Fraunces', Georgia, serif;
+  --shop-font-body: 'Manrope', -apple-system, sans-serif;
+  --shop-ink: #1a1d29;
+  --shop-muted: #5b6274;
+  --shop-line: #e2e4ec;
+  --shop-paper: #fbfbfd;
+  --shop-radius: 0px; /* overridden by [data-layout="soft"] below */
+}
+
+/* Layout presets -- design doc S:1.4. A shop picks "sharp" (Drip Emporium's
+   own convention -- square cards, no rounded corners) or "soft" (rounded,
+   friendlier). Everything else about the layout stays identical; this single
+   token is the only thing that differs between presets. Applied on a
+   wrapper div (see app/(storefront)/layout.tsx), not <html>, since the
+   theme-agnostic root layout owns <html> and has no shop to resolve a
+   preset from. */
+div[data-layout="soft"] {
+  --shop-radius: 10px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--shop-paper);
+  color: var(--shop-ink);
+  font-family: var(--shop-font-body);
+  line-height: 1.5;
+}
+
+h1, h2, h3 { font-family: var(--shop-font-display); margin: 0 0 12px; }
+
+a { color: inherit; }
+
+.shop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--shop-line);
+  background: #fff;
+}
+.shop-header .logo { font-family: var(--shop-font-display); font-size: 1.4rem; font-weight: 600; }
+.shop-header .logo img { height: 36px; }
+
+.shop-container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.product-card {
+  border: 1px solid var(--shop-line);
+  border-radius: var(--shop-radius);
+  background: #fff;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.product-card img { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; background: var(--shop-line); }
+.product-card .body { padding: 12px; }
+.product-card .name { font-weight: 600; margin-bottom: 4px; }
+.product-card .price { color: var(--shop-primary); font-weight: 700; }
+
+.btn {
+  display: inline-block;
+  padding: 12px 24px;
+  background: var(--shop-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--shop-radius);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+.btn.btn-accent { background: var(--shop-accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cart-line {
+  display: flex;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--shop-line);
+  align-items: center;
+}
+.cart-line img { width: 64px; height: 64px; object-fit: cover; border-radius: var(--shop-radius); background: var(--shop-line); }
+.cart-line--custom { border-style: dashed; }

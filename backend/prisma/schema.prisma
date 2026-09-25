@@ -1,0 +1,331 @@
+// Dubai Merchants Shops Platform -- trimmed, multi-tenant commerce schema.
+//
+// Deliberately NOT a port of drip-crm's full schema. Per the platform design
+// doc, accounting, payroll, HR, fixed assets and bank reconciliation are out
+// of scope entirely -- fifty independent stallholders need a stock count and
+// a sales tally, not a general ledger. Every tenant-owned model below carries
+// a `shopId` and every previously-global unique constraint (sku, slug, order
+// number) is scoped to (shopId, ...) instead, since fifty shops will
+// otherwise collide on the first shared SKU or slug.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenant root
+// ---------------------------------------------------------------------------
+
+enum ShopStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+}
+
+model Shop {
+  id           String     @id @default(cuid())
+  slug         String     @unique
+  name         String
+  customDomain String?    @unique
+  status       ShopStatus @default(TRIAL)
+
+  whatsappNumber         String?
+  paystackSecretKey      String?
+  paystackPublicKey      String?
+  currency               String  @default("KES")
+  orderPrefix            String  @default("SHP")
+
+  theme        ShopTheme?
+  staff        UserShop[]
+  products     Product[]
+  categories   ProductCategory[]
+  customers    Customer[]
+  orders       Order[]
+  cartLeads    CartLead[]
+  pageContents PageContent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Tier 1 token theming -- see design doc S:1.4. Deliberately just a handful
+// of scalar fields, not a page-builder document: the platform ships a
+// curated set of font pairings and layout presets, a shop picks from them.
+model ShopTheme {
+  id           String @id @default(cuid())
+  shopId       String @unique
+  shop         Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  primaryColor String @default("#2438a8")
+  accentColor  String @default("#0f7a40")
+  logoUrl      String?
+  fontPairing  String @default("fraunces-manrope")
+  layoutPreset String @default("sharp")
+
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Platform staff & auth
+// ---------------------------------------------------------------------------
+
+// Global identity so one person (e.g. a family running two stalls) can log in
+// once and switch between shops, rather than holding a separate account per
+// shop. What they can do in a given shop is entirely determined by their
+// UserShop row for it, never by this table.
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  isSuperAdmin Boolean    @default(false)
+  shops        UserShop[]
+  createdAt    DateTime   @default(now())
+}
+
+enum ShopRole {
+  OWNER
+  STAFF
+}
+
+model UserShop {
+  userId String
+  shopId String
+  role   ShopRole @default(STAFF)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, shopId])
+}
+
+// ---------------------------------------------------------------------------
+// Catalog
+// ---------------------------------------------------------------------------
+
+model ProductCategory {
+  id       String  @id @default(cuid())
+  shopId   String
+  shop     Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name     String
+  slug     String
+  isActive Boolean @default(true)
+
+  products Product[]
+
+  @@unique([shopId, slug])
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  categoryId  String?
+  category    ProductCategory? @relation(fields: [categoryId], references: [id])
+
+  name        String
+  slug        String
+  description String?
+  brand       String?
+  imageUrls   Json     @default("[]")
+  isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+
+  variants    ProductVariant[]
+  favorites   Favorite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, slug])
+}
+
+// No StockMovement ledger -- stockOnHand is a plain counter, decremented on a
+// paid order line and adjusted directly by the shop owner. See design doc
+// S:2.3 ("Stock tally and sales tally, in place of accounting").
+model ProductVariant {
+  id         String  @id @default(cuid())
+  productId  String
+  product    Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  sku        String
+  name       String
+  size       String?
+  attributes Json    @default("{}")
+  priceKes   Decimal @db.Decimal(12, 2)
+  wasPriceKes Decimal? @db.Decimal(12, 2)
+  stockOnHand Int    @default(0)
+  isActive   Boolean @default(true)
+
+  orderLines OrderLine[]
+  cartLeadLines CartLeadLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, sku])
+}
+
+// ---------------------------------------------------------------------------
+// Customers
+// ---------------------------------------------------------------------------
+
+// Scoped to one shop, not shared across the platform -- a shopper at shop A
+// has no account at shop B. See design doc S:2.4 for why this is deliberate.
+model Customer {
+  id           String   @id @default(cuid())
+  shopId       String
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  firstName    String?
+  lastName     String?
+  email        String?
+  phone        String?
+  passwordHash String?
+
+  orders    Order[]
+  favorites Favorite[]
+  cartLeads CartLead[]
+
+  createdAt DateTime @default(now())
+
+  @@unique([shopId, email])
+}
+
+model Favorite {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, productId])
+}
+
+// ---------------------------------------------------------------------------
+// Orders & checkout
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+model Order {
+  id         String      @id @default(cuid())
+  shopId     String
+  shop       Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer?   @relation(fields: [customerId], references: [id])
+
+  // Human-facing, unique per shop, not globally -- prefixed with the shop's
+  // own orderPrefix (see Shop.orderPrefix) rather than a hardcoded brand code.
+  orderNumber String
+  status      OrderStatus @default(PENDING)
+
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  shippingAddress String?
+
+  subtotalKes Decimal @db.Decimal(12, 2)
+  shippingKes Decimal @db.Decimal(12, 2) @default(0)
+  totalKes    Decimal @db.Decimal(12, 2)
+
+  paystackReference String?
+
+  lines OrderLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, orderNumber])
+}
+
+model OrderLine {
+  id        String         @id @default(cuid())
+  orderId   String
+  order     Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id])
+
+  quantity Int
+  priceKes Decimal @db.Decimal(12, 2)
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp / cart leads
+// ---------------------------------------------------------------------------
+
+enum CartLeadSource {
+  WHATSAPP_ORDER
+  ABANDONED_CART
+}
+
+model CartLead {
+  id         String         @id @default(cuid())
+  shopId     String
+  shop       Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  customerId String?
+  customer   Customer?      @relation(fields: [customerId], references: [id])
+
+  source CartLeadSource
+
+  customerName    String?
+  customerPhone   String?
+  customerEmail   String?
+  shippingAddress String?
+  message         String?
+
+  lines CartLeadLine[]
+
+  createdAt DateTime @default(now())
+}
+
+model CartLeadLine {
+  id         String          @id @default(cuid())
+  cartLeadId String
+  cartLead   CartLead        @relation(fields: [cartLeadId], references: [id], onDelete: Cascade)
+
+  // Optional: a customer-typed size with no matching variant has neither --
+  // see drip-crm's own CartLeadLineDto for the precedent this follows.
+  variantId String?
+  variant   ProductVariant? @relation(fields: [variantId], references: [id])
+
+  name         String
+  size         String
+  quantity     Int
+  priceKes     Decimal @db.Decimal(12, 2)
+  isCustomSize Boolean @default(false)
+}
+
+// ---------------------------------------------------------------------------
+// Content
+// ---------------------------------------------------------------------------
+
+// Small CMS-ish key/value store per shop -- contact details, delivery note,
+// FAQ copy. Mirrors drip-crm's PageContent, which is the precedent for
+// making shop identity data-driven rather than hardcoded in components.
+model PageContent {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  key    String
+  value  Json
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, key])
+}

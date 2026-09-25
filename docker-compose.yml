@@ -1,0 +1,151 @@
+
+# Shared by the two backend/web service pairs below (the active slot and its
+# rolling-deploy standby) -- mirrors drip-crm's own docker-compose.yml
+# structure exactly, on a distinct port block so both stacks can run on the
+# same host without colliding. See scripts/deploy.sh for how the two slots
+# are swapped during a deploy.
+x-web-build: &web-build
+  context: ./web
+  dockerfile: Dockerfile
+  args:
+    - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3211}
+    - NEXT_PUBLIC_PLATFORM_DOMAIN=${NEXT_PUBLIC_PLATFORM_DOMAIN:-localhost:3203}
+
+x-web-environment: &web-environment
+  INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:3200}
+  NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3211}
+  PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-dukamall.app}
+
+x-web-healthcheck: &web-healthcheck
+  test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3202/ || exit 1"]
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 30s
+
+x-backend-environment: &backend-environment
+  DATABASE_URL: ${DATABASE_URL}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+  PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-dukamall.app}
+  MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
+  MINIO_PORT: ${MINIO_PORT:-9000}
+  MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+  MINIO_BUCKET: ${MINIO_BUCKET:-shops-platform-media}
+  MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+  MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+  MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-}
+  REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+x-backend-healthcheck: &backend-healthcheck
+  test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3200/health || exit 1"]
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 30s
+
+x-backend-depends-on: &backend-depends-on
+  db:
+    condition: service_healthy
+  minio:
+    condition: service_started
+  redis:
+    condition: service_healthy
+
+services:
+  # Two slots per app, "web"/"web2" and "backend"/"backend2", exactly like
+  # drip-crm -- see scripts/deploy.sh for the swap mechanics.
+  web:
+    build: *web-build
+    ports:
+      - "${WEB_PORT:-3203}:3202"
+    environment: *web-environment
+    healthcheck: *web-healthcheck
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  web2:
+    build: *web-build
+    ports:
+      - "${WEB_PORT2:-3204}:3202"
+    environment: *web-environment
+    healthcheck: *web-healthcheck
+    depends_on:
+      - backend
+    profiles: ["standby"]
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-3211}:3200"
+    environment: *backend-environment
+    healthcheck: *backend-healthcheck
+    depends_on: *backend-depends-on
+    restart: unless-stopped
+
+  backend2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT2:-3212}:3200"
+    environment: *backend-environment
+    healthcheck: *backend-healthcheck
+    depends_on: *backend-depends-on
+    profiles: ["standby"]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - redis-data:/data
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-16580}:6379"
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${DB_PORT:-15533}:5432"
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_HOST_PORT:-19102}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_HOST_PORT:-19103}:9001"
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
+
+volumes:
+  db-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local

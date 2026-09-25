@@ -1,0 +1,14 @@
+**/node_modules/
+.env
+**/.env
+.env.local
+**/.env.local
+.DS_Store
+.prisma/
+**/dist/
+npm-debug.log
+**/.next/
+**/tsconfig.tsbuildinfo
+
+# Rolling-deploy state, tracked only on the server, not in git.
+.deploy-active-slot
