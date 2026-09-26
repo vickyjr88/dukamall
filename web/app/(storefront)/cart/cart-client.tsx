@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { useCart } from '@/app/lib/cart';
+import { ShopInfo } from '@/app/lib/api';
+import { useShopFetch } from '@/app/lib/shop-id-context';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3211';
-
-export function CartClient() {
+export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const cart = useCart();
+  const shopFetch = useShopFetch();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
@@ -14,11 +15,64 @@ export function CartClient() {
   if (!cart.ready) return null;
   if (cart.lines.length === 0) return <main className="shop-container"><p>Your cart is empty.</p></main>;
 
+  function buildWhatsappMessage() {
+    const lines = [`Hello ${shopInfo.name}, I would like to order:`];
+    for (const line of cart.lines) {
+      if (line.isCustomSize) {
+        lines.push(`- ${line.quantity} x ${line.name} (size ${line.size} -- not listed, please confirm availability/price)`);
+        continue;
+      }
+      lines.push(`- ${line.quantity} x ${line.name} (${line.size}) - ${shopInfo.currency} ${(line.priceKes * line.quantity).toLocaleString()}`);
+    }
+    lines.push('');
+    lines.push(`Subtotal: ${shopInfo.currency} ${cart.subtotal.toLocaleString()}`);
+    lines.push('');
+    const name = `${form.firstName} ${form.lastName}`.trim();
+    if (name) lines.push(`Name: ${name}`);
+    if (form.phone.trim()) lines.push(`Phone: ${form.phone.trim()}`);
+    return lines.join('\n');
+  }
+
+  /** Records the order as a lead even if the shopper never sends the message. */
+  function recordWhatsappLead() {
+    void shopFetch('/cart-leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: 'WHATSAPP_ORDER',
+        lines: cart.lines.map((line) => ({
+          variantId: line.variantId ?? undefined,
+          name: line.name,
+          size: line.size,
+          quantity: line.quantity,
+          priceKes: line.priceKes,
+          isCustomSize: line.isCustomSize || undefined,
+        })),
+        customerName: `${form.firstName} ${form.lastName}`.trim() || undefined,
+        customerPhone: form.phone.trim() || undefined,
+        customerEmail: form.email.trim() || undefined,
+        message: buildWhatsappMessage(),
+      }),
+    }).catch(() => {
+      // Best-effort: the shopper's own WhatsApp order still goes out even if
+      // recording it here fails.
+    });
+  }
+
+  function onWhatsapp() {
+    recordWhatsappLead();
+    const phone = (shopInfo.whatsappNumber || '').replace(/[^\d]/g, '');
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(buildWhatsappMessage())}`
+      : null;
+    if (url) window.open(url, '_blank', 'noopener');
+  }
+
   async function onCheckout() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/checkout`, {
+      const res = await shopFetch('/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -88,6 +142,12 @@ export function CartClient() {
       <button className="btn" disabled={submitting} onClick={onCheckout} style={{ marginTop: 12 }}>
         {submitting ? 'Processing...' : `Pay KES ${cart.subtotal.toLocaleString()}`}
       </button>
+
+      {shopInfo.whatsappNumber ? (
+        <button type="button" className="btn btn-accent" onClick={onWhatsapp} style={{ marginTop: 8, display: 'block', width: '100%' }}>
+          Buy via WhatsApp instead
+        </button>
+      ) : null}
     </main>
   );
 }

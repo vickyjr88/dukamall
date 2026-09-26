@@ -26,6 +26,15 @@ export class ShopService {
     return shop;
   }
 
+  // The handful of shop fields the storefront itself needs client-side (the
+  // WhatsApp button, page titles) -- deliberately not the full Shop row,
+  // which also carries paystackSecretKey and other server-only values that
+  // must never reach the browser.
+  async getPublicInfo(shopId: string) {
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+    return { name: shop.name, whatsappNumber: shop.whatsappNumber, currency: shop.currency };
+  }
+
   async getTheme(shopId: string) {
     const theme = await this.prisma.shopTheme.findUnique({ where: { shopId } });
     // Every shop gets a theme row on creation (see ShopService.create below),
@@ -37,6 +46,28 @@ export class ShopService {
       logoUrl: null,
       fontPairing: 'fraunces-manrope',
       layoutPreset: 'sharp',
+    };
+  }
+
+  async updateSettings(shopId: string, data: { whatsappNumber?: string; paystackSecretKey?: string; paystackPublicKey?: string }) {
+    return this.prisma.shop.update({ where: { id: shopId }, data });
+  }
+
+  // Kept here, not just in the web app's font-pairings.ts, so a portal
+  // themeOptions() call and the storefront's ThemeInjector can never list
+  // two different sets of choices -- one source of truth for what "Tier 1
+  // theming" actually offers.
+  themeOptions() {
+    return {
+      fontPairings: [
+        { key: 'fraunces-manrope', label: 'Fraunces + Manrope (editorial serif)' },
+        { key: 'playfair-inter', label: 'Playfair Display + Inter (classic elegant)' },
+        { key: 'poppins-only', label: 'Poppins (modern, rounded)' },
+      ],
+      layoutPresets: [
+        { key: 'sharp', label: 'Sharp (square corners, no rounding)' },
+        { key: 'soft', label: 'Soft (rounded corners)' },
+      ],
     };
   }
 

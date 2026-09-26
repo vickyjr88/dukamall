@@ -65,3 +65,10 @@ export async function getProduct(slug: string): Promise<ShopProduct | null> {
   if (!res.ok) return null;
   return res.json();
 }
+
+export type ShopInfo = { name: string; whatsappNumber: string | null; currency: string };
+
+export async function getShopInfo(): Promise<ShopInfo> {
+  const res = await shopFetch('/shop/info');
+  return res.json();
+}
