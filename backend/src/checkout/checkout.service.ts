@@ -16,8 +16,20 @@ export class CheckoutService {
     return `${prefix}-${String(count + 1).padStart(5, '0')}`;
   }
 
-  async start(shopId: string, dto: CheckoutDto) {
+  async start(shopId: string, dto: CheckoutDto, customerId: string | null) {
     const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+
+    // A customerId comes only from a verified JWT (see OptionalCustomer),
+    // never from the request body -- but it could still be a customer
+    // belonging to a DIFFERENT shop if a token somehow reached here for the
+    // wrong tenant (shouldn't happen given CustomerJwtGuard's own shopId
+    // check, but checkout doesn't run behind that guard, so this is the
+    // only place left to catch it). A mismatch is treated as "not logged
+    // in" rather than an error -- an order should still go through as a
+    // guest rather than fail outright over a stale/cross-shop token.
+    const customer = customerId
+      ? await this.prisma.customer.findFirst({ where: { id: customerId, shopId } })
+      : null;
 
     const variantIds = dto.lines.map((l) => l.variantId);
     const variants = await this.prisma.productVariant.findMany({
@@ -42,6 +54,7 @@ export class CheckoutService {
     const order = await this.prisma.order.create({
       data: {
         shopId,
+        customerId: customer?.id,
         orderNumber,
         firstName: dto.firstName,
         lastName: dto.lastName,

@@ -1,16 +1,27 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useCart } from '@/app/lib/cart';
 import { ShopInfo } from '@/app/lib/api';
 import { useShopFetch } from '@/app/lib/shop-id-context';
+import { useCustomerAuth } from '@/app/lib/customer-auth';
+import { useCustomerFetch } from '@/app/lib/use-customer-fetch';
 
 export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const cart = useCart();
   const shopFetch = useShopFetch();
+  const customerFetch = useCustomerFetch();
+  const { customer } = useCustomerAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+
+  // Logged-in checkout: pre-fill the shopper's email so they don't retype it
+  // -- checkout itself still links the order to their account via the
+  // Authorization header customerFetch attaches, not this field.
+  useEffect(() => {
+    if (customer) setForm((f) => ({ ...f, email: f.email || customer.email }));
+  }, [customer]);
 
   if (!cart.ready) return null;
   if (cart.lines.length === 0) return <main className="shop-container"><p>Your cart is empty.</p></main>;
@@ -72,7 +83,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await shopFetch('/checkout', {
+      const res = await customerFetch('/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

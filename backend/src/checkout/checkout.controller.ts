@@ -4,6 +4,7 @@ import { CheckoutService } from './checkout.service';
 import { CheckoutDto } from './checkout.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { ShopId } from '../common/shop-context';
+import { OptionalCustomer } from '../customer-auth/optional-customer.decorator';
 
 @ApiTags('checkout')
 @Controller('checkout')
@@ -12,8 +13,8 @@ export class CheckoutController {
 
   @Public()
   @Post()
-  start(@ShopId() shopId: string, @Body() dto: CheckoutDto) {
-    return this.checkoutService.start(shopId, dto);
+  start(@ShopId() shopId: string, @Body() dto: CheckoutDto, @OptionalCustomer() customerId: string | null) {
+    return this.checkoutService.start(shopId, dto, customerId);
   }
 
   @Public()

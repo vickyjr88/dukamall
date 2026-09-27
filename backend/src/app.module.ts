@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomerAuthModule } from './customer-auth/customer-auth.module';
+import { CustomerAccountModule } from './customer-account/customer-account.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { ShopScopeGuard } from './common/shop-scope.guard';
 import { ShopModule } from './shop/shop.module';
@@ -22,6 +23,7 @@ import { HealthController } from './health/health.controller';
     PrismaModule,
     AuthModule,
     CustomerAuthModule,
+    CustomerAccountModule,
     ShopModule,
     StorefrontModule,
     ProductFeedModule,

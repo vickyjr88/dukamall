@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ShopProduct } from '@/app/lib/api';
 import { useCart } from '@/app/lib/cart';
+import { FavoriteButton } from '@/app/favorite-button';
 
 export function ProductClient({ product }: { product: ShopProduct }) {
   const cart = useCart();
@@ -13,7 +14,10 @@ export function ProductClient({ product }: { product: ShopProduct }) {
   return (
     <main className="shop-container">
       {product.imageUrls[0] ? <img src={product.imageUrls[0]} alt={product.name} style={{ width: '100%', maxWidth: 420 }} /> : null}
-      <h1>{product.name}</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <h1 style={{ margin: 0 }}>{product.name}</h1>
+        <FavoriteButton productId={product.id} />
+      </div>
       {product.description ? <p>{product.description}</p> : null}
 
       {product.variants.length > 0 ? (
