@@ -34,6 +34,17 @@ model Shop {
   customDomain String?    @unique
   status       ShopStatus @default(TRIAL)
 
+  // Custom-domain verification (design doc Phase 3). A domain sits here,
+  // unverified and doing nothing, until DomainVerificationService confirms
+  // the owner controls it via a DNS TXT lookup -- ONLY then is it copied
+  // into customDomain above, the field resolveByHost() actually trusts.
+  // Never promote pendingDomain -> customDomain without that check: it's
+  // the only thing standing between "any shop owner can type in a domain
+  // form" and a shop hijacking traffic meant for a business it doesn't own.
+  pendingDomain           String?
+  domainVerificationToken String?
+  domainVerifiedAt        DateTime?
+
   whatsappNumber         String?
   paystackSecretKey      String?
   paystackPublicKey      String?

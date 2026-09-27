@@ -5,6 +5,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <nav style={{ display: 'flex', gap: 12, marginBottom: 24, fontSize: 14 }}>
         <a href="/portal/products">Products</a>
         <a href="/portal/theme">Theme</a>
+        <a href="/portal/domain">Domain</a>
         <a href="/portal/settings">Settings</a>
       </nav>
       {children}

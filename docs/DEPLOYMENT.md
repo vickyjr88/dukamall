@@ -43,14 +43,30 @@ Two domain shapes to handle:
 2. **Custom domains** (`nairobigents.co.ke`) -- each one needs its own
    `server_name` block and its own certificate. This does NOT scale to
    manually adding an nginx block per shop as the platform grows past a
-   handful of shops -- once self-service custom-domain connection is built
-   (design doc Phase 3), automate this with Caddy instead of nginx (or
+   handful of shops -- automate this with Caddy instead of nginx (or
    nginx + a companion ACME automation tool), since Caddy issues and
    renews a certificate automatically the first time it sees a new
    `server_name` in its config, with zero manual certbot steps per shop.
    **Recommendation: don't hand-roll per-shop nginx+certbot blocks past the
    first 2-3 shops** -- migrate the reverse-proxy layer to Caddy before it
    becomes 50 manual blocks to maintain.
+
+   The self-service side of this (Phase 3, done) is app-level, not
+   infra-level: a shop owner requests a domain in `/portal/domain`, the
+   backend (`backend/src/shop/domain-verification.service.ts`) issues a
+   random token and asks them to add it as a TXT record at
+   `_shops-platform-verify.<domain>`, and only promotes the domain to
+   `Shop.customDomain` -- the field `resolveByHost()` actually trusts for
+   routing -- once that TXT record is confirmed by a real DNS lookup. This
+   proves the shop owner controls the domain before the platform ever
+   routes traffic for it or an operator adds an nginx/Caddy block for it.
+   **The infra step (adding the `server_name` block + issuing a cert) is
+   still manual** even after app-level verification succeeds -- an
+   operator (or, eventually, an automated hook reacting to
+   `domainVerifiedAt` being set) still has to add the domain to the
+   reverse-proxy config. Wiring that trigger up is worth doing once the
+   volume of custom-domain connections makes the manual step a bottleneck,
+   not before.
 
 Both shapes proxy to the exact same upstream pool (both web ports, both
 backend ports, exactly like drip-crm's own nginx config) -- there is
