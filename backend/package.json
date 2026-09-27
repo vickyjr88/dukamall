@@ -12,7 +12,8 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js",
-    "seed": "npm run prisma:seed"
+    "seed": "npm run prisma:seed",
+    "sync:drip-emporium": "ts-node scripts/sync-drip-emporium-feed.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.5",
@@ -39,6 +40,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/passport-jwt": "^4.0.1",
     "prisma": "5.22.0",
+    "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.6.2"
   }

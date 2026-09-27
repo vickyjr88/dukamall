@@ -151,6 +151,15 @@ model Product {
   isActive    Boolean  @default(true)
   isFeatured  Boolean  @default(false)
 
+  // Set only for a product created by scripts/sync-drip-emporium-feed.ts,
+  // holding that feed's item_group_id -- the sync's find-key for "have I
+  // already created this product" on a re-run, and the one thing that
+  // distinguishes a synced product from one a shop owner typed in by hand
+  // via the portal. NULL here means "hands off, sync must never touch this
+  // row" -- see that script's own header comment for why this boundary
+  // exists.
+  syncSourceId String?
+
   variants    ProductVariant[]
   favorites   Favorite[]
 
@@ -158,6 +167,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   @@unique([shopId, slug])
+  @@unique([shopId, syncSourceId])
 }
 
 // No StockMovement ledger -- stockOnHand is a plain counter, decremented on a

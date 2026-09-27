@@ -91,6 +91,120 @@ nothing shop-specific in the proxy layer itself, only in which
 6. Visit `https://<your-test-shop>.dukamall.app/portal/signup` and create
    the first real shop.
 
+## Running alongside drip-crm on the same server (msa.dripemporium.store)
+
+This is the actual first deployment: this platform runs on the same VPS
+that already hosts `dripemporium.store` (the drip-crm repo, aaPanel-managed,
+Docker bridge at `172.17.0.1` -- see that repo's own `docs/DEPLOYMENT.md`
+for the base server setup). The two stacks don't share a docker-compose
+project or a database -- they're two independent Compose stacks, isolated
+by the port blocks in the table above, coexisting on one host.
+
+**`msa.dripemporium.store` is a *custom domain* for the `msa` shop, not this
+platform's own `PLATFORM_DOMAIN`.** `dripemporium.store`'s apex belongs to
+drip-crm; this platform only ever owns one subdomain of it
+(`msa.dripemporium.store`), not the whole domain. That means the domain
+connects through the same self-service flow any shop owner would use
+(`/portal/domain`) -- there is no special-cased "platform apex" shortcut for
+this shop, which is deliberate: it exercises the real onboarding path
+instead of a one-off hand-wired route that every other shop's domain
+wouldn't get.
+
+1. **Clone and configure**, same as any deploy:
+   ```bash
+   cd /opt && git clone <this-repo> shops-platform && cd shops-platform
+   cp .env.sample .env
+   # JWT_SECRET, POSTGRES_*, MINIO_* -- fill in real values.
+   # PLATFORM_DOMAIN can stay a placeholder (e.g. dukamall.app) for now --
+   # this deployment's only real shop reaches it via a custom domain, not a
+   # platform subdomain.
+   ```
+2. **Bring the stack up**: `./scripts/deploy.sh` (needs the ports in the table
+   above to be free -- they're deliberately outside drip-crm's own 3003/
+   3004/3101/3102 block, so both `docker compose up` invocations coexist on
+   the same Docker daemon without touching each other's containers).
+3. **Create the `msa` shop**: visit `http://<vps-ip>:3203/portal/signup` (or
+   tunnel over SSH if the ports aren't open yet) with slug `msa`.
+4. **Connect the domain**: log into `/portal/domain` for that shop, request
+   `msa.dripemporium.store`, and add the TXT record it gives you at your DNS
+   provider for `dripemporium.store` (this is a DNS-only change -- it does
+   not touch drip-crm's own A/CNAME records for the apex or `www`/`api`).
+   Click Verify once the TXT record propagates.
+5. **Point the subdomain at this stack, not drip-crm's**: add an `A` (or
+   `CNAME`) record for `msa.dripemporium.store` -> this same VPS's IP (drip-
+   crm's own A record for the apex is untouched).
+6. **aaPanel site + reverse proxy**, using the same conventions as drip-crm's
+   own sites (see that repo's `docs/DEPLOYMENT.md` "Proxy configuration"
+   section for the full walkthrough this mirrors):
+   - Website -> Add site -> domain `msa.dripemporium.store`, no PHP project
+     (reverse proxy only, same as drip-crm's own sites after their OpenCart
+     PHP handler was removed -- check for and remove any leftover
+     `location ~ \.php$` block here too, since aaPanel can carry one over
+     from a site template).
+   - Reverse Proxy -> target `http://172.17.0.1:3203` (this platform's web
+     slot, NOT drip-crm's 3003 -- easy to fat-finger since both are
+     Next.js storefronts on the same box).
+   - In that site's **Config File** panel, add the same upstream-pool
+     pattern drip-crm's own doc describes, pointed at *this* platform's
+     ports instead:
+     ```nginx
+     upstream msa_web_pool {
+         server 172.17.0.1:3203 max_fails=2 fail_timeout=5s;
+         server 172.17.0.1:3204 max_fails=2 fail_timeout=5s backup;
+     }
+     ```
+     then change `proxy_pass` to `http://msa_web_pool`. This shop's traffic
+     now survives a `shops-platform` rolling deploy exactly the way
+     drip-crm's own traffic survives one of its deploys -- the two rolling-
+     deploy setups are independent and neither affects the other's uptime.
+   - Request a Let's Encrypt cert for `msa.dripemporium.store` through
+     aaPanel's SSL panel, same as any other site there.
+7. Verify: `https://msa.dripemporium.store/` should load the shop's
+   storefront (empty until synced -- see the next section), and
+   `https://msa.dripemporium.store/portal/login` should reach this
+   platform's portal -- both through the one aaPanel site, since the app
+   itself (not nginx) is what tells a portal request from a storefront one.
+
+**What this does NOT require touching**: drip-crm's own docker-compose
+stack, its nginx sites, its database, or its `.env`. The two apps share
+nothing except the same physical VPS and (once connected) DNS records under
+the same parent domain -- a `shops-platform` deploy can never take
+dripemporium.store's own storefront down, and vice versa.
+
+## Syncing the `msa` shop's catalog from dripemporium.store
+
+`backend/scripts/sync-drip-emporium-feed.ts` pulls Drip Emporium's own
+public product feed (`https://dripemporium.store/product-feed.csv` --
+already built and running for its Meta/TikTok catalog ads, see that repo's
+`web/app/lib/product-feed.ts`) into a shop's catalog on this platform. It
+never touches a product a shop owner added by hand through the portal --
+see the script's own header comment for exactly how that boundary is
+enforced (a `syncSourceId` column that manually-created products never
+get).
+
+**One-off run** (e.g. right after creating the `msa` shop):
+```bash
+cd /opt/shops-platform/backend
+npm run sync:drip-emporium -- msa
+```
+
+**Scheduled** (so `msa`'s catalog tracks price/stock/new-product changes on
+dripemporium.store automatically) -- a cron entry on the VPS, run inside the
+backend container so it shares its `DATABASE_URL`/network access rather than
+needing its own:
+```cron
+# Every hour, matching the feed's own revalidate window (see
+# web/app/product-feed.csv/route.ts in drip-crm) -- no point syncing more
+# often than the source itself refreshes.
+0 * * * * cd /opt/shops-platform && docker compose exec -T backend npm run sync:drip-emporium -- msa >> /var/log/shops-platform-sync.log 2>&1
+```
+
+The script logs a created/updated/deactivated/variants-written summary on
+every run and exits non-zero on failure (a bad feed fetch, a malformed
+row), so cron's own mail-on-error behavior (or a `||` alert hook, if wired
+up later) surfaces a broken sync without needing to tail the log
+proactively.
+
 ## Subsequent deploys
 
 Same as drip-crm: `./scripts/deploy.sh` on the VPS (or via the CI workflow,
