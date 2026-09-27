@@ -46,6 +46,20 @@ export class PortalProductService {
     return this.prisma.product.update({ where: { id: productId }, data: { isActive } });
   }
 
+  async update(shopId: string, productId: string, data: {
+    name?: string; description?: string; brand?: string; imageUrls?: string[]; isFeatured?: boolean;
+  }) {
+    const product = await this.prisma.product.findFirst({ where: { id: productId, shopId } });
+    if (!product) throw new NotFoundException('Product not found');
+    return this.prisma.product.update({ where: { id: productId }, data, include: { variants: true } });
+  }
+
+  async updateVariant(shopId: string, variantId: string, data: { priceKes?: number; wasPriceKes?: number | null; isActive?: boolean }) {
+    const variant = await this.prisma.productVariant.findFirst({ where: { id: variantId, product: { shopId } } });
+    if (!variant) throw new NotFoundException('Variant not found');
+    return this.prisma.productVariant.update({ where: { id: variantId }, data });
+  }
+
   async adjustStock(shopId: string, variantId: string, delta: number) {
     const variant = await this.prisma.productVariant.findFirst({
       where: { id: variantId, product: { shopId } },
@@ -55,5 +69,14 @@ export class PortalProductService {
       where: { id: variantId },
       data: { stockOnHand: { increment: delta } },
     });
+  }
+
+  /** Sets stock to an exact count, distinct from adjustStock's relative delta -- for correcting a count directly (e.g. after a physical stocktake) rather than adding/removing units. */
+  async setStock(shopId: string, variantId: string, stockOnHand: number) {
+    const variant = await this.prisma.productVariant.findFirst({
+      where: { id: variantId, product: { shopId } },
+    });
+    if (!variant) throw new NotFoundException('Variant not found');
+    return this.prisma.productVariant.update({ where: { id: variantId }, data: { stockOnHand } });
   }
 }

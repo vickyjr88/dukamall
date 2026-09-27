@@ -24,7 +24,7 @@ export default function LoginPage() {
       return;
     }
     window.localStorage.setItem('shops_platform_token', data.access_token);
-    router.push('/portal/products');
+    router.push('/portal/dashboard');
   }
 
   return (

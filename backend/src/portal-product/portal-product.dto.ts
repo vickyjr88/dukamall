@@ -24,3 +24,17 @@ export class CreateProductDto {
   @IsArray() @ArrayMinSize(1) @ValidateNested({ each: true }) @Type(() => VariantInputDto)
   variants!: VariantInputDto[];
 }
+
+export class UpdateProductDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() @IsNotEmpty() name?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() brand?: string;
+  @ApiPropertyOptional() @IsOptional() imageUrls?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
+}
+
+export class UpdateVariantDto {
+  @ApiPropertyOptional() @IsOptional() priceKes?: number;
+  @ApiPropertyOptional() @IsOptional() wasPriceKes?: number | null;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+}

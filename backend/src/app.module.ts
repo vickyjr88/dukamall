@@ -15,6 +15,7 @@ import { CartLeadModule } from './cart-lead/cart-lead.module';
 import { MediaModule } from './media/media.module';
 import { ReportsModule } from './reports/reports.module';
 import { PortalProductModule } from './portal-product/portal-product.module';
+import { PortalOrderModule } from './portal-order/portal-order.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { HealthController } from './health/health.controller';
 
@@ -33,6 +34,7 @@ import { HealthController } from './health/health.controller';
     MediaModule,
     ReportsModule,
     PortalProductModule,
+    PortalOrderModule,
     OnboardingModule,
   ],
   controllers: [HealthController],
