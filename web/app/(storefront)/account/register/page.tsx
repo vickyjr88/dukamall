@@ -35,25 +35,35 @@ export default function CustomerRegisterPage() {
   }
 
   return (
-    <main className="shop-container" style={{ maxWidth: 360 }}>
+    <main className="shop-container shop-section auth-card">
       <h1>Create an account</h1>
-      <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <input placeholder="First name" value={form.firstName}
-          onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
-        <input placeholder="Last name" value={form.lastName}
-          onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
-        <input type="email" placeholder="Email" required value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-        <input type="password" placeholder="Password (min 8 characters)" required minLength={8} value={form.password}
-          onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-        {error ? <p style={{ color: 'red' }}>{error}</p> : null}
-        <button type="submit" className="btn" disabled={submitting}>
+      <p className="subtitle">Track your orders and save your favorites.</p>
+      <form onSubmit={onSubmit}>
+        <div style={{ display: 'flex', gap: 'var(--shop-space-3)' }}>
+          <div className="form-field" style={{ flex: 1 }}>
+            <label htmlFor="reg-first-name">First name</label>
+            <input id="reg-first-name" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
+          </div>
+          <div className="form-field" style={{ flex: 1 }}>
+            <label htmlFor="reg-last-name">Last name</label>
+            <input id="reg-last-name" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
+          </div>
+        </div>
+        <div className="form-field">
+          <label htmlFor="reg-email">Email</label>
+          <input id="reg-email" type="email" required value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+        </div>
+        <div className="form-field">
+          <label htmlFor="reg-password">Password</label>
+          <input id="reg-password" type="password" required minLength={8} placeholder="At least 8 characters" value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+        </div>
+        {error ? <p style={{ color: 'var(--shop-danger)', fontSize: 'var(--shop-text-sm)', marginBottom: 'var(--shop-space-3)' }}>{error}</p> : null}
+        <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
           {submitting ? 'Creating account...' : 'Create account'}
         </button>
       </form>
-      <p style={{ marginTop: 12, fontSize: 13 }}>
-        Already have an account? <a href="/account/login">Log in</a>
-      </p>
+      <p className="switch-link">Already have an account? <a href="/account/login">Log in</a></p>
     </main>
   );
 }

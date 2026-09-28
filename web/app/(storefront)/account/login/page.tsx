@@ -35,21 +35,26 @@ export default function CustomerLoginPage() {
   }
 
   return (
-    <main className="shop-container" style={{ maxWidth: 360 }}>
-      <h1>Log in</h1>
-      <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <input type="email" placeholder="Email" required value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-        <input type="password" placeholder="Password" required value={form.password}
-          onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-        {error ? <p style={{ color: 'red' }}>{error}</p> : null}
-        <button type="submit" className="btn" disabled={submitting}>
+    <main className="shop-container shop-section auth-card">
+      <h1>Welcome back</h1>
+      <p className="subtitle">Log in to see your orders and favorites.</p>
+      <form onSubmit={onSubmit}>
+        <div className="form-field">
+          <label htmlFor="login-email">Email</label>
+          <input id="login-email" type="email" required value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+        </div>
+        <div className="form-field">
+          <label htmlFor="login-password">Password</label>
+          <input id="login-password" type="password" required value={form.password}
+            onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+        </div>
+        {error ? <p style={{ color: 'var(--shop-danger)', fontSize: 'var(--shop-text-sm)', marginBottom: 'var(--shop-space-3)' }}>{error}</p> : null}
+        <button type="submit" className="btn btn-primary btn-block" disabled={submitting}>
           {submitting ? 'Logging in...' : 'Log in'}
         </button>
       </form>
-      <p style={{ marginTop: 12, fontSize: 13 }}>
-        New here? <a href="/account/register">Create an account</a>
-      </p>
+      <p className="switch-link">New here? <a href="/account/register">Create an account</a></p>
     </main>
   );
 }

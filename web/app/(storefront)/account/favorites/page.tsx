@@ -2,14 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useCustomerAuth } from '@/app/lib/customer-auth';
 import { useCustomerFetch } from '@/app/lib/use-customer-fetch';
+import { ProductCard } from '@/app/product-card';
+import { ShopProduct } from '@/app/lib/api';
 
-type Favorite = {
-  id: string;
-  product: { id: string; slug: string; name: string; imageUrls: string[]; variants: { priceKes: string }[] };
-};
+type Favorite = { id: string; product: ShopProduct };
 
 export default function FavoritesPage() {
   const router = useRouter();
@@ -36,33 +34,32 @@ export default function FavoritesPage() {
   if (!ready || !customer) return null;
 
   return (
-    <main className="shop-container">
-      <h1>Favorites</h1>
+    <main className="shop-container shop-section">
+      <div className="shop-section-head">
+        <div>
+          <span className="eyebrow">My account</span>
+          <h1>Favorites</h1>
+        </div>
+      </div>
+
       {!favorites ? <p>Loading...</p> : favorites.length === 0 ? (
-        <p>Nothing saved yet -- tap the heart on a product to save it here.</p>
+        <div className="empty-state">
+          <h3>Nothing saved yet</h3>
+          <p>Tap the heart on a product to save it here.</p>
+        </div>
       ) : (
         <div className="product-grid">
           {favorites.map((fav) => (
-            <div key={fav.id} className="product-card" style={{ position: 'relative' }}>
-              <Link href={`/shop/${fav.product.slug}`}>
-                {fav.product.imageUrls[0] ? (
-                  <img src={fav.product.imageUrls[0]} alt={fav.product.name} />
-                ) : (
-                  <div style={{ aspectRatio: '4/5', background: '#eee' }} />
-                )}
-                <div className="body">
-                  <div className="name">{fav.product.name}</div>
-                  {fav.product.variants[0] ? (
-                    <div className="price">KES {Number(fav.product.variants[0].priceKes).toLocaleString()}</div>
-                  ) : null}
-                </div>
-              </Link>
+            <div key={fav.id} style={{ position: 'relative' }}>
+              <ProductCard product={fav.product} />
               <button
                 type="button"
                 onClick={() => onRemove(fav.product.id)}
-                style={{ position: 'absolute', top: 8, right: 8, background: '#fff', border: '1px solid var(--shop-line)', cursor: 'pointer', padding: '4px 8px' }}
+                className="btn-icon"
+                aria-label="Remove from favorites"
+                style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, background: 'rgba(255,255,255,0.9)' }}
               >
-                Remove
+                &times;
               </button>
             </div>
           ))}

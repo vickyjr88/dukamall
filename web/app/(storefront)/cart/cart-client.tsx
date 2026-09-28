@@ -24,7 +24,17 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   }, [customer]);
 
   if (!cart.ready) return null;
-  if (cart.lines.length === 0) return <main className="shop-container"><p>Your cart is empty.</p></main>;
+  if (cart.lines.length === 0) {
+    return (
+      <main className="shop-container shop-section">
+        <div className="empty-state">
+          <h3>Your cart is empty</h3>
+          <p>Add something you love and it will show up here.</p>
+          <a href="/" className="btn btn-primary">Continue shopping</a>
+        </div>
+      </main>
+    );
+  }
 
   function buildWhatsappMessage() {
     const lines = [`Hello ${shopInfo.name}, I would like to order:`];
@@ -110,55 +120,89 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   }
 
   return (
-    <main className="shop-container">
-      <h1>Your cart</h1>
-      {cart.lines.map((line) => (
-        <div key={line.id} className={`cart-line${line.isCustomSize ? ' cart-line--custom' : ''}`}>
-          {line.imageUrl ? <img src={line.imageUrl} alt="" /> : null}
-          <div style={{ flex: 1 }}>
-            <div>{line.name}</div>
-            <div style={{ color: 'var(--shop-muted)', fontSize: 13 }}>
-              {line.size}
-              {line.isCustomSize ? ' -- not listed, we will confirm on WhatsApp' : ` -- KES ${line.priceKes.toLocaleString()} each`}
-            </div>
-          </div>
-          <input
-            type="number"
-            min={1}
-            value={line.quantity}
-            onChange={(e) => cart.setQuantity(line.id, Number(e.target.value))}
-            style={{ width: 50 }}
-          />
-          <button onClick={() => cart.remove(line.id)}>Remove</button>
+    <main className="shop-container shop-section">
+      <div className="shop-section-head">
+        <div>
+          <span className="eyebrow">{cart.count} item{cart.count === 1 ? '' : 's'}</span>
+          <h1>Your cart</h1>
         </div>
-      ))}
-
-      {cart.hasCustomSizeLine ? (
-        <p style={{ fontSize: 13, color: 'var(--shop-muted)' }}>
-          A size you typed isn&apos;t included in the total below -- send your order on WhatsApp to confirm it.
-        </p>
-      ) : null}
-
-      <p><strong>Subtotal: KES {cart.subtotal.toLocaleString()}</strong></p>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 320 }}>
-        <input placeholder="First name" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
-        <input placeholder="Last name" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
-        <input placeholder="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-        <input placeholder="Phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
       </div>
 
-      {error ? <p style={{ color: 'red' }}>{error}</p> : null}
+      <div className="cart-layout">
+        <div>
+          {cart.lines.map((line) => (
+            <div key={line.id} className={`cart-line${line.isCustomSize ? ' cart-line--custom' : ''}`}>
+              {line.imageUrl ? <img src={line.imageUrl} alt="" /> : <div style={{ width: 84, height: 84, background: 'var(--shop-surface)', borderRadius: 'var(--shop-radius-sm)' }} />}
+              <div>
+                <div className="name">{line.name}</div>
+                <div className="meta">
+                  {line.size}
+                  {line.isCustomSize ? ' -- not listed, we will confirm on WhatsApp' : ` -- KES ${line.priceKes.toLocaleString()} each`}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => cart.remove(line.id)}
+                  style={{ marginTop: 8, fontSize: 'var(--shop-text-xs)', color: 'var(--shop-muted)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  Remove
+                </button>
+              </div>
+              <div className="qty-stepper">
+                <button type="button" onClick={() => cart.setQuantity(line.id, line.quantity - 1)} aria-label="Decrease quantity">&minus;</button>
+                <input
+                  type="number"
+                  min={1}
+                  value={line.quantity}
+                  onChange={(e) => cart.setQuantity(line.id, Number(e.target.value))}
+                />
+                <button type="button" onClick={() => cart.setQuantity(line.id, line.quantity + 1)} aria-label="Increase quantity">+</button>
+              </div>
+            </div>
+          ))}
+        </div>
 
-      <button className="btn" disabled={submitting} onClick={onCheckout} style={{ marginTop: 12 }}>
-        {submitting ? 'Processing...' : `Pay KES ${cart.subtotal.toLocaleString()}`}
-      </button>
+        <div className="summary-card">
+          {cart.hasCustomSizeLine ? (
+            <p style={{ fontSize: 'var(--shop-text-xs)', color: 'var(--shop-muted)', marginBottom: 'var(--shop-space-4)' }}>
+              A size you typed isn&apos;t included in the total below -- send your order on WhatsApp to confirm it.
+            </p>
+          ) : null}
 
-      {shopInfo.whatsappNumber ? (
-        <button type="button" className="btn btn-accent" onClick={onWhatsapp} style={{ marginTop: 8, display: 'block', width: '100%' }}>
-          Buy via WhatsApp instead
-        </button>
-      ) : null}
+          <div className="summary-row"><span>Subtotal</span><span>KES {cart.subtotal.toLocaleString()}</span></div>
+          <div className="summary-row is-total"><span>Total</span><span>KES {cart.subtotal.toLocaleString()}</span></div>
+
+          <div style={{ marginTop: 'var(--shop-space-5)' }}>
+            <div className="form-field">
+              <label htmlFor="cart-first-name">First name</label>
+              <input id="cart-first-name" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
+            </div>
+            <div className="form-field">
+              <label htmlFor="cart-last-name">Last name</label>
+              <input id="cart-last-name" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
+            </div>
+            <div className="form-field">
+              <label htmlFor="cart-email">Email</label>
+              <input id="cart-email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+            </div>
+            <div className="form-field">
+              <label htmlFor="cart-phone">Phone</label>
+              <input id="cart-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+          </div>
+
+          {error ? <p style={{ color: 'var(--shop-danger)', fontSize: 'var(--shop-text-sm)', marginBottom: 'var(--shop-space-3)' }}>{error}</p> : null}
+
+          <button className="btn btn-primary btn-block" disabled={submitting} onClick={onCheckout} style={{ marginTop: 'var(--shop-space-3)' }}>
+            {submitting ? 'Processing...' : `Pay KES ${cart.subtotal.toLocaleString()}`}
+          </button>
+
+          {shopInfo.whatsappNumber ? (
+            <button type="button" className="btn btn-accent btn-block" onClick={onWhatsapp} style={{ marginTop: 'var(--shop-space-3)' }}>
+              Buy via WhatsApp instead
+            </button>
+          ) : null}
+        </div>
+      </div>
     </main>
   );
 }

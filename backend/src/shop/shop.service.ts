@@ -73,6 +73,8 @@ export class ShopService {
         { key: 'fraunces-manrope', label: 'Fraunces + Manrope (editorial serif)' },
         { key: 'playfair-inter', label: 'Playfair Display + Inter (classic elegant)' },
         { key: 'poppins-only', label: 'Poppins (modern, rounded)' },
+        { key: 'dm-serif-work', label: 'DM Serif + Work Sans (warm editorial)' },
+        { key: 'unbounded-sans', label: 'Unbounded + Sora (bold contemporary)' },
       ],
       layoutPresets: [
         { key: 'sharp', label: 'Sharp (square corners, no rounding)' },
