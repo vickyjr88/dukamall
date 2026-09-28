@@ -17,6 +17,8 @@ import { ReportsModule } from './reports/reports.module';
 import { PortalProductModule } from './portal-product/portal-product.module';
 import { PortalOrderModule } from './portal-order/portal-order.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { AdminAuthModule } from './admin-auth/admin-auth.module';
+import { AdminModule } from './admin/admin.module';
 import { HealthController } from './health/health.controller';
 
 @Module({
@@ -36,6 +38,8 @@ import { HealthController } from './health/health.controller';
     PortalProductModule,
     PortalOrderModule,
     OnboardingModule,
+    AdminAuthModule,
+    AdminModule,
   ],
   controllers: [HealthController],
   providers: [

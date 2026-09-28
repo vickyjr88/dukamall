@@ -13,7 +13,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:seed": "node prisma/seed.js",
     "seed": "npm run prisma:seed",
-    "sync:drip-emporium": "ts-node scripts/sync-drip-emporium-feed.ts"
+    "sync:drip-emporium": "ts-node scripts/sync-drip-emporium-feed.ts",
+    "create:super-admin": "ts-node scripts/create-super-admin.ts"
   },
   "dependencies": {
     "@nestjs/bullmq": "^11.0.5",

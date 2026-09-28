@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-type StaffJwtPayload = { kind?: 'customer'; sub: string; email: string; shopId: string; role: string };
+type StaffJwtPayload = { kind?: 'customer' | 'admin'; sub: string; email: string; shopId: string; role: string };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -16,9 +16,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: StaffJwtPayload) {
-    // Customer-portal tokens are signed with the same secret -- reject them
-    // explicitly here rather than relying on the UserShop lookup missing.
-    if (payload?.kind === 'customer') {
+    // Customer and admin tokens are signed with the same secret -- reject
+    // them explicitly here rather than relying on the UserShop lookup
+    // (an admin token has no shopId claim at all, which would otherwise hit
+    // that lookup with shopId: undefined and surface as a 500, not a clean
+    // 401).
+    if (payload?.kind === 'customer' || payload?.kind === 'admin') {
       throw new UnauthorizedException();
     }
     const membership = await this.prisma.userShop.findUnique({

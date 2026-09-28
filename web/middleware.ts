@@ -8,9 +8,14 @@ import { NextRequest, NextResponse } from 'next/server';
  * backend's ShopScopeGuard refuses every request outright -- see
  * backend/src/common/shop-scope.guard.ts.
  *
- * The /portal/* admin routes are the one exception: a staff member's own JWT
- * already carries their shopId, so no host-based resolution applies there --
- * see app/portal/layout.tsx.
+ * Two exceptions, neither of which has a shop to resolve:
+ *   - /portal/* -- a staff member's own JWT already carries their shopId,
+ *     see app/portal/layout.tsx.
+ *   - /admin/* -- the platform-operator console. An admin token has no
+ *     shopId claim at all (see backend/src/admin-auth) -- it operates
+ *     across every shop, so there is nothing for this middleware to
+ *     resolve, and forcing a host-based lookup here would 404/502 an
+ *     operator visiting from a host that happens to match no shop.
  */
 
 const API_BASE_URL = (process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200').replace(/\/$/, '');
@@ -18,7 +23,7 @@ const API_BASE_URL = (process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBL
 export async function middleware(request: NextRequest) {
   const host = request.headers.get('host') || '';
 
-  if (request.nextUrl.pathname.startsWith('/portal')) {
+  if (request.nextUrl.pathname.startsWith('/portal') || request.nextUrl.pathname.startsWith('/admin')) {
     return NextResponse.next();
   }
 

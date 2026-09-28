@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -23,6 +23,16 @@ export class ShopService {
       include: { theme: true },
     });
     if (!shop) throw new NotFoundException('No shop matches this domain');
+    // SUSPENDED is the admin center's enforcement point (design intent: a
+    // suspension has to actually take the storefront down, not just flip a
+    // cosmetic flag nothing reads) -- checked here because every storefront
+    // request passes through this resolution first, via web/middleware.ts.
+    // Staff/portal access to a suspended shop's own data is deliberately
+    // NOT blocked here -- an owner should still be able to log in and see
+    // why they were suspended, or fix whatever got them suspended.
+    if (shop.status === 'SUSPENDED') {
+      throw new ForbiddenException('This shop is currently unavailable.');
+    }
     return shop;
   }
 
