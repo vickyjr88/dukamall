@@ -47,6 +47,10 @@ export type ShopProduct = {
   imageUrls: string[];
   variants: ShopVariant[];
   category: { id: string; name: string; slug: string } | null;
+  /** Only present on the single-product response (getProduct), never on a
+   * list response -- "you might also like" doesn't make sense for a related
+   * product itself, so the backend doesn't recurse into its own relateds. */
+  related?: ShopProduct[];
 };
 
 export async function getTheme(): Promise<ShopTheme> {

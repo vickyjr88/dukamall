@@ -30,7 +30,52 @@ export class StorefrontService {
       include: { variants: { where: { isActive: true } }, category: true },
     });
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
-    return product;
+
+    // "You might also like" -- same category first (what a shopper actually
+    // means by "similar"), falling back to same brand, then to whatever's
+    // newest, so a product with no category or a lone-brand item still gets
+    // a populated rail instead of an empty one.
+    const related = await this.findRelated(shopId, product.id, product.categoryId, product.brand);
+
+    return { ...product, related };
+  }
+
+  private async findRelated(
+    shopId: string,
+    excludeProductId: string,
+    categoryId: string | null,
+    brand: string | null,
+  ) {
+    const take = 8;
+    const baseWhere = { shopId, isActive: true, id: { not: excludeProductId } };
+    const include = { variants: { where: { isActive: true } }, category: true } as const;
+
+    if (categoryId) {
+      const byCategory = await this.prisma.product.findMany({
+        where: { ...baseWhere, categoryId },
+        include,
+        orderBy: { createdAt: 'desc' },
+        take,
+      });
+      if (byCategory.length > 0) return byCategory;
+    }
+
+    if (brand) {
+      const byBrand = await this.prisma.product.findMany({
+        where: { ...baseWhere, brand },
+        include,
+        orderBy: { createdAt: 'desc' },
+        take,
+      });
+      if (byBrand.length > 0) return byBrand;
+    }
+
+    return this.prisma.product.findMany({
+      where: baseWhere,
+      include,
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
   }
 
   listCategories(shopId: string) {

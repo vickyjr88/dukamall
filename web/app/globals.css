@@ -350,21 +350,41 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 }
 
 .product-card {
-  display: block;
+  position: relative;
+  color: inherit;
+  /* A grid item's default min-width is auto, which lets a long nowrap name
+     (see .product-card .name below) push its own column wider than the
+     other 1fr tracks in the row -- forcing it to 0 lets the grid's own 1fr
+     sizing win and the name's own text-overflow:ellipsis handle overflow
+     instead. */
+  min-width: 0;
+}
+/* The card used to be one big <Link>; the overlay actions below now need
+   their own click targets, so the name link (.product-card .name a)
+   stretches over the whole card via ::after instead -- clicking anywhere
+   that isn't a button still opens the product. */
+.product-card .name a {
   color: inherit;
   text-decoration: none;
 }
+.product-card .name a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
 .product-card-media {
   position: relative;
+  display: block;
   aspect-ratio: 4 / 5;
   background: var(--shop-surface);
   border-radius: var(--shop-radius-sm);
   overflow: hidden;
   margin-bottom: var(--shop-space-3);
 }
+/* next/image (fill mode) renders its own <img> with inline sizing; this
+   covers both that and the legacy plain <img> path so cropping stays
+   consistent regardless of which one a given card uses. */
 .product-card-media img {
-  width: 100%;
-  height: 100%;
   object-fit: cover;
   transition: transform 0.5s var(--shop-ease);
 }
@@ -374,6 +394,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   position: absolute;
   top: var(--shop-space-3);
   left: var(--shop-space-3);
+  z-index: 1;
   background: var(--shop-ink);
   color: #fff;
   font-size: 10px;
@@ -384,7 +405,39 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   border-radius: var(--shop-radius-sm);
 }
 .product-card-badge.is-sale { background: var(--shop-accent); }
+.product-card-badge.is-preorder { background: var(--shop-muted); }
 
+/* Favorite + share icons, top-right over the image. Visible on touch
+   devices always (no hover to reveal on a phone); fades in on hover for a
+   mouse, matching the card image's own hover treatment. */
+.product-card-overlay-actions {
+  position: absolute;
+  top: var(--shop-space-2);
+  right: var(--shop-space-2);
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  opacity: 1;
+}
+@media (hover: hover) {
+  .product-card-overlay-actions { opacity: 0; transition: opacity 0.15s var(--shop-ease); }
+  .product-card:hover .product-card-overlay-actions { opacity: 1; }
+}
+.product-card-overlay-actions .btn-icon,
+.product-card-overlay-actions .share-btn {
+  width: 34px;
+  height: 34px;
+  background: #fff;
+}
+
+.product-card-brand {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--shop-muted);
+  margin: 0 0 2px;
+}
 .product-card .name {
   font-size: var(--shop-text-sm);
   font-weight: 600;
@@ -403,6 +456,17 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   margin-right: var(--shop-space-2);
   font-size: var(--shop-text-xs);
 }
+.product-card-sizes {
+  margin-top: 4px;
+  font-size: var(--shop-text-xs);
+  color: var(--shop-muted);
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.product-card-sizes em { font-style: normal; font-weight: 600; color: var(--shop-ink-soft); }
+.product-card-sizes small { color: var(--shop-line-strong); }
+.product-card-sizes.is-preorder { color: var(--shop-muted); }
 
 /* Placeholder tile for a product with no image -- never a raw grey <div> */
 .product-card-placeholder {
@@ -430,12 +494,33 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 }
 
 .pdp-gallery-main {
+  position: relative;
   aspect-ratio: 4 / 5;
   background: var(--shop-surface);
   border-radius: var(--shop-radius-sm);
   overflow: hidden;
 }
-.pdp-gallery-main img { width: 100%; height: 100%; object-fit: cover; }
+.pdp-gallery-main img { object-fit: cover; }
+
+.pdp-gallery-thumbs {
+  display: flex;
+  gap: var(--shop-space-2);
+  margin-top: var(--shop-space-3);
+  flex-wrap: wrap;
+}
+.pdp-gallery-thumbs button {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  border: 1px solid var(--shop-line-strong);
+  border-radius: var(--shop-radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--shop-surface);
+}
+.pdp-gallery-thumbs button img { object-fit: cover; }
+.pdp-gallery-thumbs button.is-on { border-color: var(--shop-ink); border-width: 2px; }
 
 .pdp-info { position: sticky; top: calc(var(--shop-header-h) + var(--shop-space-5)); }
 @media (max-width: 860px) { .pdp-info { position: static; } }
@@ -504,10 +589,22 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 }
 .size-swatch:hover { border-color: var(--shop-ink); }
 .size-swatch.is-selected { background: var(--shop-ink); color: #fff; border-color: var(--shop-ink); }
+/* Never disabled/struck-through -- a zero-stock size is still pickable and
+   orderable, just visually quieter than an in-stock one so the difference
+   is legible without reading as "you can't have this." */
+.size-swatch.is-preorder { color: var(--shop-muted); border-style: dashed; }
+.size-swatch.is-preorder.is-selected { color: #fff; border-style: solid; }
+
+.pdp-preorder-note {
+  margin: calc(var(--shop-space-3) * -1) 0 var(--shop-space-5);
+  font-size: var(--shop-text-xs);
+  color: var(--shop-muted);
+}
 
 .pdp-actions { display: flex; flex-direction: column; gap: var(--shop-space-3); margin-bottom: var(--shop-space-6); }
 .pdp-actions-row { display: flex; gap: var(--shop-space-3); }
 .pdp-actions-row .btn { flex: 1; }
+.pdp-whatsapp-btn { text-align: center; }
 
 .manual-size-block {
   border-top: 1px solid var(--shop-line);
@@ -540,6 +637,43 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   color: var(--shop-muted);
 }
 .trust-row span { display: flex; align-items: center; gap: 6px; }
+
+/* -----------------------------------------------------------------------
+   Share button -- matches .btn-icon's sizing so the favorite + share pair
+   read as one family wherever they appear together (card overlay, PDP
+   title row).
+   -------------------------------------------------------------------- */
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  background: #fff;
+  color: var(--shop-ink);
+  border: 1px solid var(--shop-line-strong);
+  border-radius: var(--shop-radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s var(--shop-ease), color 0.15s var(--shop-ease);
+}
+.share-btn:hover { border-color: var(--shop-ink); }
+.share-btn:not(.is-compact) { width: auto; padding: 0 14px; }
+.share-btn-label { font-size: var(--shop-text-sm); font-weight: 600; }
+
+/* -----------------------------------------------------------------------
+   Related products ("You might also like")
+   -------------------------------------------------------------------- */
+.related-products {
+  margin-top: var(--shop-space-9);
+  padding-top: var(--shop-space-7);
+  border-top: 1px solid var(--shop-line);
+}
+.related-products h2 {
+  font-size: var(--shop-text-xl);
+  margin-bottom: var(--shop-space-5);
+}
 
 /* -----------------------------------------------------------------------
    Cart
