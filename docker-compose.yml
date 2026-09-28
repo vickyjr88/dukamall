@@ -12,7 +12,6 @@ x-web-build: &web-build
     - NEXT_PUBLIC_PLATFORM_DOMAIN=${NEXT_PUBLIC_PLATFORM_DOMAIN:-localhost:3203}
 
 x-web-environment: &web-environment
-  INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:3200}
   NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3211}
   PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-dukamall.app}
 
@@ -64,7 +63,15 @@ services:
     build: *web-build
     ports:
       - "${WEB_PORT:-3203}:3202"
-    environment: *web-environment
+    environment:
+      <<: *web-environment
+      # Each web slot talks to its own paired backend by real service name,
+      # not a shared alias -- during a rolling deploy both backend and
+      # backend2 are briefly up together, and a floating alias would let
+      # Docker's round-robin DNS route a request to whichever one answered,
+      # including the slot mid-swap. Pairing by service name keeps each web
+      # container's only network path to the API stable throughout a deploy.
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://backend:3200}
     healthcheck: *web-healthcheck
     depends_on:
       - backend
@@ -74,10 +81,12 @@ services:
     build: *web-build
     ports:
       - "${WEB_PORT2:-3204}:3202"
-    environment: *web-environment
+    environment:
+      <<: *web-environment
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL2:-http://backend2:3200}
     healthcheck: *web-healthcheck
     depends_on:
-      - backend
+      - backend2
     profiles: ["standby"]
     restart: unless-stopped
 
