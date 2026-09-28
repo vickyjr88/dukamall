@@ -16,8 +16,14 @@ x-web-environment: &web-environment
   NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3211}
   PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-dukamall.app}
 
+# This app resolves tenants by Host header (web/middleware.ts) -- a bare
+# request with no matching shop domain correctly 404s with "No shop found
+# for this domain" even when Next.js itself is perfectly healthy. Sending
+# PLATFORM_DOMAIN as the Host header instead proves the whole request path
+# (Next.js up, reachable, and successfully resolving a real tenant) rather
+# than just "some HTTP server is listening".
 x-web-healthcheck: &web-healthcheck
-  test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3202/ || exit 1"]
+  test: ["CMD-SHELL", "wget -qO- --header=\"Host: ${PLATFORM_DOMAIN:-dukamall.app}\" http://127.0.0.1:3202/ || exit 1"]
   interval: 10s
   timeout: 5s
   retries: 12

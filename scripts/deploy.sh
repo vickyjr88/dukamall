@@ -175,9 +175,18 @@ curl -fsS "${IDLE_HEALTH_URL}"; echo
 log "Starting the idle slot's web container (${IDLE_WEB_SERVICE})"
 "${COMPOSE[@]}" up -d --no-deps "${IDLE_WEB_SERVICE}"
 
-log "Waiting for the new slot's web port (${IDLE_WEB_PORT}) to answer"
+WEB_HEALTH_HOST="$(sed -nE 's/^PLATFORM_DOMAIN=(.+)$/\1/p' .env | tail -1)"
+WEB_HEALTH_HOST="${WEB_HEALTH_HOST:-dukamall.app}"
+
+log "Waiting for the new slot's web port (${IDLE_WEB_PORT}) to answer for Host: ${WEB_HEALTH_HOST}"
+# `curl -f` treats any non-2xx/3xx response as failure, but this app resolves
+# tenants by Host header (web/middleware.ts) -- a bare IP:port request with no
+# matching shop domain correctly 404s with "No shop found for this domain"
+# even when Next.js is perfectly healthy. Sending PLATFORM_DOMAIN as the Host
+# header instead proves the whole request path -- Next.js up, reachable, and
+# actually resolving a real tenant -- not just "some HTTP server is up".
 attempt=1
-until curl -fsS --max-time 5 "http://127.0.0.1:${IDLE_WEB_PORT}/" >/dev/null 2>&1; do
+until curl -fsS --max-time 5 -H "Host: ${WEB_HEALTH_HOST}" "http://127.0.0.1:${IDLE_WEB_PORT}/" >/dev/null 2>&1; do
   if (( attempt >= HEALTH_RETRIES )); then
     echo "New web slot did not answer after $(( HEALTH_RETRIES * HEALTH_DELAY ))s." >&2
     echo "--- ${IDLE_WEB_SERVICE} logs (last 60 lines) ---" >&2
