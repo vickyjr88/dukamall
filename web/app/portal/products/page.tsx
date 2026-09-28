@@ -11,6 +11,7 @@ export default function ProductsPage() {
   const [form, setForm] = useState({ name: '', slug: '', sku: '', size: '', priceKes: '', stockOnHand: '0' });
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   async function load() {
     const res = await portalFetch('/portal/products');
@@ -37,35 +38,50 @@ export default function ProductsPage() {
       return;
     }
     setForm({ name: '', slug: '', sku: '', size: '', priceKes: '', stockOnHand: '0' });
+    setShowAddForm(false);
     load();
   }
 
   return (
     <div>
-      <h3>Add product</h3>
-      <form onSubmit={onCreate} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24, maxWidth: 360 }}>
-        <input placeholder="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required />
-        <input placeholder="Slug" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} required />
-        <input placeholder="SKU" value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} required />
-        <input placeholder="Size (optional)" value={form.size} onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))} />
-        <input placeholder="Price (KES)" type="number" value={form.priceKes} onChange={(e) => setForm((f) => ({ ...f, priceKes: e.target.value }))} required />
-        <input placeholder="Stock on hand" type="number" value={form.stockOnHand} onChange={(e) => setForm((f) => ({ ...f, stockOnHand: e.target.value }))} />
-        <button type="submit">Add product</button>
-        {error ? <p style={{ color: 'red' }}>{error}</p> : null}
-      </form>
-
-      <h3>Products</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {products.map((p) => (
-          <ProductRow
-            key={p.id}
-            product={p}
-            editing={editingId === p.id}
-            onToggleEdit={() => setEditingId(editingId === p.id ? null : p.id)}
-            onChanged={load}
-          />
-        ))}
+      <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3>Products</h3>
+        <button className="portal-btn" onClick={() => setShowAddForm((v) => !v)}>
+          {showAddForm ? 'Cancel' : 'Add product'}
+        </button>
       </div>
+
+      {showAddForm ? (
+        <form onSubmit={onCreate} className="portal-card" style={{ marginBottom: 20 }}>
+          <h4 style={{ marginBottom: 16 }}>New product</h4>
+          <div className="portal-field"><label>Name</label><input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} required /></div>
+          <div className="portal-field"><label>Slug</label><input value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} required /></div>
+          <div className="portal-field"><label>SKU</label><input value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} required /></div>
+          <div className="portal-field"><label>Size (optional)</label><input value={form.size} onChange={(e) => setForm((f) => ({ ...f, size: e.target.value }))} /></div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div className="portal-field" style={{ flex: 1 }}><label>Price (KES)</label><input type="number" value={form.priceKes} onChange={(e) => setForm((f) => ({ ...f, priceKes: e.target.value }))} required /></div>
+            <div className="portal-field" style={{ flex: 1 }}><label>Stock on hand</label><input type="number" value={form.stockOnHand} onChange={(e) => setForm((f) => ({ ...f, stockOnHand: e.target.value }))} /></div>
+          </div>
+          {error ? <div className="portal-alert is-error">{error}</div> : null}
+          <button type="submit" className="portal-btn">Add product</button>
+        </form>
+      ) : null}
+
+      {products.length === 0 ? (
+        <div className="portal-empty">No products yet -- add your first one above.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {products.map((p) => (
+            <ProductRow
+              key={p.id}
+              product={p}
+              editing={editingId === p.id}
+              onToggleEdit={() => setEditingId(editingId === p.id ? null : p.id)}
+              onChanged={load}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -126,53 +142,60 @@ function ProductRow({ product, editing, onToggleEdit, onChanged }: {
   }
 
   return (
-    <div style={{ border: '1px solid #ddd', padding: 12, opacity: product.isActive ? 1 : 0.5 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+    <div className={`portal-product-row${product.isActive ? '' : ' is-inactive'}`} style={{ flexDirection: 'column' }}>
+      <div className="portal-product-row-main">
         {product.imageUrls[0] ? (
-          <img src={product.imageUrls[0]} alt="" style={{ width: 56, height: 56, objectFit: 'cover' }} />
+          <img src={product.imageUrls[0]} alt="" />
         ) : (
-          <div style={{ width: 56, height: 56, background: '#eee' }} />
+          <div className="placeholder" />
         )}
         <div style={{ flex: 1 }}>
-          <strong>{product.name}</strong> ({product.slug}) {!product.isActive ? '-- inactive' : ''}
+          <strong>{product.name}</strong>{' '}
+          <span style={{ color: 'var(--p-muted)', fontSize: 13 }}>({product.slug})</span>
+          {!product.isActive ? <span className="portal-badge is-cancelled" style={{ marginLeft: 8 }}>Inactive</span> : null}
+          {!editing ? (
+            <p style={{ marginTop: 4, fontSize: 13, color: 'var(--p-muted)' }}>
+              {product.variants.map((v) => `${v.size ?? v.name}: KES ${v.priceKes} / stock ${v.stockOnHand}`).join(', ')}
+            </p>
+          ) : null}
         </div>
-        <button onClick={onToggleActive}>{product.isActive ? 'Deactivate' : 'Activate'}</button>
-        <button onClick={onToggleEdit}>{editing ? 'Done' : 'Edit'}</button>
+        <div className="portal-product-row-actions">
+          <button className="portal-btn-outline portal-btn portal-btn-sm" onClick={onToggleActive}>
+            {product.isActive ? 'Deactivate' : 'Activate'}
+          </button>
+          <button className="portal-btn portal-btn-sm" onClick={onToggleEdit}>{editing ? 'Done' : 'Edit'}</button>
+        </div>
       </div>
 
       {editing ? (
-        <div style={{ marginTop: 12, paddingLeft: 68 }}>
-          <label style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
-            Product image{' '}
+        <div className="portal-product-detail">
+          <div className="portal-field" style={{ maxWidth: 320 }}>
+            <label>Product image</label>
             <input type="file" accept="image/*" onChange={onUploadImage} disabled={uploading} />
-            {uploading ? ' Uploading...' : null}
-          </label>
+            {uploading ? <span className="hint">Uploading...</span> : null}
+          </div>
 
-          <table style={{ fontSize: 13, borderCollapse: 'collapse' }}>
+          <table className="portal-table">
             <thead>
-              <tr>
-                <th style={{ textAlign: 'left', padding: 4 }}>Variant</th>
-                <th style={{ textAlign: 'left', padding: 4 }}>Price (KES)</th>
-                <th style={{ textAlign: 'left', padding: 4 }}>Stock</th>
-              </tr>
+              <tr><th>Variant</th><th>Price (KES)</th><th>Stock</th></tr>
             </thead>
             <tbody>
               {product.variants.map((v) => (
                 <tr key={v.id}>
-                  <td style={{ padding: 4 }}>{v.size ?? v.name} ({v.sku})</td>
-                  <td style={{ padding: 4 }}>
+                  <td>{v.size ?? v.name} ({v.sku})</td>
+                  <td>
                     <input
                       type="number"
                       defaultValue={v.priceKes}
-                      style={{ width: 90 }}
+                      style={{ width: 100 }}
                       onBlur={(e) => e.target.value !== v.priceKes && onVariantPrice(v.id, e.target.value)}
                     />
                   </td>
-                  <td style={{ padding: 4 }}>
+                  <td>
                     <input
                       type="number"
                       defaultValue={v.stockOnHand}
-                      style={{ width: 70 }}
+                      style={{ width: 80 }}
                       onBlur={(e) => Number(e.target.value) !== v.stockOnHand && onVariantStock(v.id, e.target.value)}
                     />
                   </td>
@@ -181,11 +204,7 @@ function ProductRow({ product, editing, onToggleEdit, onChanged }: {
             </tbody>
           </table>
         </div>
-      ) : (
-        <p style={{ margin: '8px 0 0 68px', fontSize: 13, color: '#666' }}>
-          {product.variants.map((v) => `${v.size ?? v.name}: KES ${v.priceKes} / stock ${v.stockOnHand}`).join(', ')}
-        </p>
-      )}
+      ) : null}
     </div>
   );
 }

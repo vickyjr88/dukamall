@@ -9,32 +9,55 @@ export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ shopSlug: '', email: '', password: '' });
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data?.message || 'Login failed');
-      return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.message || 'Login failed');
+        return;
+      }
+      window.localStorage.setItem('shops_platform_token', data.access_token);
+      router.push('/portal/dashboard');
+    } finally {
+      setSubmitting(false);
     }
-    window.localStorage.setItem('shops_platform_token', data.access_token);
-    router.push('/portal/dashboard');
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <label>Shop slug<input value={form.shopSlug} onChange={(e) => setForm((f) => ({ ...f, shopSlug: e.target.value }))} required /></label>
-      <label>Email<input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required /></label>
-      <label>Password<input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required /></label>
-      <button type="submit">Log in</button>
-      {error ? <p style={{ color: 'red' }}>{error}</p> : null}
-      <p><a href="/portal/signup">Create a new shop instead</a></p>
-    </form>
+    <div className="portal-auth-shell">
+      <div className="portal-auth-card">
+        <div className="brand">Shops Platform</div>
+        <p className="subtitle">Log in to manage your shop.</p>
+        <form onSubmit={onSubmit}>
+          <div className="portal-field">
+            <label htmlFor="login-slug">Shop slug</label>
+            <input id="login-slug" value={form.shopSlug} onChange={(e) => setForm((f) => ({ ...f, shopSlug: e.target.value }))} required />
+          </div>
+          <div className="portal-field">
+            <label htmlFor="login-email">Email</label>
+            <input id="login-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+          </div>
+          <div className="portal-field">
+            <label htmlFor="login-password">Password</label>
+            <input id="login-password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required />
+          </div>
+          {error ? <div className="portal-alert is-error">{error}</div> : null}
+          <button type="submit" className="portal-btn portal-btn-block" disabled={submitting}>
+            {submitting ? 'Logging in...' : 'Log in'}
+          </button>
+        </form>
+        <p className="switch-link"><a href="/portal/signup">Create a new shop instead</a></p>
+      </div>
+    </div>
   );
 }

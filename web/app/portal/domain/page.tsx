@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3211';
+import { portalFetch } from '../portal-api';
 
 type DomainStatus = {
   customDomain: string | null;
@@ -10,11 +9,6 @@ type DomainStatus = {
   domainVerificationToken: string | null;
   domainVerifiedAt: string | null;
 };
-
-function authHeaders(): Record<string, string> {
-  const token = window.localStorage.getItem('shops_platform_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 export default function DomainPage() {
   const [status, setStatus] = useState<DomainStatus | null>(null);
@@ -24,7 +18,7 @@ export default function DomainPage() {
   const [busy, setBusy] = useState(false);
 
   async function load() {
-    const res = await fetch(`${API_BASE}/portal/domain`, { headers: authHeaders() });
+    const res = await portalFetch('/portal/domain');
     if (res.ok) setStatus(await res.json());
   }
 
@@ -36,9 +30,9 @@ export default function DomainPage() {
     setInfo(null);
     setBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/portal/domain`, {
+      const res = await portalFetch('/portal/domain', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ domain }),
       });
       const data = await res.json();
@@ -57,7 +51,7 @@ export default function DomainPage() {
     setInfo(null);
     setBusy(true);
     try {
-      const res = await fetch(`${API_BASE}/portal/domain/verify`, { method: 'POST', headers: authHeaders() });
+      const res = await portalFetch('/portal/domain/verify', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Verification failed');
       setInfo('Domain verified! Your storefront is now live there.');
@@ -71,7 +65,7 @@ export default function DomainPage() {
 
   async function onDisconnect() {
     setBusy(true);
-    await fetch(`${API_BASE}/portal/domain`, { method: 'DELETE', headers: authHeaders() });
+    await portalFetch('/portal/domain', { method: 'DELETE' });
     await load();
     setBusy(false);
   }
@@ -79,55 +73,45 @@ export default function DomainPage() {
   if (!status) return <p>Loading...</p>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h3 style={{ margin: 0 }}>Custom domain</h3>
+    <div>
+      <div className="portal-page-head"><h3>Custom domain</h3></div>
 
-      {status.customDomain ? (
-        <div>
-          <p>
-            Your storefront is live at <strong>{status.customDomain}</strong>.
-          </p>
-          <button onClick={onDisconnect} disabled={busy}>Disconnect this domain</button>
-        </div>
-      ) : status.pendingDomain ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <p>
-            Add this DNS record at your domain registrar, then click Verify. DNS
-            changes can take a few hours to take effect.
-          </p>
-          <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
-            <tbody>
-              <tr>
-                <td style={{ padding: '4px 12px 4px 0', fontWeight: 600 }}>Type</td>
-                <td>TXT</td>
-              </tr>
-              <tr>
-                <td style={{ padding: '4px 12px 4px 0', fontWeight: 600 }}>Name</td>
-                <td><code>_shops-platform-verify.{status.pendingDomain}</code></td>
-              </tr>
-              <tr>
-                <td style={{ padding: '4px 12px 4px 0', fontWeight: 600 }}>Value</td>
-                <td><code>{status.domainVerificationToken}</code></td>
-              </tr>
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onVerify} disabled={busy}>{busy ? 'Checking...' : 'Verify'}</button>
-            <button onClick={onDisconnect} disabled={busy}>Cancel</button>
+      <div className="portal-card" style={{ maxWidth: 520 }}>
+        {status.customDomain ? (
+          <div>
+            <p style={{ marginBottom: 16 }}>Your storefront is live at <strong>{status.customDomain}</strong>.</p>
+            <button className="portal-btn-outline portal-btn" onClick={onDisconnect} disabled={busy}>Disconnect this domain</button>
           </div>
-        </div>
-      ) : (
-        <form onSubmit={onRequest} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label>
-            Your domain (e.g. nairobigents.co.ke)
-            <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="yourshop.co.ke" required />
-          </label>
-          <button type="submit" disabled={busy}>Connect domain</button>
-        </form>
-      )}
+        ) : status.pendingDomain ? (
+          <div>
+            <p style={{ marginBottom: 16 }}>
+              Add this DNS record at your domain registrar, then click Verify. DNS changes can take a few hours to take effect.
+            </p>
+            <table className="portal-table" style={{ marginBottom: 16 }}>
+              <tbody>
+                <tr><td style={{ fontWeight: 600, width: 80 }}>Type</td><td>TXT</td></tr>
+                <tr><td style={{ fontWeight: 600 }}>Name</td><td><code>_shops-platform-verify.{status.pendingDomain}</code></td></tr>
+                <tr><td style={{ fontWeight: 600 }}>Value</td><td><code>{status.domainVerificationToken}</code></td></tr>
+              </tbody>
+            </table>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="portal-btn" onClick={onVerify} disabled={busy}>{busy ? 'Checking...' : 'Verify'}</button>
+              <button className="portal-btn-outline portal-btn" onClick={onDisconnect} disabled={busy}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={onRequest}>
+            <div className="portal-field">
+              <label>Your domain</label>
+              <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="yourshop.co.ke" required />
+            </div>
+            <button type="submit" className="portal-btn" disabled={busy}>Connect domain</button>
+          </form>
+        )}
 
-      {info ? <p style={{ color: 'green' }}>{info}</p> : null}
-      {error ? <p style={{ color: 'red' }}>{error}</p> : null}
+        {info ? <div className="portal-alert is-success" style={{ marginTop: 14 }}>{info}</div> : null}
+        {error ? <div className="portal-alert is-error" style={{ marginTop: 14 }}>{error}</div> : null}
+      </div>
     </div>
   );
 }

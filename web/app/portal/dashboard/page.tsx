@@ -26,72 +26,64 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h3>Dashboard</h3>
+      <div className="portal-page-head"><h3>Dashboard</h3></div>
 
-      <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-        <div style={{ border: '1px solid #ddd', padding: 16, flex: 1 }}>
-          <div style={{ fontSize: 13, color: '#666' }}>Paid orders</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>{sales?.orderCount ?? '...'}</div>
+      <div className="portal-stat-row">
+        <div className="portal-stat">
+          <div className="label">Paid orders</div>
+          <div className="value">{sales?.orderCount ?? '–'}</div>
         </div>
-        <div style={{ border: '1px solid #ddd', padding: 16, flex: 1 }}>
-          <div style={{ fontSize: 13, color: '#666' }}>Total revenue</div>
-          <div style={{ fontSize: 28, fontWeight: 700 }}>
-            {sales ? `KES ${sales.totalRevenueKes.toLocaleString()}` : '...'}
-          </div>
+        <div className="portal-stat">
+          <div className="label">Total revenue</div>
+          <div className="value">{sales ? `KES ${sales.totalRevenueKes.toLocaleString()}` : '–'}</div>
         </div>
-        <div style={{ border: '1px solid #ddd', padding: 16, flex: 1 }}>
-          <div style={{ fontSize: 13, color: '#666' }}>Low stock (&le; {LOW_STOCK_THRESHOLD})</div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: lowStock.length > 0 ? '#b3261e' : 'inherit' }}>
-            {stock ? lowStock.length : '...'}
-          </div>
+        <div className="portal-stat">
+          <div className="label">Low stock (&le; {LOW_STOCK_THRESHOLD})</div>
+          <div className={`value${lowStock.length > 0 ? ' is-danger' : ''}`}>{stock ? lowStock.length : '–'}</div>
         </div>
       </div>
 
-      <h4>Top products</h4>
-      {!sales ? <p>Loading...</p> : sales.topProducts.length === 0 ? (
-        <p>No paid orders yet.</p>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginBottom: 24 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '2px solid #ccc' }}>
-              <th style={{ padding: 8 }}>Product</th>
-              <th style={{ padding: 8 }}>Sold</th>
-              <th style={{ padding: 8 }}>Revenue</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.topProducts.map((p, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: 8 }}>{p.productName} ({p.variantName})</td>
-                <td style={{ padding: 8 }}>{p.quantitySold}</td>
-                <td style={{ padding: 8 }}>KES {p.revenueKes.toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <div className="portal-card" style={{ marginBottom: 20 }}>
+        <h4>Top products</h4>
+        {!sales ? <p>Loading...</p> : sales.topProducts.length === 0 ? (
+          <p style={{ color: 'var(--p-muted)' }}>No paid orders yet.</p>
+        ) : (
+          <table className="portal-table">
+            <thead>
+              <tr><th>Product</th><th>Sold</th><th>Revenue</th></tr>
+            </thead>
+            <tbody>
+              {sales.topProducts.map((p, i) => (
+                <tr key={i}>
+                  <td>{p.productName} ({p.variantName})</td>
+                  <td>{p.quantitySold}</td>
+                  <td>KES {p.revenueKes.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
-      <h4>Stock levels</h4>
-      {!stock ? <p>Loading...</p> : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '2px solid #ccc' }}>
-              <th style={{ padding: 8 }}>Product</th>
-              <th style={{ padding: 8 }}>SKU</th>
-              <th style={{ padding: 8 }}>On hand</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stock.map((s) => (
-              <tr key={s.id} style={{ borderBottom: '1px solid #eee', color: s.stockOnHand <= LOW_STOCK_THRESHOLD ? '#b3261e' : 'inherit' }}>
-                <td style={{ padding: 8 }}>{s.product.name} ({s.name})</td>
-                <td style={{ padding: 8 }}>{s.sku}</td>
-                <td style={{ padding: 8 }}>{s.stockOnHand}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <div className="portal-card">
+        <h4>Stock levels</h4>
+        {!stock ? <p>Loading...</p> : (
+          <table className="portal-table">
+            <thead>
+              <tr><th>Product</th><th>SKU</th><th>On hand</th></tr>
+            </thead>
+            <tbody>
+              {stock.map((s) => (
+                <tr key={s.id} style={s.stockOnHand <= LOW_STOCK_THRESHOLD ? { color: 'var(--p-danger)' } : undefined}>
+                  <td>{s.product.name} ({s.name})</td>
+                  <td>{s.sku}</td>
+                  <td>{s.stockOnHand}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
