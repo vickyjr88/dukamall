@@ -207,9 +207,19 @@ proactively.
 
 ## Subsequent deploys
 
-Same as drip-crm: `./scripts/deploy.sh` on the VPS (or via the CI workflow,
-once one exists), no manual nginx changes needed for a normal deploy -- see
-that script's own header comment for the full rolling-swap mechanics.
+Push to `main` and `.github/workflows/deploy.yml` handles the rest: a
+`verify` job builds and typechecks both apps (catching a broken build
+*before* it ever reaches the server), then a `deploy` job SSHes in and runs
+`scripts/deploy.sh` on the box -- no manual nginx changes needed for a
+normal deploy, see that script's own header comment for the full
+rolling-swap mechanics. A manual `workflow_dispatch` run (with an optional
+`ref` input) redeploys a specific branch or tag on demand, e.g. to replay a
+failed run or roll back to a previous commit.
+
+Mirrors drip-crm's own `deploy.yml` structure exactly, one difference: this
+platform's `scripts/deploy.sh` has no `RUN_SEED` concept (there is no demo
+seed data to insert -- shop creation is entirely self-service via
+`/portal/signup`), so the workflow doesn't carry that input.
 
 One platform-specific note: **a deploy-caused outage takes every shop down
 at once**, not just one merchant's site. The two-slot rolling-deploy setup
@@ -217,3 +227,31 @@ exists specifically to make that risk near-zero from day one -- never
 "simplify" this back to a single-instance stop-and-restart, even for a
 quick fix, given how much more is riding on uptime here than for a
 single-tenant app.
+
+## GitHub Actions secrets
+
+Set these under the repo's **Settings -> Environments -> production**
+(the workflow targets the `production` environment specifically, so an
+environment-level secret, not a repo-level one, is what the deploy job
+actually reads) -- `Settings -> Secrets and variables -> Actions` also
+works if you'd rather not gate deploys behind an environment's own
+protection rules, but an environment is the better default here since it
+lets you require a manual approval before deploy.sh ever runs, and keeps
+this platform's secrets from being visible to a workflow run against a
+different repo that happens to share the same GitHub org.
+
+| Secret | What it is |
+|---|---|
+| `DUKAMALL_SSH_KEY` | Private half of a dedicated deploy keypair (`ssh-keygen -t ed25519 -C "dukamall-deploy"` -- don't reuse a personal key). The matching public key goes in the server user's `~/.ssh/authorized_keys`. |
+| `DUKAMALL_SSH_KNOWN_HOSTS` | Output of `ssh-keyscan -p <port> <host>` run once from a trusted machine, pinning the host key so the connection can't be silently redirected. Paste the full output (may be more than one line). |
+| `DUKAMALL_HOST` | The VPS's IP or hostname -- the same server drip-crm already runs on, per the "Running alongside drip-crm" section above. |
+| `DUKAMALL_USER` | The SSH user the deploy key is authorized for. Needs permission to run `docker compose` in `DUKAMALL_DEPLOY_PATH` -- doesn't need to be root if that user is already in the `docker` group. |
+| `DUKAMALL_PORT` | SSH port, if not the default 22. Optional -- the workflow falls back to `22` when unset. |
+| `DUKAMALL_DEPLOY_PATH` | Absolute path to the cloned repo on the server, e.g. `/opt/shops-platform` (see the "Clone and configure" step earlier in this doc). |
+
+**Not a GitHub secret, and never should be**: `JWT_SECRET`,
+`POSTGRES_PASSWORD`, `MINIO_ROOT_PASSWORD`, or anything else from `.env`.
+Those live only in the server's own `.env` file (never committed, never
+touched by CI) -- the deploy workflow's job is getting code onto the
+server and running the deploy script there, not shipping secrets through
+Actions. This is the same boundary drip-crm's own deploy pipeline holds.

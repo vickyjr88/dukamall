@@ -1,0 +1,121 @@
+name: Deploy
+
+# Mirrors drip-crm's own deploy.yml structure exactly: a verify job that
+# builds/typechecks everything before touching the server, then a deploy job
+# that SSHes in and runs scripts/deploy.sh -- the script already handles the
+# actual rolling two-slot swap (see that script's own header comment), so
+# this workflow's only job is getting the right ref onto the server and
+# triggering it. Push-to-deploy on main, plus a manual trigger for
+# redeploying a chosen ref.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or tag to deploy
+        required: false
+        default: main
+
+# Never let two deploys touch the server at once; queue instead of
+# cancelling, since a half-applied migration is worse than a slow pipeline.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Build and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            web/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Typecheck web
+        working-directory: web
+        run: npx tsc --noEmit
+
+      - name: Build web
+        working-directory: web
+        # tsc alone does not catch everything `next build` does -- a bad
+        # import boundary, a server component using client-only APIs, a
+        # prerender that throws. Without this the failure lands on the VPS
+        # partway through a deploy instead of here, which is the whole point
+        # of the verify job. These NEXT_PUBLIC_* values only need to be
+        # well-formed: this build is thrown away, and the real one runs on
+        # the server with the real .env.
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:3211
+          NEXT_PUBLIC_PLATFORM_DOMAIN: localhost:3203
+        run: npx next build
+
+  deploy:
+    name: Deploy to server
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Open SSH connection
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DUKAMALL_SSH_KEY }}
+
+      - name: Trust host key
+        # Pinning the key fingerprint keeps the session from being silently
+        # redirected; StrictHostKeyChecking=no would accept any host.
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          echo "${{ secrets.DUKAMALL_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Run deployment
+        env:
+          SSH_HOST: ${{ secrets.DUKAMALL_HOST }}
+          SSH_USER: ${{ secrets.DUKAMALL_USER }}
+          SSH_PORT: ${{ secrets.DUKAMALL_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.DUKAMALL_DEPLOY_PATH }}
+          DEPLOY_REF: origin/${{ github.event.inputs.ref || 'main' }}
+        run: |
+          # The script runs from the checkout already on the server, but it
+          # re-fetches and hard-resets itself to DEPLOY_REF as its first
+          # step, so the version that does the work is always the one being
+          # deployed, not whatever happened to be checked out before.
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "set -e; cd '$DEPLOY_PATH'; \
+             export DEPLOY_REF='$DEPLOY_REF'; \
+             bash scripts/deploy.sh"
+
+      - name: Mark deployment complete
+        run: |
+          {
+            echo "### Deployment complete :rocket:"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`${GITHUB_SHA:0:7}\` |"
+            echo "| Ref | \`${{ github.event.inputs.ref || 'main' }}\` |"
+            echo "| Host | \`${{ secrets.DUKAMALL_HOST }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
