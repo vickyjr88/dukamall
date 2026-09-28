@@ -57,6 +57,7 @@ export default function LoginPage() {
           </button>
         </form>
         <p className="switch-link"><a href="/portal/signup">Create a new shop instead</a></p>
+        <p className="switch-link"><a href="/admin/login">Platform operator? Log in here</a></p>
       </div>
     </div>
   );

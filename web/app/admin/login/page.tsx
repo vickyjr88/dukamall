@@ -32,11 +32,27 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <form onSubmit={onSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 320 }}>
-      <label>Email<input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required /></label>
-      <label>Password<input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required /></label>
-      <button type="submit" disabled={submitting}>{submitting ? 'Logging in...' : 'Log in'}</button>
-      {error ? <p style={{ color: 'red' }}>{error}</p> : null}
-    </form>
+    <div className="admin-auth-shell">
+      <div className="admin-auth-card">
+        <span className="tag">Platform operator</span>
+        <div className="brand">Shops Platform -- Admin</div>
+        <p className="subtitle">Log in to manage every shop on the platform.</p>
+        <form onSubmit={onSubmit}>
+          <div className="admin-field">
+            <label htmlFor="admin-login-email">Email</label>
+            <input id="admin-login-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+          </div>
+          <div className="admin-field">
+            <label htmlFor="admin-login-password">Password</label>
+            <input id="admin-login-password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required />
+          </div>
+          {error ? <div className="admin-alert is-error">{error}</div> : null}
+          <button type="submit" className="admin-btn admin-btn-block" disabled={submitting}>
+            {submitting ? 'Logging in...' : 'Log in'}
+          </button>
+        </form>
+        <p className="switch-link">Running a shop instead? <a href="/portal/login">Go to the merchant portal</a></p>
+      </div>
+    </div>
   );
 }

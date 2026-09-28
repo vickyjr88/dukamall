@@ -1,0 +1,251 @@
+/* =============================================================================
+   Admin (platform-operator) design system. Structurally mirrors
+   portal/portal.css (same shell/card/table/badge patterns) but on its own
+   "--a-*" tokens with a distinct amber/charcoal accent -- deliberately not
+   the portal's navy, so a staff member can tell at a glance which console
+   they're in: portal.css's own header comment calls this out as intentional.
+   ========================================================================== */
+:root {
+  --a-ink: #1a1a18;
+  --a-muted: #78716c;
+  --a-line: #e7e5e4;
+  --a-line-strong: #d6d3d1;
+  --a-paper: #faf9f7;
+  --a-surface: #ffffff;
+  --a-primary: #b45309;
+  --a-primary-hover: #92400e;
+  --a-danger: #b3261e;
+  --a-danger-bg: #fdecea;
+  --a-success: #0f7a40;
+  --a-success-bg: #e6f4ec;
+  --a-warn: #a85b00;
+  --a-warn-bg: #fdeee0;
+  --a-radius: 8px;
+  --a-radius-sm: 5px;
+  --a-sidebar-w: 220px;
+}
+
+.admin-root, .admin-root * { box-sizing: border-box; }
+.admin-root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--a-ink);
+  background: var(--a-paper);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.admin-root h1, .admin-root h2, .admin-root h3, .admin-root h4 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.admin-root h3 { font-size: 1.05rem; margin-bottom: 4px; }
+.admin-root h4 { font-size: 0.85rem; color: var(--a-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
+.admin-root p { margin: 0; }
+.admin-root a { color: var(--a-primary); text-decoration: none; }
+.admin-root a:hover { text-decoration: underline; }
+
+.admin-root input, .admin-root select, .admin-root button, .admin-root textarea {
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+.admin-root input, .admin-root select, .admin-root textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--a-line-strong);
+  border-radius: var(--a-radius-sm);
+  background: #fff;
+  color: var(--a-ink);
+}
+.admin-root input:focus, .admin-root select:focus, .admin-root textarea:focus {
+  outline: none;
+  border-color: var(--a-primary);
+  box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.14);
+}
+
+.admin-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.admin-field label { font-size: 0.82rem; font-weight: 600; color: var(--a-ink); }
+.admin-field .hint { font-size: 0.78rem; color: var(--a-muted); font-weight: 400; }
+
+/* -----------------------------------------------------------------------
+   Shell: sidebar + content
+   -------------------------------------------------------------------- */
+.admin-shell { display: flex; min-height: 100vh; }
+
+.admin-sidebar {
+  width: var(--a-sidebar-w);
+  flex-shrink: 0;
+  background: var(--a-ink);
+  color: #fff;
+  padding: 20px 14px;
+  display: flex;
+  flex-direction: column;
+}
+.admin-sidebar-brand {
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  padding: 0 10px 4px;
+  color: #fff;
+}
+.admin-sidebar-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--a-primary);
+  padding: 0 10px 20px;
+}
+.admin-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.admin-nav a {
+  color: rgba(255, 255, 255, 0.7);
+  padding: 9px 10px;
+  border-radius: var(--a-radius-sm);
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+}
+.admin-nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; text-decoration: none; }
+.admin-nav a.is-active { background: var(--a-primary); color: #fff; }
+
+.admin-content { flex: 1; min-width: 0; padding: 32px 40px; max-width: 1200px; }
+@media (max-width: 800px) {
+  .admin-shell { flex-direction: column; }
+  .admin-sidebar { width: 100%; flex-direction: row; align-items: center; padding: 12px 16px; flex-wrap: wrap; }
+  .admin-sidebar-tag { padding: 0 0 0 10px; }
+  .admin-nav { flex-direction: row; flex-wrap: wrap; }
+  .admin-content { padding: 20px; }
+}
+
+.admin-page-head { margin-bottom: 24px; }
+
+/* -----------------------------------------------------------------------
+   Auth pages (login) -- no sidebar
+   -------------------------------------------------------------------- */
+.admin-auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--a-ink);
+}
+.admin-auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--a-surface);
+  border: 1px solid var(--a-line);
+  border-radius: var(--a-radius);
+  padding: 32px;
+}
+.admin-auth-card .brand { font-weight: 800; font-size: 1.1rem; margin-bottom: 4px; }
+.admin-auth-card .tag {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--a-primary);
+  background: var(--a-warn-bg);
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-bottom: 14px;
+}
+.admin-auth-card .subtitle { color: var(--a-muted); font-size: 0.88rem; margin-bottom: 24px; }
+.admin-auth-card .switch-link { margin-top: 18px; text-align: center; font-size: 0.85rem; color: var(--a-muted); }
+
+/* -----------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------- */
+.admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: var(--a-primary);
+  color: #fff;
+  border: 1px solid var(--a-primary);
+  border-radius: var(--a-radius-sm);
+  font-weight: 600;
+  font-size: 0.86rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.admin-btn:hover { background: var(--a-primary-hover); border-color: var(--a-primary-hover); }
+.admin-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-btn-block { width: 100%; }
+.admin-btn-outline {
+  background: #fff;
+  color: var(--a-ink);
+  border-color: var(--a-line-strong);
+}
+.admin-btn-outline:hover { background: var(--a-paper); border-color: var(--a-line-strong); }
+.admin-btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+.admin-btn-ghost {
+  background: none;
+  border: none;
+  color: var(--a-muted);
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* -----------------------------------------------------------------------
+   Cards, tables, stat tiles
+   -------------------------------------------------------------------- */
+.admin-card {
+  background: var(--a-surface);
+  border: 1px solid var(--a-line);
+  border-radius: var(--a-radius);
+  padding: 20px;
+}
+.admin-card + .admin-card { margin-top: 12px; }
+
+.admin-stat-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 28px; }
+.admin-stat {
+  flex: 1;
+  min-width: 150px;
+  background: var(--a-surface);
+  border: 1px solid var(--a-line);
+  border-radius: var(--a-radius);
+  padding: 16px 18px;
+}
+.admin-stat .label { font-size: 0.78rem; color: var(--a-muted); margin-bottom: 4px; }
+.admin-stat .value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; }
+.admin-stat .value.is-danger { color: var(--a-danger); }
+
+.admin-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+.admin-table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--a-muted);
+  border-bottom: 2px solid var(--a-line);
+}
+.admin-table td { padding: 12px; border-bottom: 1px solid var(--a-line); vertical-align: middle; }
+.admin-table tr:last-child td { border-bottom: none; }
+.admin-table select { width: auto; padding: 5px 8px; }
+
+.admin-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.admin-badge.is-trial { background: var(--a-warn-bg); color: var(--a-warn); }
+.admin-badge.is-active { background: var(--a-success-bg); color: var(--a-success); }
+.admin-badge.is-suspended { background: var(--a-danger-bg); color: var(--a-danger); }
+
+.admin-alert { padding: 10px 14px; border-radius: var(--a-radius-sm); font-size: 0.85rem; margin-bottom: 14px; }
+.admin-alert.is-error { background: var(--a-danger-bg); color: var(--a-danger); }
+.admin-alert.is-success { background: var(--a-success-bg); color: var(--a-success); }
+
+.admin-empty { text-align: center; padding: 48px 20px; color: var(--a-muted); }

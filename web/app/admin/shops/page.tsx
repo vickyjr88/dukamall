@@ -15,6 +15,8 @@ type Stats = {
   paidOrderCount: number; totalRevenueKes: number; totalCustomers: number;
 };
 
+const BADGE_CLASS: Record<Shop['status'], string> = { TRIAL: 'is-trial', ACTIVE: 'is-active', SUSPENDED: 'is-suspended' };
+
 export default function AdminShopsPage() {
   const router = useRouter();
   const [shops, setShops] = useState<Shop[] | null>(null);
@@ -50,9 +52,10 @@ export default function AdminShopsPage() {
 
   return (
     <div>
-      <h3>Platform overview</h3>
+      <div className="admin-page-head"><h3>Platform overview</h3></div>
+
       {stats ? (
-        <div style={{ display: 'flex', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
+        <div className="admin-stat-row">
           <Stat label="Shops" value={stats.shopCount} />
           <Stat label="Active shops" value={stats.activeShopCount} />
           <Stat label="Total orders" value={stats.totalOrders} />
@@ -62,40 +65,45 @@ export default function AdminShopsPage() {
         </div>
       ) : null}
 
-      <h3>Shops</h3>
-      {!shops ? <p>Loading...</p> : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '2px solid #ccc' }}>
-              <th style={{ padding: 8 }}>Shop</th>
-              <th style={{ padding: 8 }}>Domain</th>
-              <th style={{ padding: 8 }}>Products</th>
-              <th style={{ padding: 8 }}>Orders</th>
-              <th style={{ padding: 8 }}>Customers</th>
-              <th style={{ padding: 8 }}>Created</th>
-              <th style={{ padding: 8 }}>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shops.map((shop) => (
-              <tr key={shop.id} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: 8 }}>{shop.name} <span style={{ color: '#666' }}>({shop.slug})</span></td>
-                <td style={{ padding: 8 }}>{shop.customDomain ?? `${shop.slug}.dukamall.app`}</td>
-                <td style={{ padding: 8 }}>{shop.productCount}</td>
-                <td style={{ padding: 8 }}>{shop.orderCount}</td>
-                <td style={{ padding: 8 }}>{shop.customerCount}</td>
-                <td style={{ padding: 8 }}>{new Date(shop.createdAt).toLocaleDateString()}</td>
-                <td style={{ padding: 8 }}>
-                  <select value={shop.status} onChange={(e) => onSetStatus(shop.id, e.target.value as Shop['status'])}>
-                    <option value="TRIAL">TRIAL</option>
-                    <option value="ACTIVE">ACTIVE</option>
-                    <option value="SUSPENDED">SUSPENDED</option>
-                  </select>
-                </td>
+      <div className="admin-page-head"><h3>Shops</h3></div>
+      {!shops ? <p>Loading...</p> : shops.length === 0 ? (
+        <div className="admin-empty">No shops yet.</div>
+      ) : (
+        <div className="admin-card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Shop</th>
+                <th>Domain</th>
+                <th>Products</th>
+                <th>Orders</th>
+                <th>Customers</th>
+                <th>Created</th>
+                <th>Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {shops.map((shop) => (
+                <tr key={shop.id}>
+                  <td>{shop.name} <span style={{ color: 'var(--a-muted)' }}>({shop.slug})</span></td>
+                  <td>{shop.customDomain ?? `${shop.slug}.dukamall.app`}</td>
+                  <td>{shop.productCount}</td>
+                  <td>{shop.orderCount}</td>
+                  <td>{shop.customerCount}</td>
+                  <td>{new Date(shop.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    <span className={`admin-badge ${BADGE_CLASS[shop.status]}`} style={{ marginRight: 8 }}>{shop.status}</span>
+                    <select value={shop.status} onChange={(e) => onSetStatus(shop.id, e.target.value as Shop['status'])}>
+                      <option value="TRIAL">TRIAL</option>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="SUSPENDED">SUSPENDED</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -103,9 +111,9 @@ export default function AdminShopsPage() {
 
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
-    <div style={{ border: '1px solid #ddd', padding: 12, minWidth: 120 }}>
-      <div style={{ fontSize: 12, color: '#666' }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700 }}>{value}</div>
+    <div className="admin-stat">
+      <div className="label">{label}</div>
+      <div className="value">{value}</div>
     </div>
   );
 }
