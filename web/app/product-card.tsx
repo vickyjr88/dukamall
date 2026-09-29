@@ -7,6 +7,8 @@ import { ShopProduct } from './lib/api';
 import { ShareButton } from './share-button';
 import { FavoriteButton } from './favorite-button';
 import { useShopInfo } from './lib/shop-info-context';
+import { WhatsAppIcon } from './whatsapp-icon';
+import { useCart } from './lib/cart';
 
 /**
  * The variant whose price the card shows. Cheapest in-stock variant, or
@@ -42,6 +44,7 @@ function sizeRange(sizes: string[]) {
 }
 
 export function ProductCard({ product }: { product: ShopProduct }) {
+  const cart = useCart();
   const variant = currentPrice(product);
   const isOnSale = variant?.wasPriceKes && Number(variant.wasPriceKes) > Number(variant.priceKes);
   // Never a dead end: a product with nothing on the shelf is still shown as
@@ -51,6 +54,30 @@ export function ProductCard({ product }: { product: ShopProduct }) {
   const sizesInStock = product.variants
     .filter((v) => v.stockOnHand > 0 && (v.size || v.name))
     .map((v) => v.size ?? v.name);
+
+  // Quick add from the grid, without opening the product page. A single
+  // variant (a watch, a perfume, or a shoe down to its last size) has
+  // nothing to pick, so it adds straight away; more than one opens an
+  // inline size picker instead of silently guessing which size the
+  // shopper wants -- ported from drip-crm's own card, which found that a
+  // card add-to-cart that skips size selection just moves the "wrong size"
+  // problem from the shopper's screen to the shop's order queue.
+  const [pickingSize, setPickingSize] = useState(false);
+  const [added, setAdded] = useState(false);
+  function addVariant(v: ShopProduct['variants'][number]) {
+    cart.add({
+      variantId: v.id,
+      productSlug: product.slug,
+      name: product.name,
+      size: v.size ?? v.name,
+      sku: v.sku,
+      priceKes: Number(v.priceKes),
+      imageUrl: product.imageUrls[0] || null,
+    });
+    setPickingSize(false);
+    setAdded(true);
+    window.setTimeout(() => setAdded(false), 2000);
+  }
   // Populated client-side only, after mount -- see product-client.tsx's
   // buildEnquiry comment for why this can't be computed from window
   // directly during render (locks in a server-rendered value missing the
@@ -127,6 +154,39 @@ export function ProductCard({ product }: { product: ShopProduct }) {
           <p className="product-card-sizes is-preorder">Available to Order</p>
         ) : null}
 
+        {product.variants.length > 0 ? (
+          <div className="product-card-quickadd">
+            {pickingSize ? (
+              <div className="product-card-size-picker" onClick={(e) => e.stopPropagation()}>
+                <div className="product-card-size-picker-head">
+                  <span>Select size</span>
+                  <button type="button" onClick={() => setPickingSize(false)} aria-label="Cancel">×</button>
+                </div>
+                <div className="product-card-size-picker-grid">
+                  {product.variants.map((v) => (
+                    <button key={v.id} type="button" className="pf-chip" onClick={() => addVariant(v)}>
+                      {(v.size ?? v.name).replace('EUR ', '')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm product-card-add-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (product.variants.length === 1) addVariant(product.variants[0]);
+                  else setPickingSize(true);
+                }}
+              >
+                {added ? 'Added ✓' : 'Add to cart'}
+              </button>
+            )}
+          </div>
+        ) : null}
+
         {whatsappHref ? (
           // suppressHydrationWarning: href depends on `origin`, only known
           // after mount -- see product-client.tsx's buildEnquiry comment.
@@ -138,7 +198,7 @@ export function ProductCard({ product }: { product: ShopProduct }) {
             rel="noreferrer"
             onClick={(e) => e.stopPropagation()}
           >
-            Order on WhatsApp
+            <WhatsAppIcon /> Order on WhatsApp
           </a>
         ) : null}
       </div>

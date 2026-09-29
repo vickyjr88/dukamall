@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ShopInfo } from '@/app/lib/api';
+import { WhatsAppIcon } from '@/app/whatsapp-icon';
 
 export function StorefrontFooter({ shopInfo }: { shopInfo: ShopInfo }) {
   const year = new Date().getFullYear();
@@ -29,8 +30,13 @@ export function StorefrontFooter({ shopInfo }: { shopInfo: ShopInfo }) {
             <ul>
               {shopInfo.whatsappNumber ? (
                 <li>
-                  <a href={`https://wa.me/${shopInfo.whatsappNumber.replace(/[^\d]/g, '')}`} target="_blank" rel="noreferrer">
-                    WhatsApp us
+                  <a
+                    href={`https://wa.me/${shopInfo.whatsappNumber.replace(/[^\d]/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <WhatsAppIcon /> WhatsApp us
                   </a>
                 </li>
               ) : null}

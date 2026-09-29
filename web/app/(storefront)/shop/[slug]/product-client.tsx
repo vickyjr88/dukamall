@@ -7,6 +7,7 @@ import { useCart } from '@/app/lib/cart';
 import { FavoriteButton } from '@/app/favorite-button';
 import { ShareButton } from '@/app/share-button';
 import { ProductCard } from '@/app/product-card';
+import { WhatsAppIcon } from '@/app/whatsapp-icon';
 
 /**
  * Builds a structured WhatsApp enquiry for one product/size, the same shape
@@ -150,42 +151,6 @@ export function ProductClient({ product, shopInfo }: { product: ShopProduct; sho
             </div>
           ) : null}
 
-          <div className="pdp-actions">
-            <button
-              className="btn btn-primary btn-block"
-              disabled={!chosen}
-              onClick={() => {
-                if (!chosen) return;
-                cart.add({
-                  variantId: chosen.id,
-                  productSlug: product.slug,
-                  name: product.name,
-                  size: chosen.size ?? chosen.name,
-                  sku: chosen.sku,
-                  priceKes: Number(chosen.priceKes),
-                  imageUrl: product.imageUrls[0] || null,
-                });
-                setAdded(true);
-                window.setTimeout(() => setAdded(false), 2000);
-              }}
-            >
-              {added ? 'Added to cart' : chosen ? 'Add to cart' : 'Select a size'}
-            </button>
-
-            {whatsappHref ? (
-              // suppressHydrationWarning: this href intentionally differs
-              // between the server render (no page link yet, origin is
-              // unknown server-side) and the client's first paint (gains
-              // the "Link:" line once the mount effect sets `origin`) -- see
-              // buildEnquiry's header comment. Without this, React logs a
-              // hydration-mismatch warning even though the end state is
-              // correct.
-              <a className="btn btn-accent btn-block pdp-whatsapp-btn" href={whatsappHref} suppressHydrationWarning target="_blank" rel="noreferrer">
-                {chosen ? 'Order this on WhatsApp' : 'Ask about sizes on WhatsApp'}
-              </a>
-            ) : null}
-          </div>
-
           <div className="manual-size-block">
             <label htmlFor="manual-size-input">Don&apos;t see your size?</label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -219,6 +184,42 @@ export function ProductClient({ product, shopInfo }: { product: ShopProduct; sho
                 </button>
               ) : null}
             </div>
+          </div>
+
+          <div className="pdp-actions">
+            <button
+              className="btn btn-primary btn-block"
+              disabled={!chosen}
+              onClick={() => {
+                if (!chosen) return;
+                cart.add({
+                  variantId: chosen.id,
+                  productSlug: product.slug,
+                  name: product.name,
+                  size: chosen.size ?? chosen.name,
+                  sku: chosen.sku,
+                  priceKes: Number(chosen.priceKes),
+                  imageUrl: product.imageUrls[0] || null,
+                });
+                setAdded(true);
+                window.setTimeout(() => setAdded(false), 2000);
+              }}
+            >
+              {added ? 'Added to cart' : chosen ? 'Add to cart' : 'Select a size'}
+            </button>
+
+            {whatsappHref ? (
+              // suppressHydrationWarning: this href intentionally differs
+              // between the server render (no page link yet, origin is
+              // unknown server-side) and the client's first paint (gains
+              // the "Link:" line once the mount effect sets `origin`) -- see
+              // buildEnquiry's header comment. Without this, React logs a
+              // hydration-mismatch warning even though the end state is
+              // correct.
+              <a className="btn btn-accent btn-block pdp-whatsapp-btn" href={whatsappHref} suppressHydrationWarning target="_blank" rel="noreferrer">
+                <WhatsAppIcon /> {chosen ? 'Order this on WhatsApp' : 'Ask about sizes on WhatsApp'}
+              </a>
+            ) : null}
           </div>
 
           <div className="trust-row">

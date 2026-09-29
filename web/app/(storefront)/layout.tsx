@@ -5,6 +5,7 @@ import { CartProvider } from '@/app/lib/cart';
 import { ShopIdProvider } from '@/app/lib/shop-id-context';
 import { ShopInfoProvider } from '@/app/lib/shop-info-context';
 import { CustomerAuthProvider } from '@/app/lib/customer-auth';
+import { WhatsAppFloat } from '@/app/whatsapp-float';
 import { StorefrontHeader } from './storefront-header';
 import { StorefrontFooter } from './storefront-footer';
 
@@ -22,6 +23,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
               <StorefrontHeader shopName={shopInfo.name} logoUrl={theme.logoUrl} />
               <div style={{ flex: 1 }}>{children}</div>
               <StorefrontFooter shopInfo={shopInfo} />
+              <WhatsAppFloat />
             </CartProvider>
           </CustomerAuthProvider>
         </ShopInfoProvider>

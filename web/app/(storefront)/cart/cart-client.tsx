@@ -6,6 +6,7 @@ import { ShopInfo } from '@/app/lib/api';
 import { useShopFetch } from '@/app/lib/shop-id-context';
 import { useCustomerAuth } from '@/app/lib/customer-auth';
 import { useCustomerFetch } from '@/app/lib/use-customer-fetch';
+import { WhatsAppIcon } from '@/app/whatsapp-icon';
 
 export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const cart = useCart();
@@ -229,7 +230,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
 
           {shopInfo.whatsappNumber ? (
             <button type="button" className="btn btn-accent btn-block" onClick={onWhatsapp} style={{ marginTop: 'var(--shop-space-3)' }}>
-              Buy via WhatsApp instead
+              <WhatsAppIcon /> Buy via WhatsApp instead
             </button>
           ) : null}
         </div>
