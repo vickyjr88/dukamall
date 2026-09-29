@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
-import { ShopRole, ShopStatus } from '@prisma/client';
+import { IsBoolean, IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
+import { BillingPlan, ShopRole, ShopStatus } from '@prisma/client';
+import type { Response } from 'express';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { Public } from '../auth/decorators/public.decorator';
@@ -21,6 +22,19 @@ class InviteStaffDto {
   @IsString() firstName!: string;
   @IsString() lastName!: string;
   @IsIn(['OWNER', 'STAFF']) role!: ShopRole;
+}
+
+class UpdateBillingDto {
+  @IsOptional() @IsIn(['TRIAL', 'BASIC', 'PRO']) billingPlan?: BillingPlan;
+  // Accepts null explicitly (clearing the trial end date) as well as an
+  // ISO date string -- IsDateString alone would reject null, so this is
+  // validated loosely here and parsed in the controller method instead.
+  @IsOptional() trialEndsAt?: string | null;
+  @IsOptional() @IsString() billingNotes?: string;
+}
+
+class SetSuperAdminDto {
+  @IsBoolean() isSuperAdmin!: boolean;
 }
 
 /**
@@ -60,6 +74,28 @@ export class AdminController {
   @Get('shops/:id')
   getShop(@Param('id') id: string) {
     return this.adminService.getShop(id);
+  }
+
+  @Patch('shops/:id/billing')
+  updateBilling(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateBillingDto) {
+    return this.adminService.updateBilling(id, req.adminId, {
+      billingPlan: dto.billingPlan,
+      trialEndsAt: dto.trialEndsAt === undefined ? undefined : dto.trialEndsAt === null ? null : new Date(dto.trialEndsAt),
+      billingNotes: dto.billingNotes,
+    });
+  }
+
+  // A shop's full data as one JSON file -- an offboarding/backup artifact,
+  // see AdminService.exportShop's own comment. Content-Disposition set
+  // directly (not NestJS's default JSON response) so the browser downloads
+  // it as a named file rather than rendering it inline.
+  @Get('shops/:id/export')
+  @Header('Content-Type', 'application/json')
+  async exportShop(@Req() req: any, @Res() res: Response, @Param('id') id: string) {
+    const data = await this.adminService.exportShop(id, req.adminId);
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Disposition', `attachment; filename="${data.shop.slug}-export-${date}.json"`);
+    res.send(JSON.stringify(data, null, 2));
   }
 
   @Patch('shops/:id/status')
@@ -117,5 +153,18 @@ export class AdminController {
   @Get('products/search')
   searchProducts(@Query('q') q?: string) {
     return this.adminService.searchProducts(q || '');
+  }
+
+  // Every User, not just current admins -- see AdminService.listUsers's
+  // own comment for why: finding someone who is currently shop staff and
+  // promoting them is the common case.
+  @Get('users')
+  listUsers(@Query('search') search?: string) {
+    return this.adminService.listUsers(search || '');
+  }
+
+  @Patch('users/:id/super-admin')
+  setSuperAdmin(@Req() req: any, @Param('id') id: string, @Body() dto: SetSuperAdminDto) {
+    return this.adminService.setSuperAdmin(req.adminId, id, dto.isSuperAdmin);
   }
 }

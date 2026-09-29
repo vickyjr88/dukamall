@@ -247,6 +247,7 @@
 .admin-alert { padding: 10px 14px; border-radius: var(--a-radius-sm); font-size: 0.85rem; margin-bottom: 14px; }
 .admin-alert.is-error { background: var(--a-danger-bg); color: var(--a-danger); }
 .admin-alert.is-success { background: var(--a-success-bg); color: var(--a-success); }
+.admin-alert.is-warning { background: var(--a-warn-bg); color: var(--a-warn); }
 
 .admin-empty { text-align: center; padding: 48px 20px; color: var(--a-muted); }
 

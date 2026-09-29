@@ -27,6 +27,14 @@ enum ShopStatus {
   SUSPENDED
 }
 
+/// Manual billing tier, not a payment-gateway-driven subscription -- see
+/// Shop.billingPlan's own comment.
+enum BillingPlan {
+  TRIAL
+  BASIC
+  PRO
+}
+
 model Shop {
   id           String     @id @default(cuid())
   slug         String     @unique
@@ -50,6 +58,16 @@ model Shop {
   paystackPublicKey      String?
   currency               String  @default("KES")
   orderPrefix            String  @default("SHP")
+
+  // Manual billing tracking, not a payment gateway integration -- an
+  // operator marks a shop paid after an offline transaction (bank
+  // transfer, M-Pesa) and records it here. trialEndsAt is nullable and set
+  // by hand rather than derived from createdAt + a fixed window, since an
+  // operator needs to extend it (a support courtesy, a sales negotiation)
+  // without that meaning "re-create the shop."
+  billingPlan  BillingPlan @default(TRIAL)
+  trialEndsAt  DateTime?
+  billingNotes String?
 
   theme         ShopTheme?
   staff         UserShop[]

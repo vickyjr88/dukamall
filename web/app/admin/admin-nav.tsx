@@ -7,6 +7,7 @@ const LINKS = [
   { href: '/admin/shops', label: 'Shops' },
   { href: '/admin/leads', label: 'Leads' },
   { href: '/admin/search', label: 'Search' },
+  { href: '/admin/users', label: 'Users' },
 ];
 
 // Login has no session yet -- no nav chrome (or a logout button that would

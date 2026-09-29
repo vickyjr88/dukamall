@@ -2,9 +2,18 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
-import { Prisma, ShopRole, ShopStatus } from '@prisma/client';
+import { BillingPlan, Prisma, ShopRole, ShopStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainVerificationService } from '../shop/domain-verification.service';
+
+const TRIAL_EXPIRING_SOON_DAYS = 7;
+
+function isTrialExpiringSoon(trialEndsAt: Date | null): boolean {
+  if (!trialEndsAt) return false;
+  const now = Date.now();
+  const msUntil = trialEndsAt.getTime() - now;
+  return msUntil > 0 && msUntil <= TRIAL_EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
+}
 
 export type AdminShopListQuery = {
   search?: string;
@@ -71,6 +80,9 @@ export class AdminService {
         // Never the actual keys -- listShops doesn't select them at all,
         // only whether both are present.
         paymentReady: Boolean(s.paystackSecretKey && s.paystackPublicKey),
+        billingPlan: s.billingPlan,
+        trialEndsAt: s.trialEndsAt,
+        trialExpiringSoon: isTrialExpiringSoon(s.trialEndsAt),
       })),
       total,
       page,
@@ -117,6 +129,7 @@ export class AdminService {
     return {
       ...shopWithoutKeys,
       paymentReady: Boolean(paystackSecretKey && paystackPublicKey),
+      trialExpiringSoon: isTrialExpiringSoon(shop.trialEndsAt),
       orderSummary: {
         orderCount,
         paidOrderCount: paidOrders.length,
@@ -359,5 +372,131 @@ export class AdminService {
         lines: true,
       },
     });
+  }
+
+  /**
+   * Manual billing tracking -- see Shop.billingPlan's own schema comment
+   * for why this isn't a payment-gateway integration. Only the fields
+   * actually present in the body are changed, same partial-update shape
+   * ShopService.updateTheme already uses; logs a from/to diff per changed
+   * field, same shape as setStatus's own audit entry.
+   */
+  async updateBilling(shopId: string, adminId: string, data: { billingPlan?: BillingPlan; trialEndsAt?: Date | null; billingNotes?: string }) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) throw new NotFoundException('Shop not found');
+
+    const updated = await this.prisma.shop.update({ where: { id: shopId }, data });
+
+    const diff: Record<string, { from: string | null; to: string | null }> = {};
+    if (data.billingPlan !== undefined && data.billingPlan !== shop.billingPlan) {
+      diff.billingPlan = { from: shop.billingPlan, to: data.billingPlan };
+    }
+    if (data.trialEndsAt !== undefined && data.trialEndsAt?.getTime() !== shop.trialEndsAt?.getTime()) {
+      diff.trialEndsAt = { from: shop.trialEndsAt?.toISOString() ?? null, to: data.trialEndsAt?.toISOString() ?? null };
+    }
+    if (data.billingNotes !== undefined && data.billingNotes !== shop.billingNotes) {
+      diff.billingNotes = { from: shop.billingNotes, to: data.billingNotes };
+    }
+    await this.logAction(adminId, shopId, 'billing.updated', undefined, diff);
+
+    return updated;
+  }
+
+  /**
+   * Finds a person to promote/demote -- every User, not just current
+   * admins, since the whole point is finding someone who is *currently*
+   * shop staff (found via listShops/getShop) and making them a platform
+   * admin too. A lookup tool, not a full user-management table: capped at
+   * 50 results per search rather than paginated.
+   */
+  async listUsers(search: string) {
+    const words = search.trim().split(/\s+/).filter(Boolean);
+    const where: Prisma.UserWhereInput = words.length
+      ? {
+          AND: words.map((word) => ({
+            OR: [
+              { email: { contains: word, mode: 'insensitive' as const } },
+              { firstName: { contains: word, mode: 'insensitive' as const } },
+              { lastName: { contains: word, mode: 'insensitive' as const } },
+            ],
+          })),
+        }
+      : {};
+
+    return this.prisma.user.findMany({
+      where,
+      select: { id: true, email: true, firstName: true, lastName: true, isSuperAdmin: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  /**
+   * Refuses to let an admin demote their own account -- with no other
+   * admin to undo it, that's a real, avoidable lockout (the same class of
+   * failure AdminJwtGuard's re-check-every-request design already exists
+   * to catch quickly, not one this action should invite in the first
+   * place). Not shop-scoped (shopId: null in the log) -- this action isn't
+   * about any one shop.
+   */
+  async setSuperAdmin(callerId: string, targetUserId: string, isSuperAdmin: boolean) {
+    if (targetUserId === callerId && !isSuperAdmin) {
+      throw new BadRequestException('You cannot remove your own admin access');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const updated = await this.prisma.user.update({
+      where: { id: targetUserId },
+      data: { isSuperAdmin },
+      select: { id: true, email: true, firstName: true, lastName: true, isSuperAdmin: true, createdAt: true },
+    });
+    await this.logAction(callerId, null, 'admin.super_admin_changed', undefined, {
+      targetUserId,
+      targetEmail: user.email,
+      from: user.isSuperAdmin,
+      to: isSuperAdmin,
+    });
+    return updated;
+  }
+
+  /**
+   * A shop's full data as one JSON object -- an offboarding/backup
+   * artifact, not a streaming/paginated export. Fine at this platform's
+   * current data volume (the largest shop this session has 151 products);
+   * revisit if a shop's order/customer history grows enough to make a
+   * single in-memory Promise.all impractical. Staff rows only carry the
+   * user's email/name, never passwordHash, same exclusion getShop already
+   * applies.
+   */
+  async exportShop(shopId: string, adminId: string) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId }, include: { theme: true } });
+    if (!shop) throw new NotFoundException('Shop not found');
+
+    const [products, categories, customers, orders, cartLeads, staff] = await Promise.all([
+      this.prisma.product.findMany({ where: { shopId }, include: { variants: true } }),
+      this.prisma.productCategory.findMany({ where: { shopId } }),
+      this.prisma.customer.findMany({ where: { shopId } }),
+      this.prisma.order.findMany({ where: { shopId }, include: { lines: true } }),
+      this.prisma.cartLead.findMany({ where: { shopId }, include: { lines: true } }),
+      this.prisma.userShop.findMany({
+        where: { shopId },
+        include: { user: { select: { email: true, firstName: true, lastName: true } } },
+      }),
+    ]);
+
+    const { paystackSecretKey, paystackPublicKey, ...shopWithoutKeys } = shop;
+    await this.logAction(adminId, shopId, 'shop.exported', undefined, undefined);
+
+    return {
+      exportedAt: new Date().toISOString(),
+      shop: { ...shopWithoutKeys, paymentReady: Boolean(paystackSecretKey && paystackPublicKey) },
+      products,
+      categories,
+      customers,
+      orders,
+      cartLeads,
+      staff,
+    };
   }
 }

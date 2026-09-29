@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { adminFetch } from '../../admin-api';
+import { adminFetch, ADMIN_API_BASE, adminAuthHeaders } from '../../admin-api';
 
 type Theme = {
   primaryColor: string; accentColor: string; logoUrl: string | null;
@@ -11,11 +11,13 @@ type Theme = {
 };
 type StaffRow = { userId: string; role: 'OWNER' | 'STAFF'; user: { email: string; firstName: string; lastName: string } };
 type AuditEntry = { id: string; action: string; reason: string | null; metadata: Record<string, unknown> | null; createdAt: string; admin: { email: string } };
+type BillingPlan = 'TRIAL' | 'BASIC' | 'PRO';
 type ShopDetail = {
   id: string; slug: string; name: string; customDomain: string | null;
   status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED'; currency: string; whatsappNumber: string | null;
   pendingDomain: string | null; domainVerifiedAt: string | null; createdAt: string;
   paymentReady: boolean;
+  billingPlan: BillingPlan; trialEndsAt: string | null; billingNotes: string | null; trialExpiringSoon: boolean;
   theme: Theme | null;
   staff: StaffRow[];
   orderSummary: { orderCount: number; paidOrderCount: number; totalRevenueKes: number };
@@ -31,7 +33,30 @@ const ACTION_LABEL: Record<string, string> = {
   'domain.disconnected': 'Domain disconnected',
   'staff.invited': 'Staff invited',
   'staff.removed': 'Staff removed',
+  'billing.updated': 'Billing updated',
+  'shop.exported': 'Data exported',
 };
+
+// A plain <a href> can't carry the admin's Authorization header, so the
+// export button fetches the file itself and hands the browser a Blob URL
+// to download -- the same workaround any authenticated-file-download flow
+// needs client-side.
+async function downloadExport(shopId: string, slug: string) {
+  const res = await fetch(`${ADMIN_API_BASE}/admin/shops/${shopId}/export`, { headers: adminAuthHeaders() });
+  if (!res.ok) throw new Error('Could not export this shop\'s data');
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match ? match[1] : `${slug}-export.json`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export default function ShopDetailPage() {
   const params = useParams<{ id: string }>();
@@ -45,12 +70,22 @@ export default function ShopDetailPage() {
   const [staffBusy, setStaffBusy] = useState(false);
   const [staffError, setStaffError] = useState<string | null>(null);
   const [invitedCredentials, setInvitedCredentials] = useState<{ email: string; temporaryPassword: string } | null>(null);
+  const [billingForm, setBillingForm] = useState<{ billingPlan: BillingPlan; trialEndsAt: string; billingNotes: string }>({ billingPlan: 'TRIAL', trialEndsAt: '', billingNotes: '' });
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingSaved, setBillingSaved] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
 
   async function load() {
     const res = await adminFetch(`/admin/shops/${params.id}`);
     if (res.status === 401) { router.replace('/admin/login'); return; }
     if (res.status === 404) { setNotFound(true); return; }
-    setShop(await res.json());
+    const data: ShopDetail = await res.json();
+    setShop(data);
+    setBillingForm({
+      billingPlan: data.billingPlan,
+      trialEndsAt: data.trialEndsAt ? data.trialEndsAt.slice(0, 10) : '',
+      billingNotes: data.billingNotes ?? '',
+    });
   }
 
   useEffect(() => { load(); }, [params.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -152,6 +187,46 @@ export default function ShopDetailPage() {
     await load();
   }
 
+  async function onSaveBilling(e: React.FormEvent) {
+    e.preventDefault();
+    if (!shop) return;
+    setBillingBusy(true);
+    setBillingSaved(false);
+    setError(null);
+    try {
+      const res = await adminFetch(`/admin/shops/${shop.id}/billing`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          billingPlan: billingForm.billingPlan,
+          trialEndsAt: billingForm.trialEndsAt ? billingForm.trialEndsAt : null,
+          billingNotes: billingForm.billingNotes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Could not update billing');
+      await load();
+      setBillingSaved(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBillingBusy(false);
+    }
+  }
+
+  async function onExport() {
+    if (!shop) return;
+    setExportBusy(true);
+    setError(null);
+    try {
+      await downloadExport(shop.id, shop.slug);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setExportBusy(false);
+    }
+  }
+
   if (notFound) return <div className="admin-empty">Shop not found.</div>;
   if (!shop) return <p>Loading...</p>;
 
@@ -169,9 +244,14 @@ export default function ShopDetailPage() {
             {shop.slug} &middot; {shop.customDomain ?? `${shop.slug}.dukamall.app`}
           </p>
         </div>
-        <button className="admin-btn" onClick={onImpersonate} disabled={impersonating}>
-          {impersonating ? 'Opening...' : 'View as shop'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="admin-btn-outline admin-btn" onClick={onExport} disabled={exportBusy}>
+            {exportBusy ? 'Exporting...' : 'Export data'}
+          </button>
+          <button className="admin-btn" onClick={onImpersonate} disabled={impersonating}>
+            {impersonating ? 'Opening...' : 'View as shop'}
+          </button>
+        </div>
       </div>
 
       {error ? <div className="admin-alert is-error">{error}</div> : null}
@@ -235,6 +315,47 @@ export default function ShopDetailPage() {
             ? 'This shop can take online card payments. Keys are set but never shown here.'
             : 'This shop has no Paystack keys set -- online checkout will fall back to "pay via WhatsApp" only.'}
         </p>
+      </div>
+
+      <div className="admin-card" style={{ marginBottom: 12 }}>
+        <h4>Billing</h4>
+        {shop.trialExpiringSoon ? (
+          <div className="admin-alert is-warning" style={{ marginBottom: 12 }}>
+            Trial ends soon -- {shop.trialEndsAt ? new Date(shop.trialEndsAt).toLocaleDateString() : ''}
+          </div>
+        ) : null}
+        {billingSaved ? <div className="admin-alert is-success" style={{ marginBottom: 12 }}>Billing details saved.</div> : null}
+        <form onSubmit={onSaveBilling} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="admin-field" style={{ marginBottom: 0, flex: '0 1 140px' }}>
+            <label>Plan</label>
+            <select
+              value={billingForm.billingPlan}
+              onChange={(e) => { setBillingForm((f) => ({ ...f, billingPlan: e.target.value as BillingPlan })); setBillingSaved(false); }}
+            >
+              <option value="TRIAL">Trial</option>
+              <option value="BASIC">Basic</option>
+              <option value="PRO">Pro</option>
+            </select>
+          </div>
+          <div className="admin-field" style={{ marginBottom: 0, flex: '0 1 180px' }}>
+            <label>Trial ends</label>
+            <input
+              type="date"
+              value={billingForm.trialEndsAt}
+              onChange={(e) => { setBillingForm((f) => ({ ...f, trialEndsAt: e.target.value })); setBillingSaved(false); }}
+            />
+          </div>
+          <div className="admin-field" style={{ marginBottom: 0, flex: '1 1 260px' }}>
+            <label>Notes</label>
+            <textarea
+              rows={2}
+              placeholder="e.g. Paid via M-Pesa, ref ABC123, covers to Dec 2026"
+              value={billingForm.billingNotes}
+              onChange={(e) => { setBillingForm((f) => ({ ...f, billingNotes: e.target.value })); setBillingSaved(false); }}
+            />
+          </div>
+          <button type="submit" className="admin-btn" disabled={billingBusy}>{billingBusy ? 'Saving...' : 'Save billing'}</button>
+        </form>
       </div>
 
       {shop.theme ? (

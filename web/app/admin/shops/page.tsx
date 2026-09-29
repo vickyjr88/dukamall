@@ -11,6 +11,7 @@ type Shop = {
   status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED'; currency: string; createdAt: string;
   productCount: number; orderCount: number; customerCount: number;
   paymentReady: boolean;
+  billingPlan: 'TRIAL' | 'BASIC' | 'PRO'; trialEndsAt: string | null; trialExpiringSoon: boolean;
 };
 
 type Stats = {
@@ -171,6 +172,7 @@ export default function AdminShopsPage() {
                 <th>Orders</th>
                 <th>Customers</th>
                 <th>Payments</th>
+                <th>Trial ends</th>
                 <th>Created</th>
                 <th>Status</th>
               </tr>
@@ -187,6 +189,15 @@ export default function AdminShopsPage() {
                     <span className={`admin-badge ${shop.paymentReady ? 'is-active' : 'is-trial'}`}>
                       {shop.paymentReady ? 'Ready' : 'Not configured'}
                     </span>
+                  </td>
+                  <td>
+                    {shop.trialEndsAt ? (
+                      <span style={shop.trialExpiringSoon ? { color: 'var(--a-warn)', fontWeight: 600 } : undefined}>
+                        {new Date(shop.trialEndsAt).toLocaleDateString()}
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--a-muted)' }}>&mdash;</span>
+                    )}
                   </td>
                   <td>{new Date(shop.createdAt).toLocaleDateString()}</td>
                   <td>
