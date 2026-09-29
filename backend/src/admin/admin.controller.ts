@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString } from 'class-validator';
-import { ShopStatus } from '@prisma/client';
+import { IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
+import { ShopRole, ShopStatus } from '@prisma/client';
 import { AdminService } from './admin.service';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { Public } from '../auth/decorators/public.decorator';
@@ -10,6 +10,17 @@ import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
 class SetShopStatusDto {
   @IsIn(['TRIAL', 'ACTIVE', 'SUSPENDED']) status!: ShopStatus;
   @IsOptional() @IsString() reason?: string;
+}
+
+class ForceVerifyDomainDto {
+  @IsOptional() @IsString() reason?: string;
+}
+
+class InviteStaffDto {
+  @IsEmail() email!: string;
+  @IsString() firstName!: string;
+  @IsString() lastName!: string;
+  @IsIn(['OWNER', 'STAFF']) role!: ShopRole;
 }
 
 /**
@@ -32,8 +43,18 @@ export class AdminController {
   constructor(private adminService: AdminService) {}
 
   @Get('shops')
-  listShops() {
-    return this.adminService.listShops();
+  listShops(
+    @Query('search') search?: string,
+    @Query('status') status?: ShopStatus,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.adminService.listShops({
+      search,
+      status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
   }
 
   @Get('shops/:id')
@@ -54,6 +75,28 @@ export class AdminController {
     return this.adminService.impersonate(id, req.adminId);
   }
 
+  // Bypasses the DNS TXT check -- see AdminService.forceVerifyDomain's own
+  // comment for why this is a deliberate, always-logged escape hatch.
+  @Post('shops/:id/domain/force-verify')
+  forceVerifyDomain(@Req() req: any, @Param('id') id: string, @Body() dto: ForceVerifyDomainDto) {
+    return this.adminService.forceVerifyDomain(id, req.adminId, dto.reason);
+  }
+
+  @Delete('shops/:id/domain')
+  disconnectDomain(@Req() req: any, @Param('id') id: string) {
+    return this.adminService.adminDisconnectDomain(id, req.adminId);
+  }
+
+  @Post('shops/:id/staff')
+  inviteStaff(@Req() req: any, @Param('id') id: string, @Body() dto: InviteStaffDto) {
+    return this.adminService.inviteStaff(id, req.adminId, dto);
+  }
+
+  @Delete('shops/:id/staff/:userId')
+  removeStaff(@Req() req: any, @Param('id') id: string, @Param('userId') userId: string) {
+    return this.adminService.removeStaff(id, req.adminId, userId);
+  }
+
   @Get('stats')
   stats() {
     return this.adminService.platformStats();
@@ -67,5 +110,12 @@ export class AdminController {
   @Get('cart-leads')
   cartLeads(@Query('limit') limit?: string) {
     return this.adminService.listCartLeads(limit ? Number(limit) : 50);
+  }
+
+  // Cross-shop -- finds which shop a product/SKU belongs to, for a support
+  // ticket that names an item but not the shop it's on.
+  @Get('products/search')
+  searchProducts(@Query('q') q?: string) {
+    return this.adminService.searchProducts(q || '');
   }
 }

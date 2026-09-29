@@ -15,6 +15,7 @@ type ShopDetail = {
   id: string; slug: string; name: string; customDomain: string | null;
   status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED'; currency: string; whatsappNumber: string | null;
   pendingDomain: string | null; domainVerifiedAt: string | null; createdAt: string;
+  paymentReady: boolean;
   theme: Theme | null;
   staff: StaffRow[];
   orderSummary: { orderCount: number; paidOrderCount: number; totalRevenueKes: number };
@@ -26,6 +27,10 @@ const BADGE_CLASS: Record<ShopDetail['status'], string> = { TRIAL: 'is-trial', A
 const ACTION_LABEL: Record<string, string> = {
   'shop.status_changed': 'Status changed',
   'shop.impersonated': 'Viewed as shop',
+  'domain.force_verified': 'Domain force-verified',
+  'domain.disconnected': 'Domain disconnected',
+  'staff.invited': 'Staff invited',
+  'staff.removed': 'Staff removed',
 };
 
 export default function ShopDetailPage() {
@@ -35,6 +40,11 @@ export default function ShopDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [impersonating, setImpersonating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [domainBusy, setDomainBusy] = useState(false);
+  const [staffForm, setStaffForm] = useState({ email: '', firstName: '', lastName: '', role: 'STAFF' as 'OWNER' | 'STAFF' });
+  const [staffBusy, setStaffBusy] = useState(false);
+  const [staffError, setStaffError] = useState<string | null>(null);
+  const [invitedCredentials, setInvitedCredentials] = useState<{ email: string; temporaryPassword: string } | null>(null);
 
   async function load() {
     const res = await adminFetch(`/admin/shops/${params.id}`);
@@ -70,8 +80,82 @@ export default function ShopDetailPage() {
     }
   }
 
+  async function onForceVerify() {
+    if (!shop?.pendingDomain) return;
+    if (!window.confirm(`Force-verify "${shop.pendingDomain}" without checking DNS? Only do this if you've confirmed the merchant controls this domain some other way (e.g. a support call).`)) return;
+    const reason = window.prompt('Why is this being force-verified? (shown in the audit log)') || undefined;
+    setDomainBusy(true);
+    setError(null);
+    try {
+      const res = await adminFetch(`/admin/shops/${shop.id}/domain/force-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Could not force-verify this domain');
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setDomainBusy(false);
+    }
+  }
+
+  async function onDisconnectDomain() {
+    if (!shop) return;
+    if (!window.confirm('Disconnect this domain? The shop will fall back to its platform subdomain.')) return;
+    setDomainBusy(true);
+    setError(null);
+    try {
+      await adminFetch(`/admin/shops/${shop.id}/domain`, { method: 'DELETE' });
+      await load();
+    } finally {
+      setDomainBusy(false);
+    }
+  }
+
+  async function onInviteStaff(e: React.FormEvent) {
+    e.preventDefault();
+    if (!shop) return;
+    setStaffError(null);
+    setInvitedCredentials(null);
+    setStaffBusy(true);
+    try {
+      const res = await adminFetch(`/admin/shops/${shop.id}/staff`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Could not add this staff member');
+      if (data.temporaryPassword) setInvitedCredentials({ email: data.email, temporaryPassword: data.temporaryPassword });
+      setStaffForm({ email: '', firstName: '', lastName: '', role: 'STAFF' });
+      await load();
+    } catch (e: any) {
+      setStaffError(e.message);
+    } finally {
+      setStaffBusy(false);
+    }
+  }
+
+  async function onRemoveStaff(userId: string) {
+    if (!shop) return;
+    if (!window.confirm('Remove this person\'s access to the shop?')) return;
+    setStaffError(null);
+    const res = await adminFetch(`/admin/shops/${shop.id}/staff/${userId}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json();
+      setStaffError(data?.message || 'Could not remove this staff member');
+      return;
+    }
+    await load();
+  }
+
   if (notFound) return <div className="admin-empty">Shop not found.</div>;
   if (!shop) return <p>Loading...</p>;
+
+  const ownerCount = shop.staff.filter((s) => s.role === 'OWNER').length;
 
   return (
     <div>
@@ -104,21 +188,53 @@ export default function ShopDetailPage() {
           <tbody>
             <tr><td style={{ fontWeight: 600, width: 160 }}>WhatsApp number</td><td>{shop.whatsappNumber ?? <span style={{ color: 'var(--a-muted)' }}>Not set</span>}</td></tr>
             <tr><td style={{ fontWeight: 600 }}>Currency</td><td>{shop.currency}</td></tr>
-            <tr>
-              <td style={{ fontWeight: 600 }}>Domain</td>
-              <td>
-                {shop.customDomain ? (
-                  <>Verified &mdash; {shop.customDomain}</>
-                ) : shop.pendingDomain ? (
-                  <>Pending verification &mdash; {shop.pendingDomain}</>
-                ) : (
-                  <span style={{ color: 'var(--a-muted)' }}>Using platform subdomain only</span>
-                )}
-              </td>
-            </tr>
             <tr><td style={{ fontWeight: 600 }}>Created</td><td>{new Date(shop.createdAt).toLocaleString()}</td></tr>
           </tbody>
         </table>
+      </div>
+
+      <div className="admin-card" style={{ marginBottom: 12 }}>
+        <h4>Domain</h4>
+        {shop.customDomain ? (
+          <>
+            <p style={{ fontSize: 13, marginBottom: 12 }}>
+              Verified &mdash; <strong>{shop.customDomain}</strong>
+              {shop.domainVerifiedAt ? <span style={{ color: 'var(--a-muted)' }}> since {new Date(shop.domainVerifiedAt).toLocaleDateString()}</span> : null}
+            </p>
+            <button className="admin-btn-outline admin-btn admin-btn-sm" onClick={onDisconnectDomain} disabled={domainBusy}>
+              Disconnect
+            </button>
+          </>
+        ) : shop.pendingDomain ? (
+          <>
+            <p style={{ fontSize: 13, marginBottom: 12 }}>
+              Pending verification &mdash; <strong>{shop.pendingDomain}</strong>. The merchant needs to add a DNS TXT
+              record; if they've confirmed ownership another way (e.g. a support call) you can skip that check.
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="admin-btn admin-btn-sm" onClick={onForceVerify} disabled={domainBusy}>
+                Force verify
+              </button>
+              <button className="admin-btn-outline admin-btn admin-btn-sm" onClick={onDisconnectDomain} disabled={domainBusy}>
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <p style={{ fontSize: 13, color: 'var(--a-muted)' }}>Using platform subdomain only -- no custom domain requested.</p>
+        )}
+      </div>
+
+      <div className="admin-card" style={{ marginBottom: 12 }}>
+        <h4>Payments</h4>
+        <span className={`admin-badge ${shop.paymentReady ? 'is-active' : 'is-trial'}`}>
+          {shop.paymentReady ? 'Paystack configured' : 'Not configured'}
+        </span>
+        <p style={{ fontSize: 13, color: 'var(--a-muted)', marginTop: 8 }}>
+          {shop.paymentReady
+            ? 'This shop can take online card payments. Keys are set but never shown here.'
+            : 'This shop has no Paystack keys set -- online checkout will fall back to "pay via WhatsApp" only.'}
+        </p>
       </div>
 
       {shop.theme ? (
@@ -145,21 +261,59 @@ export default function ShopDetailPage() {
       <div className="admin-card" style={{ marginBottom: 12 }}>
         <h4>Staff</h4>
         {shop.staff.length === 0 ? (
-          <p style={{ color: 'var(--a-muted)', fontSize: 13 }}>No staff on this shop.</p>
+          <p style={{ color: 'var(--a-muted)', fontSize: 13, marginBottom: 16 }}>No staff on this shop.</p>
         ) : (
-          <table className="admin-table">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+          <table className="admin-table" style={{ marginBottom: 16 }}>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
             <tbody>
               {shop.staff.map((s) => (
                 <tr key={s.userId}>
                   <td>{s.user.firstName} {s.user.lastName}</td>
                   <td>{s.user.email}</td>
                   <td>{s.role}</td>
+                  <td>
+                    {s.role === 'OWNER' && ownerCount <= 1 ? (
+                      <span style={{ fontSize: 12, color: 'var(--a-muted)' }}>Only owner</span>
+                    ) : (
+                      <button className="admin-btn-ghost" onClick={() => onRemoveStaff(s.userId)}>Remove</button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         )}
+
+        {invitedCredentials ? (
+          <div className="admin-alert is-success">
+            Added {invitedCredentials.email} with a temporary password: <strong>{invitedCredentials.temporaryPassword}</strong>
+            <br />Share this with them now -- it won&apos;t be shown again. They should change it after logging in.
+          </div>
+        ) : null}
+        {staffError ? <div className="admin-alert is-error">{staffError}</div> : null}
+
+        <form onSubmit={onInviteStaff} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="admin-field" style={{ marginBottom: 0, flex: '1 1 200px' }}>
+            <label>Email</label>
+            <input type="email" value={staffForm.email} onChange={(e) => setStaffForm((f) => ({ ...f, email: e.target.value }))} required />
+          </div>
+          <div className="admin-field" style={{ marginBottom: 0, flex: '1 1 140px' }}>
+            <label>First name</label>
+            <input value={staffForm.firstName} onChange={(e) => setStaffForm((f) => ({ ...f, firstName: e.target.value }))} required />
+          </div>
+          <div className="admin-field" style={{ marginBottom: 0, flex: '1 1 140px' }}>
+            <label>Last name</label>
+            <input value={staffForm.lastName} onChange={(e) => setStaffForm((f) => ({ ...f, lastName: e.target.value }))} required />
+          </div>
+          <div className="admin-field" style={{ marginBottom: 0, flex: '0 1 120px' }}>
+            <label>Role</label>
+            <select value={staffForm.role} onChange={(e) => setStaffForm((f) => ({ ...f, role: e.target.value as 'OWNER' | 'STAFF' }))}>
+              <option value="STAFF">Staff</option>
+              <option value="OWNER">Owner</option>
+            </select>
+          </div>
+          <button type="submit" className="admin-btn" disabled={staffBusy}>{staffBusy ? 'Adding...' : 'Add staff'}</button>
+        </form>
       </div>
 
       <div className="admin-card">
@@ -177,6 +331,9 @@ export default function ShopDetailPage() {
                     {ACTION_LABEL[entry.action] ?? entry.action}
                     {entry.metadata && typeof entry.metadata === 'object' && 'from' in entry.metadata ? (
                       <span style={{ color: 'var(--a-muted)' }}> ({String((entry.metadata as any).from)} &rarr; {String((entry.metadata as any).to)})</span>
+                    ) : null}
+                    {entry.metadata && typeof entry.metadata === 'object' && 'domain' in entry.metadata ? (
+                      <span style={{ color: 'var(--a-muted)' }}> ({String((entry.metadata as any).domain)})</span>
                     ) : null}
                   </td>
                   <td>{entry.admin.email}</td>

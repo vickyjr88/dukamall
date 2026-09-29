@@ -6,6 +6,6 @@ import { DomainVerificationService } from './domain-verification.service';
 @Module({
   controllers: [ShopController],
   providers: [ShopService, DomainVerificationService],
-  exports: [ShopService],
+  exports: [ShopService, DomainVerificationService],
 })
 export class ShopModule {}

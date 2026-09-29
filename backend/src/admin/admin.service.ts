@@ -1,31 +1,82 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma, ShopStatus } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
+import { Prisma, ShopRole, ShopStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { DomainVerificationService } from '../shop/domain-verification.service';
+
+export type AdminShopListQuery = {
+  search?: string;
+  status?: ShopStatus;
+  page?: number;
+  pageSize?: number;
+};
 
 @Injectable()
 export class AdminService {
-  constructor(private prisma: PrismaService, private jwtService: JwtService) {}
+  constructor(
+    private prisma: PrismaService,
+    private jwtService: JwtService,
+    private domainVerification: DomainVerificationService,
+  ) {}
 
-  async listShops() {
-    const shops = await this.prisma.shop.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: { select: { products: true, orders: true, customers: true } },
-      },
-    });
-    return shops.map((s) => ({
-      id: s.id,
-      slug: s.slug,
-      name: s.name,
-      customDomain: s.customDomain,
-      status: s.status,
-      currency: s.currency,
-      createdAt: s.createdAt,
-      productCount: s._count.products,
-      orderCount: s._count.orders,
-      customerCount: s._count.customers,
-    }));
+  /**
+   * Search/filter/pagination shape mirrors PortalProductService.list (the
+   * portal's own products-page fix from an earlier session) -- this table
+   * had the identical "loads everything, no way to narrow it" gap once
+   * there are enough shops to matter.
+   */
+  async listShops(query: AdminShopListQuery = {}) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
+
+    const where: Prisma.ShopWhereInput = {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              { slug: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const [total, shops] = await Promise.all([
+      this.prisma.shop.count({ where }),
+      this.prisma.shop.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          _count: { select: { products: true, orders: true, customers: true } },
+        },
+      }),
+    ]);
+
+    return {
+      shops: shops.map((s) => ({
+        id: s.id,
+        slug: s.slug,
+        name: s.name,
+        customDomain: s.customDomain,
+        status: s.status,
+        currency: s.currency,
+        createdAt: s.createdAt,
+        productCount: s._count.products,
+        orderCount: s._count.orders,
+        customerCount: s._count.customers,
+        // Never the actual keys -- listShops doesn't select them at all,
+        // only whether both are present.
+        paymentReady: Boolean(s.paystackSecretKey && s.paystackPublicKey),
+      })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
   }
 
   /**
@@ -58,8 +109,14 @@ export class AdminService {
       }),
     ]);
 
+    // Strip the actual Paystack keys before returning -- this endpoint's
+    // caller only ever needs to know whether they're set, never their
+    // values, same reasoning as listShops's paymentReady.
+    const { paystackSecretKey, paystackPublicKey, ...shopWithoutKeys } = shop;
+
     return {
-      ...shop,
+      ...shopWithoutKeys,
+      paymentReady: Boolean(paystackSecretKey && paystackPublicKey),
       orderSummary: {
         orderCount,
         paidOrderCount: paidOrders.length,
@@ -67,6 +124,140 @@ export class AdminService {
       },
       auditLog,
     };
+  }
+
+  /**
+   * Promotes a pending domain straight to customDomain, skipping the DNS
+   * TXT check DomainVerificationService.verifyDomain otherwise requires --
+   * for when an operator has confirmed control out-of-band (a support
+   * call) and DNS propagation is just slow. This bypasses the one safety
+   * check that service's own header comment calls out as load-bearing, so
+   * it must never be silent: always logged, reason optional but the action
+   * itself always shows up in this shop's audit trail.
+   */
+  async forceVerifyDomain(shopId: string, adminId: string, reason?: string) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) throw new NotFoundException('Shop not found');
+    if (!shop.pendingDomain) throw new BadRequestException('No domain is pending verification for this shop');
+
+    const updated = await this.prisma.shop.update({
+      where: { id: shopId },
+      data: {
+        customDomain: shop.pendingDomain,
+        pendingDomain: null,
+        domainVerificationToken: null,
+        domainVerifiedAt: new Date(),
+      },
+    });
+    await this.logAction(adminId, shopId, 'domain.force_verified', reason, { domain: shop.pendingDomain });
+    return updated;
+  }
+
+  async adminDisconnectDomain(shopId: string, adminId: string) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) throw new NotFoundException('Shop not found');
+    const domain = shop.customDomain ?? shop.pendingDomain;
+    const updated = await this.domainVerification.disconnectDomain(shopId);
+    await this.logAction(adminId, shopId, 'domain.disconnected', undefined, { domain });
+    return updated;
+  }
+
+  /**
+   * Attaches a new staff member to a shop -- mirrors
+   * OnboardingService.createShop's find-or-create-User pattern, since a
+   * person can staff more than one shop and re-creating their User row on
+   * a second invite would collide on the unique email. A brand-new user
+   * gets a random password, returned once in the response and never
+   * stored/logged in plaintext anywhere -- the same "shown once" handling
+   * this session already used for the platform-admin account created by
+   * hand earlier. They reset it via the portal's own change-password flow
+   * after first login, same as any new hire.
+   */
+  async inviteStaff(shopId: string, adminId: string, data: { email: string; firstName: string; lastName: string; role: ShopRole }) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) throw new NotFoundException('Shop not found');
+
+    let user = await this.prisma.user.findUnique({ where: { email: data.email } });
+    let temporaryPassword: string | undefined;
+
+    if (user) {
+      const existingMembership = await this.prisma.userShop.findUnique({
+        where: { userId_shopId: { userId: user.id, shopId } },
+      });
+      if (existingMembership) throw new BadRequestException('This person already has access to this shop');
+    } else {
+      temporaryPassword = randomBytes(9).toString('base64').replace(/[+/=]/g, '');
+      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+      user = await this.prisma.user.create({
+        data: { email: data.email, passwordHash, firstName: data.firstName, lastName: data.lastName },
+      });
+    }
+
+    await this.prisma.userShop.create({ data: { userId: user.id, shopId, role: data.role } });
+    await this.logAction(adminId, shopId, 'staff.invited', undefined, { userId: user.id, email: user.email, role: data.role });
+
+    return {
+      userId: user.id,
+      email: user.email,
+      // Only present for a brand-new account -- an existing user keeps
+      // their existing password, nothing to show here.
+      temporaryPassword,
+    };
+  }
+
+  /**
+   * Refuses to remove a shop's only OWNER -- without at least one, nobody
+   * could ever administer it again through normal means (no self-service
+   * "reassign ownership" flow exists), and support would be back to
+   * fixing it by hand via SQL, the exact thing this batch exists to avoid.
+   */
+  async removeStaff(shopId: string, adminId: string, userId: string) {
+    const membership = await this.prisma.userShop.findUnique({ where: { userId_shopId: { userId, shopId } } });
+    if (!membership) throw new NotFoundException('This person does not have access to this shop');
+
+    if (membership.role === 'OWNER') {
+      const ownerCount = await this.prisma.userShop.count({ where: { shopId, role: 'OWNER' } });
+      if (ownerCount <= 1) throw new BadRequestException('Cannot remove the only owner of a shop');
+    }
+
+    await this.prisma.userShop.delete({ where: { userId_shopId: { userId, shopId } } });
+    await this.logAction(adminId, shopId, 'staff.removed', undefined, { userId });
+    return { success: true };
+  }
+
+  /**
+   * Finds which shop a product/SKU belongs to -- a support lookup, not a
+   * shopper-facing search, so this reuses only the literal multi-word-match
+   * half of StorefrontService.listProducts's strategy (no pg_trgm fuzzy
+   * fallback; typo tolerance is a nice-to-have here, not required).
+   */
+  async searchProducts(q: string) {
+    const words = q.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return [];
+
+    const wordClauses: Prisma.ProductWhereInput[] = words.map((word) => ({
+      OR: [
+        { name: { contains: word, mode: 'insensitive' } },
+        { brand: { contains: word, mode: 'insensitive' } },
+        { variants: { some: { sku: { contains: word, mode: 'insensitive' } } } },
+      ],
+    }));
+
+    const products = await this.prisma.product.findMany({
+      where: { AND: wordClauses },
+      include: { shop: { select: { id: true, name: true, slug: true } }, variants: { select: { sku: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 25,
+    });
+
+    return products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      brand: p.brand,
+      isActive: p.isActive,
+      skus: p.variants.map((v) => v.sku),
+      shop: p.shop,
+    }));
   }
 
   async setStatus(shopId: string, adminId: string, status: ShopStatus, reason?: string) {
