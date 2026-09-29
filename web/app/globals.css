@@ -221,12 +221,18 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 }
 
 /* -----------------------------------------------------------------------
-   Hero
+   Hero -- content is centered (both axes) over an optional merchant-
+   uploaded background photo (ShopTheme.heroImageUrl, portal/theme). With
+   no image it's the same centered layout over a plain surface color, so a
+   shop that hasn't uploaded one yet isn't left with a broken or lopsided
+   hero -- see .shop-hero:not(.has-media) below.
    -------------------------------------------------------------------- */
 .shop-hero {
   position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   min-height: min(560px, 70vh);
   padding: var(--shop-space-8) var(--shop-space-5);
   background: var(--shop-surface);
@@ -243,17 +249,25 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   object-fit: cover;
 }
 .shop-hero-media::after {
+  /* Even, centered dimming rather than the old bottom-weighted gradient --
+     content now sits in the middle of the image, not pinned to the bottom
+     edge, so it needs contrast across the whole frame, not just the lower
+     third. */
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,0.55) 100%);
+  background: rgba(0, 0, 0, 0.4);
 }
 .shop-hero-content {
   position: relative;
   z-index: 1;
   max-width: 640px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.shop-hero-content.has-media { color: #fff; }
+.shop-hero.has-media .shop-hero-content { color: #fff; }
 .shop-hero-content .eyebrow {
   display: block;
   font-size: var(--shop-text-xs);
@@ -274,7 +288,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   opacity: 0.9;
 }
 @media (max-width: 640px) {
-  .shop-hero { min-height: 420px; padding: var(--shop-space-6) var(--shop-space-4); align-items: flex-end; }
+  .shop-hero { min-height: 420px; padding: var(--shop-space-6) var(--shop-space-4); }
 }
 
 /* -----------------------------------------------------------------------

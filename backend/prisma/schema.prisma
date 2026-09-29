@@ -75,6 +75,12 @@ model ShopTheme {
   primaryColor String @default("#2438a8")
   accentColor  String @default("#0f7a40")
   logoUrl      String?
+  /// Home page hero background photo, uploaded via the portal's media
+  /// upload endpoint (same one products already use) -- optional, since the
+  /// hero already renders correctly with just the shop name over a plain
+  /// surface color when unset (see globals.css's .shop-hero-content, which
+  /// has no .has-media modifier in that case).
+  heroImageUrl String?
   fontPairing  String @default("fraunces-manrope")
   layoutPreset String @default("sharp")
 

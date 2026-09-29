@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { portalFetch } from '../portal-api';
+import { authHeaders, portalFetch, PORTAL_API_BASE } from '../portal-api';
 
 type ThemeOptions = {
   fontPairings: { key: string; label: string }[];
@@ -12,6 +12,7 @@ type Theme = {
   primaryColor: string;
   accentColor: string;
   logoUrl: string | null;
+  heroImageUrl: string | null;
   fontPairing: string;
   layoutPreset: string;
 };
@@ -21,6 +22,7 @@ export default function ThemePage() {
   const [theme, setTheme] = useState<Theme | null>(null);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingHero, setUploadingHero] = useState(false);
 
   useEffect(() => {
     portalFetch('/portal/theme-options').then((r) => r.json()).then(setOptions);
@@ -39,6 +41,15 @@ export default function ThemePage() {
         primaryColor: theme.primaryColor,
         accentColor: theme.accentColor,
         logoUrl: theme.logoUrl || undefined,
+        // Explicit null, not `|| undefined` -- JSON.stringify drops an
+        // undefined key entirely, and updateTheme's upsert only touches
+        // keys actually present in the body. With `|| undefined` here,
+        // clicking "Remove image" then Save silently kept the old URL in
+        // the database (a real bug found while testing this feature): the
+        // request just never mentioned heroImageUrl at all, so Prisma left
+        // the column untouched. null is a real value that reaches the
+        // column and clears it.
+        heroImageUrl: theme.heroImageUrl || null,
         fontPairing: theme.fontPairing,
         layoutPreset: theme.layoutPreset,
       }),
@@ -49,6 +60,32 @@ export default function ThemePage() {
       return;
     }
     setSaved(true);
+  }
+
+  async function onUploadHeroImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !theme) return;
+    setUploadingHero(true);
+    setError(null);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch(`${PORTAL_API_BASE}/media/upload`, {
+        method: 'POST', headers: authHeaders(), body,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Upload failed');
+      // Held in local state, not saved to the server yet -- Save theme below
+      // is still the one action that commits it, same as every other field
+      // on this form, so a merchant can preview then back out without
+      // leaving the storefront mid-change.
+      setTheme({ ...theme, heroImageUrl: data.url });
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUploadingHero(false);
+      e.target.value = '';
+    }
   }
 
   if (!options || !theme) return <p>Loading...</p>;
@@ -80,6 +117,32 @@ export default function ThemePage() {
           <div className="portal-field">
             <label>Logo URL (optional)</label>
             <input value={theme.logoUrl ?? ''} onChange={(e) => setTheme({ ...theme, logoUrl: e.target.value })} placeholder="https://..." />
+          </div>
+
+          <div className="portal-field">
+            <label>Home page hero background image (optional)</label>
+            {theme.heroImageUrl ? (
+              <div style={{ marginBottom: 10 }}>
+                <img
+                  src={theme.heroImageUrl}
+                  alt="Hero preview"
+                  style={{ width: '100%', maxWidth: 320, height: 140, objectFit: 'cover', borderRadius: 'var(--p-radius-sm)', border: '1px solid var(--p-line)' }}
+                />
+              </div>
+            ) : null}
+            <input type="file" accept="image/*" onChange={onUploadHeroImage} disabled={uploadingHero} />
+            {uploadingHero ? <span className="hint">Uploading...</span> : null}
+            {theme.heroImageUrl ? (
+              <button
+                type="button"
+                className="portal-btn-ghost"
+                style={{ marginTop: 6 }}
+                onClick={() => setTheme({ ...theme, heroImageUrl: null })}
+              >
+                Remove image
+              </button>
+            ) : null}
+            <span className="hint">Shown behind your shop name on the home page. Landscape photos work best -- at least 1600px wide.</span>
           </div>
 
           <div className="portal-field">

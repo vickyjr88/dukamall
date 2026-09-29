@@ -54,6 +54,7 @@ export class ShopService {
       primaryColor: '#2438a8',
       accentColor: '#0f7a40',
       logoUrl: null,
+      heroImageUrl: null,
       fontPairing: 'fraunces-manrope',
       layoutPreset: 'sharp',
     };
@@ -83,7 +84,7 @@ export class ShopService {
     };
   }
 
-  async updateTheme(shopId: string, data: Partial<{ primaryColor: string; accentColor: string; logoUrl: string; fontPairing: string; layoutPreset: string }>) {
+  async updateTheme(shopId: string, data: Partial<{ primaryColor: string; accentColor: string; logoUrl: string; heroImageUrl: string; fontPairing: string; layoutPreset: string }>) {
     // Hex-only: this is injected as raw CSS by the storefront's theme
     // injector (design doc S:2.5) -- anything else is a CSS-injection vector.
     for (const key of ['primaryColor', 'accentColor'] as const) {

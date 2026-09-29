@@ -24,6 +24,7 @@ export type ShopTheme = {
   primaryColor: string;
   accentColor: string;
   logoUrl: string | null;
+  heroImageUrl: string | null;
   fontPairing: string;
   layoutPreset: string;
 };
