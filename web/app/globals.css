@@ -862,6 +862,10 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .manual-size-block {
   border-top: 1px solid var(--shop-line);
   padding-top: var(--shop-space-5);
+  /* This block sits directly above .pdp-actions (Add to Cart / WhatsApp)
+     now -- without this it ran flush into those buttons with no
+     breathing room. */
+  margin-bottom: var(--shop-space-5);
 }
 .manual-size-block label {
   display: block;
