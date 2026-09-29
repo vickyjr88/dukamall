@@ -349,6 +349,103 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .btn-icon.is-active { color: var(--shop-accent); border-color: var(--shop-accent); }
 
 /* -----------------------------------------------------------------------
+   Product search & filters (storefront-search.tsx)
+   -------------------------------------------------------------------- */
+.pf-bar {
+  margin-bottom: var(--shop-space-6);
+  padding-bottom: var(--shop-space-5);
+  border-bottom: 1px solid var(--shop-line);
+}
+.pf-search {
+  display: flex;
+  gap: var(--shop-space-2);
+  margin-bottom: var(--shop-space-4);
+  max-width: 480px;
+}
+.pf-search input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--shop-line-strong);
+  border-radius: var(--shop-radius-sm);
+  background: #fff;
+  font-size: var(--shop-text-sm);
+}
+.pf-search input:focus { outline: none; border-color: var(--shop-ink); }
+
+.pf-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--shop-space-4);
+  margin-bottom: var(--shop-space-4);
+}
+.pf-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--shop-text-xs);
+  font-weight: 600;
+  color: var(--shop-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.pf-row select {
+  padding: 8px 10px;
+  border: 1px solid var(--shop-line-strong);
+  border-radius: var(--shop-radius-sm);
+  background: #fff;
+  font-size: var(--shop-text-sm);
+  color: var(--shop-ink);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  min-width: 160px;
+}
+
+.pf-sizes { margin-bottom: var(--shop-space-4); }
+.pf-sizes > span {
+  display: block;
+  font-size: var(--shop-text-xs);
+  font-weight: 600;
+  color: var(--shop-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--shop-space-2);
+}
+.pf-size-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pf-chip {
+  padding: 6px 14px;
+  font-size: var(--shop-text-sm);
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid var(--shop-line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s var(--shop-ease), background 0.15s var(--shop-ease), color 0.15s var(--shop-ease);
+}
+.pf-chip:hover { border-color: var(--shop-ink); }
+.pf-chip.is-on { background: var(--shop-ink); color: #fff; border-color: var(--shop-ink); }
+
+.pf-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--shop-space-3);
+}
+.pf-count { font-size: var(--shop-text-sm); color: var(--shop-muted); }
+.pf-clear {
+  font-size: var(--shop-text-sm);
+  font-weight: 600;
+  color: var(--shop-ink);
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 1px;
+}
+@media (max-width: 640px) {
+  .pf-row { gap: var(--shop-space-3); }
+  .pf-row select { min-width: 0; flex: 1; }
+  .pf-row label { flex: 1 1 140px; }
+}
+
+/* -----------------------------------------------------------------------
    Product grid + card
    -------------------------------------------------------------------- */
 .product-grid {

@@ -1,8 +1,28 @@
-import { getProducts, getShopInfo, getTheme } from '@/app/lib/api';
-import { ProductCard } from '@/app/product-card';
+import { getCategories, getFilters, getProducts, getShopInfo, getTheme } from '@/app/lib/api';
+import { StorefrontSearch } from './storefront-search';
 
-export default async function HomePage() {
-  const [products, shopInfo, theme] = await Promise.all([getProducts(), getShopInfo(), getTheme()]);
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: { category?: string; brand?: string; size?: string; search?: string; sort?: string; minPrice?: string; maxPrice?: string };
+}) {
+  const query = {
+    category: searchParams.category,
+    brand: searchParams.brand,
+    size: searchParams.size,
+    search: searchParams.search,
+    sort: searchParams.sort,
+    minPrice: searchParams.minPrice,
+    maxPrice: searchParams.maxPrice,
+  };
+
+  const [products, shopInfo, theme, categories, filters] = await Promise.all([
+    getProducts(query),
+    getShopInfo(),
+    getTheme(),
+    getCategories(),
+    getFilters(),
+  ]);
 
   return (
     <main>
@@ -25,29 +45,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="shop-section" id="catalog">
-        <div className="shop-container">
-          <div className="shop-section-head">
-            <div>
-              <span className="eyebrow">Full catalog</span>
-              <h2>All products</h2>
-            </div>
-          </div>
-
-          {products.length === 0 ? (
-            <div className="empty-state">
-              <h3>Nothing here yet</h3>
-              <p>Check back soon -- new products are added regularly.</p>
-            </div>
-          ) : (
-            <div className="product-grid">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+      <StorefrontSearch initialProducts={products} categories={categories} filters={filters} />
     </main>
   );
 }

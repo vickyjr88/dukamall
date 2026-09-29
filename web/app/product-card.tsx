@@ -8,9 +8,20 @@ import { ShareButton } from './share-button';
 import { FavoriteButton } from './favorite-button';
 import { useShopInfo } from './lib/shop-info-context';
 
+/**
+ * The variant whose price the card shows. Cheapest in-stock variant, or
+ * cheapest overall if none are in stock -- not just "the first in-stock
+ * one" (found to disagree with the backend's own price-asc/price-desc
+ * sort while testing that feature: a product with a stray low-priced
+ * variant sorted correctly by its true cheapest price, but the card
+ * displayed a different, higher-priced variant, making a correctly sorted
+ * grid look unsorted).
+ */
 function currentPrice(product: ShopProduct) {
-  const inStock = product.variants.find((v) => v.stockOnHand > 0) ?? product.variants[0];
-  return inStock ?? null;
+  if (product.variants.length === 0) return null;
+  const inStock = product.variants.filter((v) => v.stockOnHand > 0);
+  const pool = inStock.length > 0 ? inStock : product.variants;
+  return pool.reduce((cheapest, v) => (Number(v.priceKes) < Number(cheapest.priceKes) ? v : cheapest));
 }
 
 /**

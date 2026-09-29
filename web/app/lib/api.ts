@@ -59,9 +59,40 @@ export async function getTheme(): Promise<ShopTheme> {
   return res.json();
 }
 
-export async function getProducts(): Promise<ShopProduct[]> {
-  const res = await shopFetch('/shop/products');
+export type ProductListQuery = {
+  category?: string;
+  brand?: string;
+  size?: string;
+  search?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  sort?: string;
+};
+
+export async function getProducts(query: ProductListQuery = {}): Promise<ShopProduct[]> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  const qs = params.toString();
+  const res = await shopFetch(`/shop/products${qs ? `?${qs}` : ''}`);
   if (!res.ok) return [];
+  return res.json();
+}
+
+export type ShopCategory = { id: string; name: string; slug: string };
+
+export async function getCategories(): Promise<ShopCategory[]> {
+  const res = await shopFetch('/shop/categories');
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export type ShopFilters = { brands: string[]; sizes: string[] };
+
+export async function getFilters(): Promise<ShopFilters> {
+  const res = await shopFetch('/shop/filters');
+  if (!res.ok) return { brands: [], sizes: [] };
   return res.json();
 }
 
