@@ -249,3 +249,52 @@
 .admin-alert.is-success { background: var(--a-success-bg); color: var(--a-success); }
 
 .admin-empty { text-align: center; padding: 48px 20px; color: var(--a-muted); }
+
+/* -----------------------------------------------------------------------
+   Revenue trend (plain divs, no charting library for one sparkline-sized
+   chart -- see dashboard-trend.tsx)
+   -------------------------------------------------------------------- */
+.admin-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 90px;
+  margin-top: 10px;
+}
+.admin-trend-bar {
+  flex: 1;
+  min-width: 3px;
+  background: var(--a-primary);
+  border-radius: 2px 2px 0 0;
+  position: relative;
+  transition: background 0.12s;
+}
+.admin-trend-bar:hover { background: var(--a-primary-hover); }
+.admin-trend-bar[data-empty="true"] { background: var(--a-line); }
+
+/* -----------------------------------------------------------------------
+   Shop detail page
+   -------------------------------------------------------------------- */
+.admin-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.admin-theme-swatches { display: flex; gap: 10px; align-items: center; }
+.admin-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--a-radius-sm);
+  border: 1px solid var(--a-line-strong);
+  flex-shrink: 0;
+}
+.admin-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: var(--a-radius-sm);
+  border: 1px solid var(--a-line-strong);
+}

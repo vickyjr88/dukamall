@@ -11,7 +11,7 @@ import { PortalNav } from './portal-nav';
 // only the *links inside* it were hidden by PortalNav -- so a signed-out
 // visitor saw an empty sidebar column sitting next to the login card
 // instead of no sidebar at all.
-const NO_SIDEBAR_PATHS = ['/portal/login', '/portal/signup'];
+const NO_SIDEBAR_PATHS = ['/portal/login', '/portal/signup', '/portal/sso'];
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { adminFetch } from '../admin-api';
+import { DashboardTrend } from '../dashboard-trend';
 
 type Shop = {
   id: string; slug: string; name: string; customDomain: string | null;
@@ -40,10 +42,20 @@ export default function AdminShopsPage() {
   }, [authFailed, router]);
 
   async function onSetStatus(shopId: string, status: Shop['status']) {
+    // A reason prompt only when suspending -- reactivating a shop (or
+    // switching TRIAL<->ACTIVE) doesn't need one, and a mandatory prompt
+    // there would just be a click a support action has to dismiss every
+    // time.
+    let reason: string | undefined;
+    if (status === 'SUSPENDED') {
+      const entered = window.prompt('Why is this shop being suspended? (shown in its audit log)');
+      if (entered === null) return; // Cancelled -- leave the status alone.
+      reason = entered.trim() || undefined;
+    }
     await adminFetch(`/admin/shops/${shopId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, reason }),
     });
     load();
   }
@@ -65,6 +77,8 @@ export default function AdminShopsPage() {
         </div>
       ) : null}
 
+      <DashboardTrend />
+
       <div className="admin-page-head"><h3>Shops</h3></div>
       {!shops ? <p>Loading...</p> : shops.length === 0 ? (
         <div className="admin-empty">No shops yet.</div>
@@ -85,7 +99,7 @@ export default function AdminShopsPage() {
             <tbody>
               {shops.map((shop) => (
                 <tr key={shop.id}>
-                  <td>{shop.name} <span style={{ color: 'var(--a-muted)' }}>({shop.slug})</span></td>
+                  <td><Link href={`/admin/shops/${shop.id}`}>{shop.name}</Link> <span style={{ color: 'var(--a-muted)' }}>({shop.slug})</span></td>
                   <td>{shop.customDomain ?? `${shop.slug}.dukamall.app`}</td>
                   <td>{shop.productCount}</td>
                   <td>{shop.orderCount}</td>

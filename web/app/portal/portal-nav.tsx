@@ -12,8 +12,9 @@ const LINKS = [
 ];
 
 // Login/signup have no session yet -- no nav chrome (or a logout button
-// that would do nothing) makes sense on either.
-const NO_NAV_PATHS = ['/portal/login', '/portal/signup'];
+// that would do nothing) makes sense on either. /portal/sso is a one-hop
+// redirect landing (see its own page.tsx) with the same reasoning.
+const NO_NAV_PATHS = ['/portal/login', '/portal/signup', '/portal/sso'];
 
 export function PortalNav() {
   const pathname = usePathname();

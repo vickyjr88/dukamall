@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const LINKS = [
   { href: '/admin/shops', label: 'Shops' },
+  { href: '/admin/leads', label: 'Leads' },
 ];
 
 // Login has no session yet -- no nav chrome (or a logout button that would

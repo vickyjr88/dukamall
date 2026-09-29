@@ -51,14 +51,15 @@ model Shop {
   currency               String  @default("KES")
   orderPrefix            String  @default("SHP")
 
-  theme        ShopTheme?
-  staff        UserShop[]
-  products     Product[]
-  categories   ProductCategory[]
-  customers    Customer[]
-  orders       Order[]
-  cartLeads    CartLead[]
-  pageContents PageContent[]
+  theme         ShopTheme?
+  staff         UserShop[]
+  products      Product[]
+  categories    ProductCategory[]
+  customers     Customer[]
+  orders        Order[]
+  cartLeads     CartLead[]
+  pageContents  PageContent[]
+  adminAuditLog AdminAuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -96,14 +97,15 @@ model ShopTheme {
 // shop. What they can do in a given shop is entirely determined by their
 // UserShop row for it, never by this table.
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  isSuperAdmin Boolean    @default(false)
-  shops        UserShop[]
-  createdAt    DateTime   @default(now())
+  id            String          @id @default(cuid())
+  email         String          @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  isSuperAdmin  Boolean         @default(false)
+  shops         UserShop[]
+  adminAuditLog AdminAuditLog[]
+  createdAt     DateTime        @default(now())
 }
 
 enum ShopRole {
@@ -336,6 +338,33 @@ model CartLeadLine {
   quantity     Int
   priceKes     Decimal @db.Decimal(12, 2)
   isCustomSize Boolean @default(false)
+}
+
+// ---------------------------------------------------------------------------
+// Platform operator (admin console)
+// ---------------------------------------------------------------------------
+
+/// One row per mutating admin action (a status change, an impersonation) --
+/// the operator console had no record of who did what or why until this;
+/// setStatus() used to silently flip a shop to SUSPENDED with nothing to
+/// show for it later. shopId is nullable (not every future admin action
+/// will be shop-scoped) and onDelete: SetNull so a log entry outlives the
+/// shop it was about, once shop deletion exists (a later batch).
+model AdminAuditLog {
+  id      String @id @default(cuid())
+  adminId String
+  admin   User   @relation(fields: [adminId], references: [id])
+  shopId  String?
+  shop    Shop?  @relation(fields: [shopId], references: [id], onDelete: SetNull)
+
+  action   String
+  reason   String?
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([shopId])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------
