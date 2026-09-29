@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ShopProduct } from './lib/api';
 import { ShareButton } from './share-button';
 import { FavoriteButton } from './favorite-button';
+import { useShopInfo } from './lib/shop-info-context';
 
 function currentPrice(product: ShopProduct) {
   const inStock = product.variants.find((v) => v.stockOnHand > 0) ?? product.variants[0];
@@ -47,6 +48,23 @@ export function ProductCard({ product }: { product: ShopProduct }) {
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const shareUrl = origin ? `${origin}/shop/${product.slug}` : `/shop/${product.slug}`;
   const shareText = `${product.name}${product.brand ? ` by ${product.brand}` : ''}${variant ? ` — KES ${Number(variant.priceKes).toLocaleString()}` : ''}`;
+
+  const shopInfo = useShopInfo();
+  const whatsappNumber = (shopInfo?.whatsappNumber || '').replace(/[^\d]/g, '');
+  const whatsappHref = whatsappNumber && variant
+    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+        [
+          `Hi! I'd like to order:`,
+          '',
+          `Item:  ${product.name}${product.brand ? ` (${product.brand})` : ''}`,
+          ...(variant.size ? [`Size:  ${variant.size}`] : []),
+          `SKU:   ${variant.sku}`,
+          `Price: KES ${Number(variant.priceKes).toLocaleString()}`,
+          ...(variant.stockOnHand <= 0 ? ['(Available to Order -- usual lead time applies)'] : []),
+          ...(origin ? ['', `Link: ${origin}/shop/${product.slug}`] : []),
+        ].join('\n'),
+      )}`
+    : null;
 
   return (
     <article className={`product-card${needsOrder ? ' is-preorder' : ''}`}>
@@ -96,6 +114,21 @@ export function ProductCard({ product }: { product: ShopProduct }) {
           </p>
         ) : needsOrder ? (
           <p className="product-card-sizes is-preorder">Available to Order</p>
+        ) : null}
+
+        {whatsappHref ? (
+          // suppressHydrationWarning: href depends on `origin`, only known
+          // after mount -- see product-client.tsx's buildEnquiry comment.
+          <a
+            className="product-card-whatsapp"
+            href={whatsappHref}
+            suppressHydrationWarning
+            target="_blank"
+            rel="noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Order on WhatsApp
+          </a>
         ) : null}
       </div>
     </article>

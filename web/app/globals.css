@@ -468,6 +468,22 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .product-card-sizes small { color: var(--shop-line-strong); }
 .product-card-sizes.is-preorder { color: var(--shop-muted); }
 
+.product-card-whatsapp {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin-top: var(--shop-space-2);
+  padding: 7px 0;
+  text-align: center;
+  font-size: var(--shop-text-xs);
+  font-weight: 700;
+  color: #fff;
+  background: var(--shop-accent);
+  border-radius: var(--shop-radius-sm);
+  text-decoration: none;
+}
+.product-card-whatsapp:hover { filter: brightness(1.1); text-decoration: none; }
+
 /* Placeholder tile for a product with no image -- never a raw grey <div> */
 .product-card-placeholder {
   width: 100%;

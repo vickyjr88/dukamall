@@ -14,7 +14,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const { customer } = useCustomerAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', deliveryAddress: '', deliveryCity: '' });
 
   // Logged-in checkout: pre-fill the shopper's email so they don't retype it
   // -- checkout itself still links the order to their account via the
@@ -36,6 +36,15 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
     );
   }
 
+  // Address + city combined into the one shippingAddress string both the
+  // backend's CheckoutDto and RecordCartLeadDto already accept -- neither
+  // needs a separate city column, and splitting it in the form just makes
+  // it easier for a shopper to leave the city off by accident.
+  function buildShippingAddress() {
+    const parts = [form.deliveryAddress.trim(), form.deliveryCity.trim()].filter(Boolean);
+    return parts.length ? parts.join(', ') : undefined;
+  }
+
   function buildWhatsappMessage() {
     const lines = [`Hello ${shopInfo.name}, I would like to order:`];
     for (const line of cart.lines) {
@@ -51,6 +60,8 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
     const name = `${form.firstName} ${form.lastName}`.trim();
     if (name) lines.push(`Name: ${name}`);
     if (form.phone.trim()) lines.push(`Phone: ${form.phone.trim()}`);
+    const address = buildShippingAddress();
+    if (address) lines.push(`Deliver to: ${address}`);
     return lines.join('\n');
   }
 
@@ -72,6 +83,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
         customerName: `${form.firstName} ${form.lastName}`.trim() || undefined,
         customerPhone: form.phone.trim() || undefined,
         customerEmail: form.email.trim() || undefined,
+        shippingAddress: buildShippingAddress(),
         message: buildWhatsappMessage(),
       }),
     }).catch(() => {
@@ -102,6 +114,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
           lastName: form.lastName,
           email: form.email,
           phone: form.phone,
+          shippingAddress: buildShippingAddress(),
         }),
       });
       const data = await res.json();
@@ -187,6 +200,24 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
             <div className="form-field">
               <label htmlFor="cart-phone">Phone</label>
               <input id="cart-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div className="form-field">
+              <label htmlFor="cart-delivery-address">Delivery address</label>
+              <input
+                id="cart-delivery-address"
+                placeholder="Street, building, apartment/house no."
+                value={form.deliveryAddress}
+                onChange={(e) => setForm((f) => ({ ...f, deliveryAddress: e.target.value }))}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="cart-delivery-city">Town / City</label>
+              <input
+                id="cart-delivery-city"
+                placeholder="e.g. Nairobi"
+                value={form.deliveryCity}
+                onChange={(e) => setForm((f) => ({ ...f, deliveryCity: e.target.value }))}
+              />
             </div>
           </div>
 
