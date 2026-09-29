@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PortalProductService } from './portal-product.service';
 import { CreateProductDto, UpdateProductDto, UpdateVariantDto } from './portal-product.dto';
@@ -11,8 +11,29 @@ export class PortalProductController {
   constructor(private portalProductService: PortalProductService) {}
 
   @Get()
-  list(@ShopId() shopId: string) {
-    return this.portalProductService.list(shopId);
+  list(
+    @ShopId() shopId: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('status') status?: 'active' | 'inactive',
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.portalProductService.list(shopId, {
+      search,
+      category,
+      status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  // The filter dropdown's own options -- separate from GET / (the paginated
+  // list) since a page of 25 products would otherwise only ever offer the
+  // categories present on that one page.
+  @Get('categories')
+  listCategories(@ShopId() shopId: string) {
+    return this.portalProductService.listCategories(shopId);
   }
 
   @Post()
