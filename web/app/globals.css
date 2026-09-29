@@ -1044,12 +1044,20 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 }
 .shop-footer-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
   gap: var(--shop-space-6);
   margin-bottom: var(--shop-space-7);
 }
+@media (max-width: 860px) {
+  /* Brand blurb keeps its own row; the three link columns share the next
+     one -- four equal 1fr tracks here would squeeze each link column
+     uncomfortably narrow on a tablet-width screen. */
+  .shop-footer-grid { grid-template-columns: repeat(3, 1fr); }
+  .shop-footer-grid > div:first-child { grid-column: 1 / -1; }
+}
 @media (max-width: 640px) {
   .shop-footer-grid { grid-template-columns: 1fr; gap: var(--shop-space-5); }
+  .shop-footer-grid > div:first-child { grid-column: auto; }
 }
 .shop-footer .logo { font-family: var(--shop-font-display); font-size: var(--shop-text-lg); font-weight: 600; margin-bottom: var(--shop-space-3); }
 .shop-footer-col h4 { font-size: var(--shop-text-xs); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--shop-space-4); color: var(--shop-muted); }

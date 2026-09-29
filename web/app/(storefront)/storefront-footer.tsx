@@ -26,6 +26,13 @@ export function StorefrontFooter({ shopInfo }: { shopInfo: ShopInfo }) {
             </ul>
           </div>
           <div className="shop-footer-col">
+            <h4>Manage</h4>
+            <ul>
+              <li><Link href="/portal/login">Merchant login</Link></li>
+              <li><Link href="/admin/login">Platform admin login</Link></li>
+            </ul>
+          </div>
+          <div className="shop-footer-col">
             <h4>Get in touch</h4>
             <ul>
               {shopInfo.whatsappNumber ? (
