@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ProductCard } from '@/app/product-card';
+import { ProductSearch } from '@/app/product-search';
 import { ShopCategory, ShopFilters, ShopProduct } from '@/app/lib/api';
 import { useShopFetch } from '@/app/lib/shop-id-context';
 
@@ -100,13 +101,13 @@ export function StorefrontSearch({
             className="pf-search"
             onSubmit={(e) => { e.preventDefault(); setParam('search', searchDraft.trim()); }}
           >
-            <input
+            <ProductSearch
               value={searchDraft}
-              onChange={(e) => setSearchDraft(e.target.value)}
-              placeholder="Search products..."
-              aria-label="Search products"
+              onChange={setSearchDraft}
+              onSubmit={() => setParam('search', searchDraft.trim())}
+              category={category}
             />
-            <button type="submit" className="btn btn-primary btn-sm">Search</button>
+            <button type="submit" className="btn btn-primary">Search</button>
           </form>
 
           <div className="pf-row">

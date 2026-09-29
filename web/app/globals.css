@@ -353,30 +353,35 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
    -------------------------------------------------------------------- */
 .pf-bar {
   margin-bottom: var(--shop-space-6);
-  padding-bottom: var(--shop-space-5);
-  border-bottom: 1px solid var(--shop-line);
+  padding: var(--shop-space-5);
+  background: var(--shop-surface);
+  border: 1px solid var(--shop-line);
+  border-radius: var(--shop-radius);
 }
 .pf-search {
   display: flex;
   gap: var(--shop-space-2);
   margin-bottom: var(--shop-space-4);
-  max-width: 480px;
+  /* Spans the full width of the bar -- was previously capped at 480px,
+     leaving most of a wide page unused next to a handful of small selects. */
+  width: 100%;
 }
-.pf-search input {
-  flex: 1;
-  padding: 10px 14px;
-  border: 1px solid var(--shop-line-strong);
-  border-radius: var(--shop-radius-sm);
-  background: #fff;
-  font-size: var(--shop-text-sm);
+.pf-search .btn {
+  flex-shrink: 0;
+  padding: 0 24px;
 }
-.pf-search input:focus { outline: none; border-color: var(--shop-ink); }
+@media (max-width: 640px) {
+  .pf-search { flex-wrap: wrap; }
+  .pf-search .btn { flex: 1 1 100%; }
+}
 
 .pf-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--shop-space-4);
   margin-bottom: var(--shop-space-4);
+  padding-bottom: var(--shop-space-4);
+  border-bottom: 1px solid var(--shop-line);
 }
 .pf-row label {
   display: flex;
@@ -387,9 +392,10 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   color: var(--shop-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  flex: 1 1 180px;
 }
 .pf-row select {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
   background: #fff;
@@ -398,8 +404,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   text-transform: none;
   letter-spacing: normal;
   font-weight: 400;
-  min-width: 160px;
+  width: 100%;
 }
+.pf-row select:focus { outline: none; border-color: var(--shop-ink); }
 
 .pf-sizes { margin-bottom: var(--shop-space-4); }
 .pf-sizes > span {
@@ -440,10 +447,93 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   padding-bottom: 1px;
 }
 @media (max-width: 640px) {
+  .pf-bar { padding: var(--shop-space-4); }
   .pf-row { gap: var(--shop-space-3); }
-  .pf-row select { min-width: 0; flex: 1; }
   .pf-row label { flex: 1 1 140px; }
 }
+
+/* -----------------------------------------------------------------------
+   Type-ahead search dropdown (product-search.tsx) -- ported from
+   drip-crm's .de-search-* rules under this project's own naming/tokens.
+   -------------------------------------------------------------------- */
+.ps-box { position: relative; flex: 1; min-width: 0; }
+.ps-box input {
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--shop-line-strong);
+  border-radius: var(--shop-radius-sm);
+  background: #fff;
+  font-size: var(--shop-text-sm);
+  box-sizing: border-box;
+}
+.ps-box input:focus { outline: none; border-color: var(--shop-ink); }
+
+.ps-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 60;
+  max-height: 380px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid var(--shop-line);
+  border-radius: var(--shop-radius-sm);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+}
+.ps-result {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--shop-line);
+  text-decoration: none;
+  color: inherit;
+}
+.ps-result:last-of-type { border-bottom: 0; }
+/* One highlight for both hover and keyboard, so arrowing down and moving
+   the mouse cannot show two selected rows at once. */
+.ps-result.is-active { background: var(--shop-surface); }
+.ps-thumb {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  background: var(--shop-surface);
+  border-radius: var(--shop-radius-sm);
+}
+.ps-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ps-thumb-empty { display: block; width: 100%; height: 100%; }
+.ps-result-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ps-result-text strong {
+  font-size: var(--shop-text-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ps-result-text small { font-size: var(--shop-text-xs); color: var(--shop-muted); }
+.ps-note { margin: 0; padding: 12px; font-size: var(--shop-text-sm); color: var(--shop-muted); }
+.ps-all {
+  display: block;
+  width: 100%;
+  padding: 10px 11px;
+  border: 0;
+  border-top: 1px solid var(--shop-line);
+  background: var(--shop-surface);
+  font-family: inherit;
+  font-size: var(--shop-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  border-bottom-left-radius: var(--shop-radius-sm);
+  border-bottom-right-radius: var(--shop-radius-sm);
+}
+.ps-all:hover { background: var(--shop-line); }
 
 /* -----------------------------------------------------------------------
    Product grid + card
