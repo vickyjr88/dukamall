@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CheckoutService } from '../checkout/checkout.service';
 
 export type PortalOrderListQuery = {
   status?: OrderStatus;
@@ -13,7 +14,7 @@ export type PortalOrderListQuery = {
 
 @Injectable()
 export class PortalOrderService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private checkout: CheckoutService) {}
 
   // Same search/pagination shape as PortalProductService.list -- a shop with
   // a real order history (msa already has enough to matter) needs to find
@@ -70,13 +71,26 @@ export class PortalOrderService {
   async setStatus(shopId: string, orderId: string, status: OrderStatus) {
     const order = await this.prisma.order.findFirst({ where: { id: orderId, shopId } });
     if (!order) throw new NotFoundException('Order not found');
+
+    // A merchant marking a cash/WhatsApp order PAID by hand is the same
+    // transition an online payment makes automatically -- routed through
+    // CheckoutService.markPaid so stock is decremented and the order
+    // confirmation email goes out exactly once, the same as the Paystack
+    // verify/webhook paths. Before this, a staff-marked PAID order never
+    // decremented stock at all (a real, independent bug this fix also
+    // closes, not just an email gap).
+    if (order.status === 'PENDING' && status === 'PAID') {
+      await this.checkout.markPaid(orderId);
+      return this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    }
+
     // Cancelling an order that already decremented stock (see
-    // CheckoutService.verify -- stock is only decremented on confirmed
-    // Paystack payment, not at checkout start) should return that stock,
-    // since the shop can now sell it again. Only do this on the PAID ->
-    // CANCELLED transition specifically -- a PENDING order never touched
-    // stock in the first place, so reversing it there would incorrectly
-    // inflate stockOnHand.
+    // CheckoutService.markPaid -- stock is only decremented on confirmed
+    // payment, not at checkout start) should return that stock, since the
+    // shop can now sell it again. Only do this on the PAID -> CANCELLED
+    // transition specifically -- a PENDING order never touched stock in the
+    // first place, so reversing it there would incorrectly inflate
+    // stockOnHand.
     if (order.status === 'PAID' && status === 'CANCELLED') {
       const lines = await this.prisma.orderLine.findMany({ where: { orderId } });
       await this.prisma.$transaction([

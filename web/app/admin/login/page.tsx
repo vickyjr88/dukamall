@@ -51,6 +51,7 @@ export default function AdminLoginPage() {
             {submitting ? 'Logging in...' : 'Log in'}
           </button>
         </form>
+        <p className="switch-link"><a href="/admin/forgot-password">Forgot your password?</a></p>
         <p className="switch-link">Running a shop instead? <a href="/portal/login">Go to the merchant portal</a></p>
       </div>
     </div>

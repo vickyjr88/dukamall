@@ -5,6 +5,9 @@ import { randomBytes } from 'crypto';
 import { BillingPlan, Prisma, ShopRole, ShopStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainVerificationService } from '../shop/domain-verification.service';
+import { EmailService } from '../email/email.service';
+import { staffInviteEmail } from '../email/email-templates';
+import { storefrontOriginForShop } from '../common/storefront-origin';
 
 const TRIAL_EXPIRING_SOON_DAYS = 7;
 
@@ -28,6 +31,7 @@ export class AdminService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private domainVerification: DomainVerificationService,
+    private email: EmailService,
   ) {}
 
   /**
@@ -208,6 +212,22 @@ export class AdminService {
 
     await this.prisma.userShop.create({ data: { userId: user.id, shopId, role: data.role } });
     await this.logAction(adminId, shopId, 'staff.invited', undefined, { userId: user.id, email: user.email, role: data.role });
+
+    // Best-effort, additive to the on-screen temporary password -- never
+    // blocks the invite itself if SMTP is unconfigured or the send fails
+    // (see EmailService.send's own comment). Only sent for a brand-new
+    // account; an existing user being added to another shop keeps their
+    // existing password and has nothing new to be emailed.
+    if (temporaryPassword) {
+      const { subject, html } = staffInviteEmail({
+        shopName: shop.name,
+        firstName: data.firstName,
+        email: data.email,
+        temporaryPassword,
+        portalUrl: `${storefrontOriginForShop(shop)}/portal/login`,
+      });
+      await this.email.send(data.email, subject, html);
+    }
 
     return {
       userId: user.id,

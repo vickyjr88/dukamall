@@ -9,11 +9,12 @@ const LINKS = [
   { href: '/admin/leads', label: 'Leads' },
   { href: '/admin/search', label: 'Search' },
   { href: '/admin/users', label: 'Users' },
+  { href: '/admin/settings', label: 'Settings' },
 ];
 
 // Login has no session yet -- no nav chrome (or a logout button that would
 // do nothing) makes sense here, mirroring portal/portal-nav.tsx.
-const NO_NAV_PATHS = ['/admin/login'];
+const NO_NAV_PATHS = ['/admin/login', '/admin/forgot-password', '/admin/reset-password'];
 
 export function AdminNav() {
   const pathname = usePathname();

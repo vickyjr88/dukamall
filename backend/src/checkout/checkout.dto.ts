@@ -17,4 +17,5 @@ export class CheckoutDto {
   @ApiPropertyOptional() @IsOptional() @IsEmail() email?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() shippingAddress?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() discountCode?: string;
 }

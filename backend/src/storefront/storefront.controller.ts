@@ -3,11 +3,12 @@ import { ApiTags } from '@nestjs/swagger';
 import { StorefrontService } from './storefront.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { ShopId } from '../common/shop-context';
+import { PortalDiscountService } from '../portal-discount/portal-discount.service';
 
 @ApiTags('storefront')
 @Controller('shop')
 export class StorefrontController {
-  constructor(private storefront: StorefrontService) {}
+  constructor(private storefront: StorefrontService, private discounts: PortalDiscountService) {}
 
   @Public()
   @Get('products')
@@ -49,5 +50,18 @@ export class StorefrontController {
   @Get('filters')
   filters(@ShopId() shopId: string) {
     return this.storefront.filters(shopId);
+  }
+
+  // A read-only preview for the cart's "apply code" box -- resolves the
+  // same way checkout itself will (PortalDiscountService.resolveForCheckout
+  // is the one shared place that decides validity/amount), but does NOT
+  // redeem it: no DiscountRedemption row is written here, only at actual
+  // checkout, so a shopper who previews a code and then abandons their cart
+  // hasn't spent one of its limited uses.
+  @Public()
+  @Get('discounts/validate')
+  async validateDiscount(@ShopId() shopId: string, @Query('code') code: string, @Query('subtotalKes') subtotalKes: string) {
+    const resolved = await this.discounts.resolveForCheckout(shopId, code || '', Number(subtotalKes) || 0);
+    return { valid: true, discountKes: resolved.discountKes, code: resolved.discount.code };
   }
 }

@@ -32,6 +32,7 @@
     "ioredis": "^6.0.0",
     "libphonenumber-js": "^1.13.12",
     "minio": "^8.0.7",
+    "nodemailer": "^10.0.13",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.1.13",
@@ -39,6 +40,7 @@
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/passport-jwt": "^4.0.1",
     "prisma": "5.22.0",
     "ts-node": "^10.9.2",

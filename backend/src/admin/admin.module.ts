@@ -4,6 +4,7 @@ import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { ShopModule } from '../shop/shop.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { ShopModule } from '../shop/shop.module';
       secret: process.env.JWT_SECRET || 'dev-secret-change-me',
     }),
     ShopModule,
+    EmailModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminJwtGuard],

@@ -3,6 +3,9 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { ShopRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
+import { staffInviteEmail } from '../email/email-templates';
+import { storefrontOriginForShop } from '../common/storefront-origin';
 
 /**
  * A merchant's own staff management -- the same invite/remove behaviour
@@ -16,7 +19,7 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 @Injectable()
 export class PortalStaffService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private email: EmailService) {}
 
   list(shopId: string) {
     return this.prisma.userShop.findMany({
@@ -50,6 +53,18 @@ export class PortalStaffService {
     }
 
     await this.prisma.userShop.create({ data: { userId: user.id, shopId, role: data.role } });
+
+    if (temporaryPassword) {
+      const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+      const { subject, html } = staffInviteEmail({
+        shopName: shop.name,
+        firstName: data.firstName,
+        email: data.email,
+        temporaryPassword,
+        portalUrl: `${storefrontOriginForShop(shop)}/portal/login`,
+      });
+      await this.email.send(data.email, subject, html);
+    }
 
     return {
       userId: user.id,

@@ -6,7 +6,14 @@ import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.use(json({ limit: '10mb' }));
+  // Paystack's webhook signature (PaystackService.verifySignature) is an
+  // HMAC over the exact raw request bytes -- by the time a controller sees
+  // `@Body()`, Nest/Express have already parsed and re-serialized it, which
+  // rarely reproduces byte-for-byte and would make every signature check
+  // fail. json()'s own `verify` hook runs before that parsing and is the
+  // one place the raw buffer is still available; stashing it on the request
+  // costs nothing for every other route, which never reads it.
+  app.use(json({ limit: '10mb', verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
   app.enableCors({
     origin: true,

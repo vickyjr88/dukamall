@@ -1,5 +1,28 @@
+import type { Metadata } from 'next';
 import { getCategories, getFilters, getProducts, getShopInfo, getTheme } from '@/app/lib/api';
+import { currentOrigin } from '@/app/lib/seo';
 import { StorefrontSearch } from './storefront-search';
+
+// Every shop shared the root layout's generic "Shop" title until now --
+// the actual point of this file: a shop's real name in the browser tab,
+// search results, and link previews (WhatsApp/social), which is the single
+// biggest SEO gap a multi-tenant storefront platform can have.
+export async function generateMetadata(): Promise<Metadata> {
+  const [shopInfo, theme] = await Promise.all([getShopInfo(), getTheme()]);
+  const origin = currentOrigin();
+  const description = `Shop ${shopInfo.name} -- new arrivals added regularly.`;
+  return {
+    title: shopInfo.name,
+    description,
+    alternates: { canonical: origin },
+    openGraph: {
+      title: shopInfo.name,
+      description,
+      url: origin,
+      images: theme.heroImageUrl ? [theme.heroImageUrl] : theme.logoUrl ? [theme.logoUrl] : [],
+    },
+  };
+}
 
 export default async function HomePage({
   searchParams,

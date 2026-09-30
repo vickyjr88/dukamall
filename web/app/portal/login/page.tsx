@@ -56,6 +56,7 @@ export default function LoginPage() {
             {submitting ? 'Logging in...' : 'Log in'}
           </button>
         </form>
+        <p className="switch-link"><a href="/portal/forgot-password">Forgot your password?</a></p>
         <p className="switch-link"><a href="/portal/signup">Create a new shop instead</a></p>
         <p className="switch-link"><a href="/admin/login">Platform operator? Log in here</a></p>
       </div>

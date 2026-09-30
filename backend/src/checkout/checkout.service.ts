@@ -1,12 +1,22 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from '../paystack/paystack.service';
 import { CheckoutDto } from './checkout.dto';
 import { storefrontOriginForShop } from '../common/storefront-origin';
+import { PortalDiscountService } from '../portal-discount/portal-discount.service';
+import { EmailService } from '../email/email.service';
+import { orderConfirmationEmail } from '../email/email-templates';
 
 @Injectable()
 export class CheckoutService {
-  constructor(private prisma: PrismaService, private paystack: PaystackService) {}
+  private readonly logger = new Logger(CheckoutService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private paystack: PaystackService,
+    private discounts: PortalDiscountService,
+    private email: EmailService,
+  ) {}
 
   private async nextOrderNumber(shopId: string, prefix: string): Promise<string> {
     // Simple count-based sequence, scoped to the shop -- good enough at this
@@ -47,8 +57,20 @@ export class CheckoutService {
       return { variantId: variant.id, quantity: line.quantity, priceKes: price };
     });
 
+    // Resolved before the Order row exists -- an invalid/expired/exhausted
+    // code must fail checkout outright (400), not create an order and then
+    // silently apply no discount, which would look like the code "didn't
+    // work" for a reason the shopper can't see.
+    let discountId: string | undefined;
+    let discountKes = 0;
+    if (dto.discountCode) {
+      const resolved = await this.discounts.resolveForCheckout(shopId, dto.discountCode, subtotal);
+      discountId = resolved.discount.id;
+      discountKes = resolved.discountKes;
+    }
+
     const shipping = 0; // Arranged after order, per drip-crm precedent; not charged at checkout.
-    const total = subtotal + shipping;
+    const total = Math.max(0, subtotal - discountKes) + shipping;
     const orderNumber = await this.nextOrderNumber(shopId, shop.orderPrefix);
 
     const order = await this.prisma.order.create({
@@ -63,10 +85,21 @@ export class CheckoutService {
         shippingAddress: dto.shippingAddress,
         subtotalKes: subtotal,
         shippingKes: shipping,
+        discountKes,
+        discountId,
         totalKes: total,
         lines: { create: orderLinesData },
       },
     });
+
+    // Counted as redeemed at checkout start, not on payment confirmation --
+    // a code's usage limit is about how many times it was claimed, the same
+    // reasoning a one-per-customer promo code enforces in any commerce
+    // platform; a PENDING order that never gets paid still occupied a slot
+    // and can be cancelled by a merchant like any other unpaid order.
+    if (discountId) {
+      await this.prisma.discountRedemption.create({ data: { discountId, orderId: order.id } });
+    }
 
     if (!shop.paystackSecretKey) {
       return { order, online: false };
@@ -98,20 +131,54 @@ export class CheckoutService {
 
     const result = await this.paystack.verify(shop.paystackSecretKey, order.paystackReference);
     if (result.status === 'success') {
-      // Decrement stock only on confirmed payment -- never at checkout start,
-      // since an abandoned or failed Paystack session must not reserve stock
-      // indefinitely.
-      const lines = await this.prisma.orderLine.findMany({ where: { orderId } });
-      await this.prisma.$transaction([
-        this.prisma.order.update({ where: { id: orderId }, data: { status: 'PAID' } }),
-        ...lines.map((line) =>
-          this.prisma.productVariant.update({
-            where: { id: line.variantId },
-            data: { stockOnHand: { decrement: line.quantity } },
-          }),
-        ),
-      ]);
+      await this.markPaid(orderId);
     }
     return this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+  }
+
+  /**
+   * The single place an order actually transitions to PAID -- both the
+   * shopper-initiated verify() above and Paystack's own webhook
+   * (PaystackWebhookController) call this, so stock is decremented and the
+   * confirmation email is sent exactly once no matter which path notices
+   * the payment first. Safe to call more than once for the same order (a
+   * shopper's browser calling verify() right as the webhook also fires):
+   * the findFirst guard below only acts on an order that's still PENDING,
+   * so a second call is a harmless no-op rather than double-decrementing
+   * stock.
+   */
+  async markPaid(orderId: string) {
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, status: 'PENDING' } });
+    if (!order) return; // Already PAID (or CANCELLED) -- nothing to do.
+
+    const lines = await this.prisma.orderLine.findMany({
+      where: { orderId },
+      include: { variant: { include: { product: true } } },
+    });
+    await this.prisma.$transaction([
+      this.prisma.order.update({ where: { id: orderId }, data: { status: 'PAID' } }),
+      ...lines.map((line) =>
+        this.prisma.productVariant.update({
+          where: { id: line.variantId },
+          data: { stockOnHand: { decrement: line.quantity } },
+        }),
+      ),
+    ]);
+
+    if (order.email) {
+      const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: order.shopId } });
+      const { subject, html } = orderConfirmationEmail({
+        shopName: shop.name,
+        orderNumber: order.orderNumber,
+        firstName: order.firstName,
+        lines: lines.map((l) => ({ name: l.variant.product.name, variantName: l.variant.name, quantity: l.quantity, priceKes: Number(l.priceKes) })),
+        subtotalKes: Number(order.subtotalKes),
+        discountKes: Number(order.discountKes),
+        totalKes: Number(order.totalKes),
+        currency: shop.currency,
+      });
+      const sent = await this.email.send(order.email, subject, html);
+      if (!sent) this.logger.warn(`Order confirmation email not sent for order ${order.orderNumber} (SMTP unconfigured or send failed)`);
+    }
   }
 }

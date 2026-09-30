@@ -78,6 +78,7 @@ model Shop {
   cartLeads     CartLead[]
   pageContents  PageContent[]
   adminAuditLog AdminAuditLog[]
+  discounts     Discount[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -124,6 +125,35 @@ model User {
   shops         UserShop[]
   adminAuditLog AdminAuditLog[]
   createdAt     DateTime        @default(now())
+}
+
+/// One shared reset-token table for all three login kinds this platform has
+/// (staff/admin User rows, and Customer rows) rather than three near-
+/// identical tables -- accountKind distinguishes which table accountId
+/// points into, since a raw foreign key can't reference "User or Customer"
+/// directly. A staff member and a platform admin are both User rows (the
+/// only difference is isSuperAdmin), so "STAFF" here covers both; the
+/// request/confirm flow itself doesn't need to know which one it is until
+/// the password is actually written back.
+enum PasswordResetAccountKind {
+  STAFF
+  CUSTOMER
+}
+
+model PasswordResetToken {
+  id          String                   @id @default(cuid())
+  accountKind PasswordResetAccountKind
+  accountId   String
+  // SHA-256 of the actual token, never the token itself -- the emailed
+  // link's token is the only place the real value ever exists in plain
+  // form, the same "never store what you'd hand to an attacker who reads
+  // the database" reasoning as a password hash.
+  tokenHash   String                   @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime                 @default(now())
+
+  @@index([accountKind, accountId])
 }
 
 enum ShopRole {
@@ -289,7 +319,16 @@ model Order {
 
   subtotalKes Decimal @db.Decimal(12, 2)
   shippingKes Decimal @db.Decimal(12, 2) @default(0)
+  // The amount actually subtracted by discountId below, kept alongside the
+  // code's own percentOff/amountOffKes rather than only re-derived from
+  // them -- a discount's terms can change or the code can be deleted after
+  // the fact (see Discount.isActive), but an order's own receipt must keep
+  // showing what was actually discounted at the time.
+  discountKes Decimal @db.Decimal(12, 2) @default(0)
   totalKes    Decimal @db.Decimal(12, 2)
+
+  discountId String?
+  discount   Discount? @relation(fields: [discountId], references: [id], onDelete: SetNull)
 
   paystackReference String?
 
@@ -299,6 +338,65 @@ model Order {
   updatedAt DateTime @updatedAt
 
   @@unique([shopId, orderNumber])
+}
+
+// ---------------------------------------------------------------------------
+// Discounts
+// ---------------------------------------------------------------------------
+
+enum DiscountType {
+  PERCENT
+  FIXED_AMOUNT
+}
+
+/// A shop-wide code, not per-product or per-category targeting -- see this
+/// batch's own scoping note. Exactly one of percentOff/amountOffKes is set,
+/// matching `type`; kept as two nullable columns rather than a single
+/// polymorphic "value" column so a query can filter/sort on either without
+/// a cast, and so the constraint (checked in service code, not the DB) is
+/// visible directly in the shape of the row.
+model Discount {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Always stored upper-cased -- see DiscountService's own note on why
+  // matching is case-insensitive-by-normalization rather than a DB-level
+  // citext column this platform doesn't otherwise use.
+  code String
+
+  type           DiscountType
+  percentOff     Int?    @db.SmallInt
+  amountOffKes   Decimal? @db.Decimal(12, 2)
+  minOrderKes    Decimal? @db.Decimal(12, 2)
+
+  expiresAt    DateTime?
+  // Null = unlimited redemptions. Distinct from isActive: a code can be
+  // manually turned off (isActive: false) independent of whether it's hit
+  // its own usage cap.
+  usageLimit   Int?
+  isActive     Boolean @default(true)
+
+  orders      Order[]
+  redemptions DiscountRedemption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, code])
+}
+
+/// One row per successful use -- gives usageLimit something to count
+/// against without re-deriving it from Order.discountId every time (an
+/// order can in principle be cancelled without that un-counting a
+/// redemption; the code was genuinely used at checkout regardless of what
+/// happens to the order afterward).
+model DiscountRedemption {
+  id         String   @id @default(cuid())
+  discountId String
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+  orderId    String   @unique
+  createdAt  DateTime @default(now())
 }
 
 model OrderLine {
@@ -402,4 +500,31 @@ model PageContent {
   updatedAt DateTime @updatedAt
 
   @@unique([shopId, key])
+}
+
+// ---------------------------------------------------------------------------
+// Platform-wide settings
+// ---------------------------------------------------------------------------
+
+/// A single-row table (id is always "singleton") rather than a key/value
+/// store -- there is exactly one SMTP identity the platform sends system
+/// email from (order confirmations, password resets, staff-invite
+/// credentials), not one per shop; see this batch's own scoping note on why
+/// that's deliberate. EmailService reads this row (falling back to
+/// env vars if it's unset) instead of every call site touching Prisma
+/// directly.
+model PlatformSettings {
+  id String @id @default("singleton")
+
+  smtpHost     String?
+  smtpPort     Int?
+  smtpUser     String?
+  smtpPassword String?
+  smtpFrom     String?
+  // STARTTLS (587) vs implicit TLS (465) -- nodemailer's `secure` option
+  // needs this explicitly, since it can't be inferred from the port alone
+  // for every provider.
+  smtpSecure   Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
 }

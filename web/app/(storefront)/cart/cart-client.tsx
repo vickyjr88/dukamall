@@ -16,6 +16,10 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', deliveryAddress: '', deliveryCity: '' });
+  const [discountCodeInput, setDiscountCodeInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; discountKes: number } | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [applyingDiscount, setApplyingDiscount] = useState(false);
 
   // Logged-in checkout: pre-fill the shopper's email so they don't retype it
   // -- checkout itself still links the order to their account via the
@@ -102,6 +106,26 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
     if (url) window.open(url, '_blank', 'noopener');
   }
 
+  async function onApplyDiscount() {
+    setDiscountError(null);
+    setAppliedDiscount(null);
+    const code = discountCodeInput.trim();
+    if (!code) return;
+    setApplyingDiscount(true);
+    try {
+      const res = await shopFetch(`/shop/discounts/validate?code=${encodeURIComponent(code)}&subtotalKes=${cart.subtotal}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'This code is not valid');
+      setAppliedDiscount({ code: data.code, discountKes: data.discountKes });
+    } catch (e: any) {
+      setDiscountError(e.message);
+    } finally {
+      setApplyingDiscount(false);
+    }
+  }
+
+  const total = Math.max(0, cart.subtotal - (appliedDiscount?.discountKes ?? 0));
+
   async function onCheckout() {
     setSubmitting(true);
     setError(null);
@@ -116,6 +140,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
           email: form.email,
           phone: form.phone,
           shippingAddress: buildShippingAddress(),
+          discountCode: appliedDiscount?.code,
         }),
       });
       const data = await res.json();
@@ -183,7 +208,25 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
           ) : null}
 
           <div className="summary-row"><span>Subtotal</span><span>KES {cart.subtotal.toLocaleString()}</span></div>
-          <div className="summary-row is-total"><span>Total</span><span>KES {cart.subtotal.toLocaleString()}</span></div>
+          {appliedDiscount ? (
+            <div className="summary-row" style={{ color: 'var(--shop-success, #0f7a40)' }}>
+              <span>Discount ({appliedDiscount.code})</span><span>-KES {appliedDiscount.discountKes.toLocaleString()}</span>
+            </div>
+          ) : null}
+          <div className="summary-row is-total"><span>Total</span><span>KES {total.toLocaleString()}</span></div>
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 'var(--shop-space-3)' }}>
+            <input
+              placeholder="Discount code"
+              value={discountCodeInput}
+              onChange={(e) => setDiscountCodeInput(e.target.value.toUpperCase())}
+              style={{ flex: 1 }}
+            />
+            <button type="button" className="btn btn-outline" onClick={onApplyDiscount} disabled={applyingDiscount || !discountCodeInput.trim()}>
+              {applyingDiscount ? 'Checking...' : 'Apply'}
+            </button>
+          </div>
+          {discountError ? <p style={{ color: 'var(--shop-danger)', fontSize: 'var(--shop-text-xs)', marginTop: 4 }}>{discountError}</p> : null}
 
           <div style={{ marginTop: 'var(--shop-space-5)' }}>
             <div className="form-field">
@@ -225,7 +268,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
           {error ? <p style={{ color: 'var(--shop-danger)', fontSize: 'var(--shop-text-sm)', marginBottom: 'var(--shop-space-3)' }}>{error}</p> : null}
 
           <button className="btn btn-primary btn-block" disabled={submitting} onClick={onCheckout} style={{ marginTop: 'var(--shop-space-3)' }}>
-            {submitting ? 'Processing...' : `Pay KES ${cart.subtotal.toLocaleString()}`}
+            {submitting ? 'Processing...' : `Pay KES ${total.toLocaleString()}`}
           </button>
 
           {shopInfo.whatsappNumber ? (

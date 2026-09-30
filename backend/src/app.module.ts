@@ -25,6 +25,10 @@ import { PortalCustomerModule } from './portal-customer/portal-customer.module';
 import { PortalCategoryModule } from './portal-category/portal-category.module';
 import { PortalAnalyticsModule } from './portal-analytics/portal-analytics.module';
 import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
+import { EmailModule } from './email/email.module';
+import { PasswordResetModule } from './password-reset/password-reset.module';
+import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { PortalDiscountModule } from './portal-discount/portal-discount.module';
 
 @Module({
   imports: [
@@ -50,6 +54,10 @@ import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
     PortalCategoryModule,
     PortalAnalyticsModule,
     AdminAnalyticsModule,
+    EmailModule,
+    PasswordResetModule,
+    PlatformSettingsModule,
+    PortalDiscountModule,
   ],
   controllers: [HealthController],
   providers: [

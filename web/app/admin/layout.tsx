@@ -9,7 +9,7 @@ import { AdminNav } from './admin-nav';
 // to. Previously the sidebar rendered unconditionally regardless of route,
 // leaving an empty sidebar column beside the login card for a signed-out
 // visitor -- same bug fixed the same way in portal/layout.tsx.
-const NO_SIDEBAR_PATHS = ['/admin/login'];
+const NO_SIDEBAR_PATHS = ['/admin/login', '/admin/forgot-password', '/admin/reset-password'];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

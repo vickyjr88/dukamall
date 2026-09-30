@@ -8,6 +8,7 @@ const LINKS = [
   { href: '/portal/orders', label: 'Orders' },
   { href: '/portal/products', label: 'Products' },
   { href: '/portal/categories', label: 'Categories' },
+  { href: '/portal/discounts', label: 'Discounts' },
   { href: '/portal/customers', label: 'Customers' },
   { href: '/portal/leads', label: 'Leads' },
   { href: '/portal/theme', label: 'Theme' },
@@ -18,7 +19,7 @@ const LINKS = [
 // Login/signup have no session yet -- no nav chrome (or a logout button
 // that would do nothing) makes sense on either. /portal/sso is a one-hop
 // redirect landing (see its own page.tsx) with the same reasoning.
-const NO_NAV_PATHS = ['/portal/login', '/portal/signup', '/portal/sso'];
+const NO_NAV_PATHS = ['/portal/login', '/portal/signup', '/portal/sso', '/portal/forgot-password', '/portal/reset-password'];
 
 export function PortalNav() {
   const pathname = usePathname();
