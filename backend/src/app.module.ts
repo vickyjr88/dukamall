@@ -23,6 +23,8 @@ import { HealthController } from './health/health.controller';
 import { PortalStaffModule } from './portal-staff/portal-staff.module';
 import { PortalCustomerModule } from './portal-customer/portal-customer.module';
 import { PortalCategoryModule } from './portal-category/portal-category.module';
+import { PortalAnalyticsModule } from './portal-analytics/portal-analytics.module';
+import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
 
 @Module({
   imports: [
@@ -46,6 +48,8 @@ import { PortalCategoryModule } from './portal-category/portal-category.module';
     PortalStaffModule,
     PortalCustomerModule,
     PortalCategoryModule,
+    PortalAnalyticsModule,
+    AdminAnalyticsModule,
   ],
   controllers: [HealthController],
   providers: [
