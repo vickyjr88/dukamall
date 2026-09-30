@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { authHeaders, portalFetch } from '../portal-api';
+import { useEffect, useRef, useState } from 'react';
+import { authHeaders, portalFetch, PORTAL_API_BASE } from '../portal-api';
 
 type Variant = { id: string; sku: string; name: string; size: string | null; priceKes: string; wasPriceKes: string | null; stockOnHand: number; isActive: boolean };
 type Product = { id: string; name: string; slug: string; description: string | null; imageUrls: string[]; isActive: boolean; isFeatured: boolean; variants: Variant[] };
@@ -27,6 +27,10 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+
+  const [importBusy, setImportBusy] = useState(false);
+  const [importResult, setImportResult] = useState<{ updatedCount: number; notFound: string[] } | null>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     setLoading(true);
@@ -85,14 +89,73 @@ export default function ProductsPage() {
     load();
   }
 
+  function onExportCsv() {
+    // A plain link can't carry the Authorization header, so this opens a
+    // same-tab navigation with the token in a way the browser will still
+    // download rather than render -- fetch-then-blob, same pattern the
+    // admin console's shop-data export uses.
+    (async () => {
+      const res = await portalFetch('/portal/products/export-csv');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `products-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    })();
+  }
+
+  async function onImportCsv(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportBusy(true);
+    setImportResult(null);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const res = await fetch(`${PORTAL_API_BASE}/portal/products/import-csv`, {
+        method: 'POST', headers: authHeaders(), body,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || 'Import failed');
+      setImportResult(data);
+      await load();
+    } catch (err: any) {
+      setImportResult({ updatedCount: 0, notFound: [] });
+      setError(err.message);
+    } finally {
+      setImportBusy(false);
+      if (csvInputRef.current) csvInputRef.current.value = '';
+    }
+  }
+
   return (
     <div>
-      <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h3>Products</h3>
-        <button className="portal-btn" onClick={() => setShowAddForm((v) => !v)}>
-          {showAddForm ? 'Cancel' : 'Add product'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="portal-btn-outline portal-btn" onClick={onExportCsv}>Export CSV</button>
+          <button className="portal-btn-outline portal-btn" onClick={() => csvInputRef.current?.click()} disabled={importBusy}>
+            {importBusy ? 'Importing...' : 'Import CSV'}
+          </button>
+          <input ref={csvInputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onImportCsv} />
+          <button className="portal-btn" onClick={() => setShowAddForm((v) => !v)}>
+            {showAddForm ? 'Cancel' : 'Add product'}
+          </button>
+        </div>
       </div>
+
+      {importResult ? (
+        <div className={`portal-alert ${importResult.updatedCount > 0 || importResult.notFound.length === 0 ? 'is-success' : 'is-error'}`} style={{ marginBottom: 16 }}>
+          Updated {importResult.updatedCount} variant{importResult.updatedCount === 1 ? '' : 's'}.
+          {importResult.notFound.length > 0 ? (
+            <> {importResult.notFound.length} SKU{importResult.notFound.length === 1 ? '' : 's'} not found: {importResult.notFound.join(', ')}</>
+          ) : null}
+        </div>
+      ) : null}
 
       {showAddForm ? (
         <form onSubmit={onCreate} className="portal-card" style={{ marginBottom: 20 }}>

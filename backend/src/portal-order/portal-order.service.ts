@@ -1,17 +1,61 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus } from '@prisma/client';
+import { OrderStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+export type PortalOrderListQuery = {
+  status?: OrderStatus;
+  search?: string;
+  from?: Date;
+  to?: Date;
+  page?: number;
+  pageSize?: number;
+};
 
 @Injectable()
 export class PortalOrderService {
   constructor(private prisma: PrismaService) {}
 
-  list(shopId: string, status?: OrderStatus) {
-    return this.prisma.order.findMany({
-      where: { shopId, ...(status ? { status } : {}) },
-      include: { lines: { include: { variant: { include: { product: true } } } } },
-      orderBy: { createdAt: 'desc' },
-    });
+  // Same search/pagination shape as PortalProductService.list -- a shop with
+  // a real order history (msa already has enough to matter) needs to find
+  // "that order from last week" without scrolling an unbounded table.
+  // Search matches order number or customer name/phone/email; unlike the
+  // product search this has no fuzzy fallback, since order numbers and
+  // phone numbers are exact-match lookups by nature, not typo-prone browsing.
+  async list(shopId: string, query: PortalOrderListQuery) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
+
+    const where: Prisma.OrderWhereInput = {
+      shopId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.from || query.to
+        ? { createdAt: { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lte: query.to } : {}) } }
+        : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { orderNumber: { contains: query.search, mode: 'insensitive' } },
+              { firstName: { contains: query.search, mode: 'insensitive' } },
+              { lastName: { contains: query.search, mode: 'insensitive' } },
+              { phone: { contains: query.search, mode: 'insensitive' } },
+              { email: { contains: query.search, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+
+    const [orders, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        include: { lines: { include: { variant: { include: { product: true } } } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return { orders, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   async get(shopId: string, orderId: string) {

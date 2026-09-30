@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { portalFetch } from '../portal-api';
 
 type SalesSummary = {
@@ -10,16 +11,20 @@ type SalesSummary = {
 };
 
 type StockRow = { id: string; sku: string; name: string; stockOnHand: number; product: { name: string } };
+type RecentOrder = { id: string; orderNumber: string; status: 'PENDING' | 'PAID' | 'CANCELLED'; firstName: string; lastName: string; totalKes: string; createdAt: string };
 
 const LOW_STOCK_THRESHOLD = 3;
+const BADGE_CLASS: Record<RecentOrder['status'], string> = { PENDING: 'is-pending', PAID: 'is-paid', CANCELLED: 'is-cancelled' };
 
 export default function DashboardPage() {
   const [sales, setSales] = useState<SalesSummary | null>(null);
   const [stock, setStock] = useState<StockRow[] | null>(null);
+  const [recentOrders, setRecentOrders] = useState<RecentOrder[] | null>(null);
 
   useEffect(() => {
     portalFetch('/portal/reports/sales').then((r) => r.json()).then(setSales);
     portalFetch('/portal/reports/stock').then((r) => r.json()).then(setStock);
+    portalFetch('/portal/orders?pageSize=5').then((r) => r.json()).then((d) => setRecentOrders(d.orders));
   }, []);
 
   const lowStock = stock?.filter((s) => s.stockOnHand <= LOW_STOCK_THRESHOLD) ?? [];
@@ -41,6 +46,33 @@ export default function DashboardPage() {
           <div className="label">Low stock (&le; {LOW_STOCK_THRESHOLD})</div>
           <div className={`value${lowStock.length > 0 ? ' is-danger' : ''}`}>{stock ? lowStock.length : '–'}</div>
         </div>
+      </div>
+
+      <div className="portal-card" style={{ marginBottom: 20 }}>
+        <h4 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Recent orders
+          <Link href="/portal/orders" style={{ fontSize: 12, textTransform: 'none', fontWeight: 400 }}>View all &rarr;</Link>
+        </h4>
+        {!recentOrders ? <p>Loading...</p> : recentOrders.length === 0 ? (
+          <p style={{ color: 'var(--p-muted)' }}>No orders yet.</p>
+        ) : (
+          <table className="portal-table">
+            <thead>
+              <tr><th>Order</th><th>Customer</th><th>Date</th><th>Total</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {recentOrders.map((o) => (
+                <tr key={o.id}>
+                  <td>{o.orderNumber}</td>
+                  <td>{o.firstName} {o.lastName}</td>
+                  <td>{new Date(o.createdAt).toLocaleDateString()}</td>
+                  <td>KES {Number(o.totalKes).toLocaleString()}</td>
+                  <td><span className={`portal-badge ${BADGE_CLASS[o.status]}`}>{o.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="portal-card" style={{ marginBottom: 20 }}>

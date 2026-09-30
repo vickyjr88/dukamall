@@ -16,8 +16,23 @@ export class PortalOrderController {
   constructor(private portalOrderService: PortalOrderService) {}
 
   @Get()
-  list(@ShopId() shopId: string, @Query('status') status?: OrderStatus) {
-    return this.portalOrderService.list(shopId, status);
+  list(
+    @ShopId() shopId: string,
+    @Query('status') status?: OrderStatus,
+    @Query('search') search?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.portalOrderService.list(shopId, {
+      status,
+      search,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
   }
 
   @Get(':id')

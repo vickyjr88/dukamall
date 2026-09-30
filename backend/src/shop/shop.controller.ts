@@ -67,12 +67,17 @@ export class ShopController {
 
   @Get('portal/settings')
   getSettings(@ShopId() shopId: string) {
-    return this.shopService.getPublicInfo(shopId);
+    return this.shopService.getPortalSettings(shopId);
   }
 
+  // Returns the same masked shape getSettings does, not the raw updated
+  // row -- ShopService.updateSettings itself returns the full Shop
+  // (Paystack keys included, since Prisma's update() always echoes the
+  // written row), which must never reach the response body here.
   @Put('portal/settings')
-  updateSettings(@ShopId() shopId: string, @Body() dto: UpdateShopSettingsDto) {
-    return this.shopService.updateSettings(shopId, dto);
+  async updateSettings(@ShopId() shopId: string, @Body() dto: UpdateShopSettingsDto) {
+    await this.shopService.updateSettings(shopId, dto);
+    return this.shopService.getPortalSettings(shopId);
   }
 
   // Custom-domain connection -- design doc Phase 3. See

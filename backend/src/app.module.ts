@@ -20,6 +20,9 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthController } from './health/health.controller';
+import { PortalStaffModule } from './portal-staff/portal-staff.module';
+import { PortalCustomerModule } from './portal-customer/portal-customer.module';
+import { PortalCategoryModule } from './portal-category/portal-category.module';
 
 @Module({
   imports: [
@@ -40,6 +43,9 @@ import { HealthController } from './health/health.controller';
     OnboardingModule,
     AdminAuthModule,
     AdminModule,
+    PortalStaffModule,
+    PortalCustomerModule,
+    PortalCategoryModule,
   ],
   controllers: [HealthController],
   providers: [

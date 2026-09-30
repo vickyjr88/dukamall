@@ -138,4 +138,68 @@ export class PortalProductService {
     if (!variant) throw new NotFoundException('Variant not found');
     return this.prisma.productVariant.update({ where: { id: variantId }, data: { stockOnHand } });
   }
+
+  // Every variant across every product, flattened -- the natural shape for
+  // a spreadsheet row (a variant, not a product, is the thing that actually
+  // has a price and a stock count). Ordered by product name so a re-export
+  // after editing reads back in a stable, predictable order.
+  async exportVariantsForCsv(shopId: string) {
+    const products = await this.prisma.product.findMany({
+      where: { shopId },
+      include: { variants: { orderBy: { sku: 'asc' } } },
+      orderBy: { name: 'asc' },
+    });
+    return products.flatMap((p) =>
+      p.variants.map((v) => ({
+        sku: v.sku,
+        productName: p.name,
+        variantName: v.name,
+        size: v.size ?? '',
+        priceKes: Number(v.priceKes),
+        wasPriceKes: v.wasPriceKes !== null ? Number(v.wasPriceKes) : '',
+        stockOnHand: v.stockOnHand,
+        isActive: v.isActive,
+      })),
+    );
+  }
+
+  // Update-only: matches each row to an existing variant by SKU (scoped to
+  // this shop, so a SKU typo can never touch another shop's row) and
+  // updates price/wasPrice/stock/active in place. Deliberately refuses to
+  // create anything -- a CSV can't safely carry a new product's category,
+  // slug or images, and a bulk-create path that silently invents malformed
+  // products from a spreadsheet a merchant half-filled-in is a worse
+  // failure mode than "your new products didn't get created, add them by
+  // hand." Rows that don't match a known SKU are reported back, not
+  // silently skipped, so a merchant can see what to fix and re-upload.
+  async importVariantsFromCsv(shopId: string, rows: Array<{ sku: string; priceKes?: number; wasPriceKes?: number | null; stockOnHand?: number; isActive?: boolean }>) {
+    const skus = rows.map((r) => r.sku).filter(Boolean);
+    const variants = await this.prisma.productVariant.findMany({
+      where: { sku: { in: skus }, product: { shopId } },
+    });
+    const bySku = new Map(variants.map((v) => [v.sku, v]));
+
+    const updates: Prisma.PrismaPromise<unknown>[] = [];
+    const notFound: string[] = [];
+    let updatedCount = 0;
+
+    for (const row of rows) {
+      const variant = bySku.get(row.sku);
+      if (!variant) {
+        notFound.push(row.sku);
+        continue;
+      }
+      const data: Prisma.ProductVariantUpdateInput = {};
+      if (row.priceKes !== undefined && !Number.isNaN(row.priceKes)) data.priceKes = row.priceKes;
+      if (row.wasPriceKes !== undefined) data.wasPriceKes = row.wasPriceKes === null || Number.isNaN(row.wasPriceKes) ? null : row.wasPriceKes;
+      if (row.stockOnHand !== undefined && !Number.isNaN(row.stockOnHand)) data.stockOnHand = row.stockOnHand;
+      if (row.isActive !== undefined) data.isActive = row.isActive;
+      if (Object.keys(data).length === 0) continue;
+      updates.push(this.prisma.productVariant.update({ where: { id: variant.id }, data }));
+      updatedCount++;
+    }
+
+    if (updates.length) await this.prisma.$transaction(updates);
+    return { updatedCount, notFound };
+  }
 }

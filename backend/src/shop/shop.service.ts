@@ -45,6 +45,23 @@ export class ShopService {
     return { name: shop.name, whatsappNumber: shop.whatsappNumber, currency: shop.currency };
   }
 
+  // The portal's own settings read -- separate from getPublicInfo above
+  // (which the storefront also calls and must never carry payment-key
+  // material). Paystack keys are reported only as booleans: a merchant
+  // needs to know "is this configured," never the key value back, the same
+  // "never re-display a secret once set" rule the admin console's own
+  // shop-detail view already follows.
+  async getPortalSettings(shopId: string) {
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+    return {
+      whatsappNumber: shop.whatsappNumber,
+      currency: shop.currency,
+      orderPrefix: shop.orderPrefix,
+      paystackSecretKeySet: Boolean(shop.paystackSecretKey),
+      paystackPublicKeySet: Boolean(shop.paystackPublicKey),
+    };
+  }
+
   async getTheme(shopId: string) {
     const theme = await this.prisma.shopTheme.findUnique({ where: { shopId } });
     // Every shop gets a theme row on creation (see ShopService.create below),
@@ -60,8 +77,20 @@ export class ShopService {
     };
   }
 
-  async updateSettings(shopId: string, data: { whatsappNumber?: string; paystackSecretKey?: string; paystackPublicKey?: string }) {
-    return this.prisma.shop.update({ where: { id: shopId }, data });
+  async updateSettings(shopId: string, data: { whatsappNumber?: string; paystackSecretKey?: string; paystackPublicKey?: string; currency?: string; orderPrefix?: string }) {
+    // Blank strings for the Paystack fields mean "leave the existing key
+    // alone" (the portal form never round-trips a real key value back, so
+    // there's nothing to send except "unchanged" or a genuinely new key) --
+    // strip them rather than overwriting a working key with empty string.
+    const { paystackSecretKey, paystackPublicKey, ...rest } = data;
+    return this.prisma.shop.update({
+      where: { id: shopId },
+      data: {
+        ...rest,
+        ...(paystackSecretKey ? { paystackSecretKey } : {}),
+        ...(paystackPublicKey ? { paystackPublicKey } : {}),
+      },
+    });
   }
 
   // Kept here, not just in the web app's font-pairings.ts, so a portal
