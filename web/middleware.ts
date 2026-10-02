@@ -23,15 +23,8 @@ const API_BASE_URL = (process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBL
 export async function middleware(request: NextRequest) {
   const host = request.headers.get('host') || '';
 
-  // Forwarded so app/not-found.tsx can tell which area a dead URL was in --
-  // /portal and /admin resolve no shop, so without this a 404 there could not
-  // offer links into the portal or the admin console.
-  const pathname = request.nextUrl.pathname;
-
-  if (pathname.startsWith('/portal') || pathname.startsWith('/admin')) {
-    const requestHeaders = new Headers(request.headers);
-    requestHeaders.set('x-pathname', pathname);
-    return NextResponse.next({ request: { headers: requestHeaders } });
+  if (request.nextUrl.pathname.startsWith('/portal') || request.nextUrl.pathname.startsWith('/admin')) {
+    return NextResponse.next();
   }
 
   try {
@@ -43,7 +36,6 @@ export async function middleware(request: NextRequest) {
 
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-shop-id', shop.id);
-    requestHeaders.set('x-pathname', pathname);
     return NextResponse.next({ request: { headers: requestHeaders } });
   } catch {
     return new NextResponse('Shop lookup failed', { status: 502 });

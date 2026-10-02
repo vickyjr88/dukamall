@@ -1,28 +1,31 @@
 import { headers } from 'next/headers';
-import { getTheme } from '@/app/lib/api';
+import Link from 'next/link';
+import { getTheme, resolveShopIdForHost } from '@/app/lib/api';
 import { ThemeInjector } from '@/app/theme-injector';
-import {
-  ADMIN_DESTINATIONS, NotFoundView, PORTAL_DESTINATIONS, StorefrontNotFoundView,
-} from '@/app/not-found-content';
+import { NotFoundView, StorefrontNotFoundView } from '@/app/not-found-content';
 
 /**
- * Renders for any URL no route matches. That happens OUTSIDE the storefront
- * layout (which is what applies the shop's theme), so this has to bring its
- * own theme: middleware.ts sets x-shop-id for storefront requests, and with
- * it this loads the shop's theme the same way the layout does.
+ * Renders for any URL no route matches -- outside the storefront layout, so
+ * it brings its own theme.
  *
- * /portal and /admin skip shop resolution (see middleware.ts), so they get
- * a plain page whose cards lead into that area; x-pathname, also set by
- * middleware, says which. A failed shop lookup falls back to the same plain
- * page rather than turning a 404 into a 500.
+ * Every 404 leads to the shop's PUBLIC pages (catalogue, categories, cart,
+ * account), including a dead /portal or /admin URL. Those two paths skip
+ * shop resolution in middleware.ts, so there is no x-shop-id for them; the
+ * shop is looked up here from the Host instead. A visitor who mistypes a
+ * portal URL on a shop's domain still lands on that shop's storefront, not
+ * on more portal pages.
+ *
+ * A host that belongs to no shop (or a failed lookup) gets a bare page
+ * rather than turning a 404 into a 500.
  */
 export default async function NotFound() {
   const h = headers();
+  const host = h.get('host');
+  const shopId = h.get('x-shop-id') || (host ? await resolveShopIdForHost(host) : null);
 
-  if (h.get('x-shop-id')) {
+  if (shopId) {
     try {
-      const theme = await getTheme();
-      const view = await StorefrontNotFoundView();
+      const [theme, view] = await Promise.all([getTheme(shopId), StorefrontNotFoundView({ shopId })]);
       return (
         <div data-layout={theme.layoutPreset}>
           <ThemeInjector theme={theme} />
@@ -30,35 +33,20 @@ export default async function NotFound() {
         </div>
       );
     } catch {
-      // Fall through to the plain page below.
+      // Fall through to the bare page below.
     }
   }
 
-  const path = h.get('x-pathname') || '';
-  if (path.startsWith('/admin')) {
-    return (
-      <NotFoundView
-        title="That admin page doesn't exist"
-        lede="The address may be mistyped or out of date. These are the main parts of the operator console."
-        destinations={ADMIN_DESTINATIONS}
-      />
-    );
-  }
-  if (path.startsWith('/portal')) {
-    return (
-      <NotFoundView
-        title="That page doesn't exist"
-        lede="The address may be mistyped or out of date. These are the main parts of your portal."
-        destinations={PORTAL_DESTINATIONS}
-      />
-    );
-  }
-
   return (
-    <NotFoundView
-      title="Page not found"
-      lede="This address doesn't lead anywhere. If you manage a shop or run the platform, these will get you back in."
-      destinations={[PORTAL_DESTINATIONS[0], ADMIN_DESTINATIONS[0]]}
-    />
+    <main className="shop-container shop-section notfound">
+      <section className="notfound-hero">
+        <span className="eyebrow">Error 404</span>
+        <h1>Page not found</h1>
+        <p>This address doesn&apos;t lead anywhere.</p>
+        <p style={{ marginTop: 'var(--shop-space-4)' }}>
+          <Link href="/" className="btn btn-primary">Go to the homepage</Link>
+        </p>
+      </section>
+    </main>
   );
 }

@@ -54,8 +54,30 @@ export type ShopProduct = {
   related?: ShopProduct[];
 };
 
-export async function getTheme(): Promise<ShopTheme> {
-  const res = await shopFetch('/shop/theme');
+/** Headers that pin a request to a specific shop, for callers that resolved one themselves (see resolveShopIdForHost) because middleware didn't. */
+function forShop(shopId?: string): RequestInit {
+  return shopId ? { headers: { 'x-shop-id': shopId } } : {};
+}
+
+/**
+ * The shop a Host header belongs to, or null. middleware.ts does this for
+ * every storefront request, but skips /portal and /admin -- so a 404 under
+ * those paths on a shop's own domain has no x-shop-id and uses this to find
+ * the shop it should still send the visitor back to.
+ */
+export async function resolveShopIdForHost(host: string): Promise<string | null> {
+  const apiBase = (process.env.INTERNAL_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200').replace(/\/$/, '');
+  try {
+    const res = await fetch(`${apiBase}/resolve-shop/${encodeURIComponent(host)}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()).id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getTheme(shopId?: string): Promise<ShopTheme> {
+  const res = await shopFetch('/shop/theme', forShop(shopId));
   return res.json();
 }
 
@@ -82,8 +104,8 @@ export async function getProducts(query: ProductListQuery = {}): Promise<ShopPro
 
 export type ShopCategory = { id: string; name: string; slug: string };
 
-export async function getCategories(): Promise<ShopCategory[]> {
-  const res = await shopFetch('/shop/categories');
+export async function getCategories(shopId?: string): Promise<ShopCategory[]> {
+  const res = await shopFetch('/shop/categories', forShop(shopId));
   if (!res.ok) return [];
   return res.json();
 }
@@ -104,7 +126,7 @@ export async function getProduct(slug: string): Promise<ShopProduct | null> {
 
 export type ShopInfo = { name: string; whatsappNumber: string | null; currency: string };
 
-export async function getShopInfo(): Promise<ShopInfo> {
-  const res = await shopFetch('/shop/info');
+export async function getShopInfo(shopId?: string): Promise<ShopInfo> {
+  const res = await shopFetch('/shop/info', forShop(shopId));
   return res.json();
 }

@@ -57,8 +57,8 @@ export function NotFoundView({
  * WhatsApp when the shop has a number. Nothing here links to a page that doesn't exist: the
  * storefront has no About/Contact pages, so "talk to us" is WhatsApp.
  */
-export async function StorefrontNotFoundView() {
-  const [shopInfo, categories] = await Promise.all([getShopInfo(), getCategories()]);
+export async function StorefrontNotFoundView({ shopId }: { shopId?: string } = {}) {
+  const [shopInfo, categories] = await Promise.all([getShopInfo(shopId), getCategories(shopId)]);
   const digits = (shopInfo.whatsappNumber || '').replace(/[^\d]/g, '');
 
   const destinations: Destination[] = [
@@ -86,24 +86,3 @@ export async function StorefrontNotFoundView() {
     />
   );
 }
-
-// The portal and admin console resolve no shop (see middleware.ts), so a
-// dead URL there can't be themed -- but it can still lead somewhere useful
-// instead of only back to a login screen.
-export const PORTAL_DESTINATIONS: Destination[] = [
-  { href: '/portal/dashboard', title: 'Dashboard', body: 'Sales, recent orders and what is running low.' },
-  { href: '/portal/orders', title: 'Orders', body: 'Find an order, update its status, notify the customer.' },
-  { href: '/portal/products', title: 'Products', body: 'Prices, stock and what is on the shelf.' },
-  { href: '/portal/analytics', title: 'Analytics', body: 'Revenue trends, best sellers and where customers come from.' },
-  { href: '/portal/customers', title: 'Customers', body: 'Who is buying, and how often they come back.' },
-  { href: '/portal/settings', title: 'Settings', body: 'WhatsApp, payments, staff and your password.' },
-];
-
-export const ADMIN_DESTINATIONS: Destination[] = [
-  { href: '/admin/shops', title: 'Shops', body: 'Every shop on the platform, with status and billing.' },
-  { href: '/admin/analytics', title: 'Analytics', body: 'Platform revenue, the shop leaderboard and churn.' },
-  { href: '/admin/leads', title: 'Leads', body: 'WhatsApp orders and abandoned carts across all shops.' },
-  { href: '/admin/search', title: 'Search', body: 'Find which shop a product or SKU belongs to.' },
-  { href: '/admin/users', title: 'Users', body: 'Find a person and manage platform admin access.' },
-  { href: '/admin/settings', title: 'Settings', body: 'System email and other platform-wide settings.' },
-];
