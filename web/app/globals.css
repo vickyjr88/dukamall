@@ -1115,3 +1115,47 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .auth-card .subtitle { color: var(--shop-muted); margin-bottom: var(--shop-space-6); }
 .auth-card .switch-link { margin-top: var(--shop-space-5); font-size: var(--shop-text-sm); color: var(--shop-muted); text-align: center; }
 .auth-card .switch-link a { font-weight: 700; color: var(--shop-ink); border-bottom: 1px solid var(--shop-ink); }
+
+/* ---------------------------------------------------------------------
+   404 page (app/not-found.tsx, app/(storefront)/not-found.tsx)
+
+   A set of routes onward rather than an apology -- see not-found-content.tsx.
+   The grid's own background draws the rules between cards (1px gaps), the
+   same way the account page's link list does.
+   --------------------------------------------------------------------- */
+.notfound { max-width: 1040px; }
+.notfound-hero { text-align: center; max-width: 640px; margin: 0 auto var(--shop-space-7, 48px); }
+.notfound-hero h1 { margin: var(--shop-space-2) 0 var(--shop-space-3); }
+.notfound-hero p { color: var(--shop-muted); line-height: 1.65; }
+
+.notfound-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--shop-line);
+  border: 1px solid var(--shop-line);
+}
+.notfound-card {
+  position: relative;
+  display: block;
+  background: #fff;
+  padding: var(--shop-space-5) var(--shop-space-5) var(--shop-space-8, 44px);
+  color: inherit;
+  text-decoration: none;
+  transition: background 140ms ease;
+}
+.notfound-card:hover { background: var(--shop-surface); }
+.notfound-card:focus-visible { outline: 2px solid var(--shop-primary); outline-offset: -2px; }
+.notfound-card h2 { font-size: var(--shop-text-lg); margin: 0 0 var(--shop-space-2); }
+.notfound-card p { margin: 0; font-size: var(--shop-text-sm); color: var(--shop-muted); line-height: 1.55; }
+.notfound-card-cue {
+  position: absolute;
+  right: var(--shop-space-5);
+  bottom: var(--shop-space-4);
+  color: var(--shop-primary);
+  transition: transform 140ms ease;
+}
+.notfound-card:hover .notfound-card-cue { transform: translateX(4px); }
+
+.notfound-footnote { margin-top: var(--shop-space-6); text-align: center; font-size: var(--shop-text-sm); color: var(--shop-muted); }
+.notfound-footnote a { font-weight: 700; color: var(--shop-ink); border-bottom: 1px solid var(--shop-ink); }
