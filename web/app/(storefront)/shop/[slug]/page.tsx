@@ -1,24 +1,38 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProduct, getShopInfo } from '@/app/lib/api';
-import { currentOrigin } from '@/app/lib/seo';
+import { currentOrigin, OG_IMAGE_SIZE, truncate } from '@/app/lib/seo';
 import { ProductClient } from './product-client';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const [product, shopInfo] = await Promise.all([getProduct(params.slug), getShopInfo()]);
   if (!product) return {};
   const origin = currentOrigin();
-  const description = product.description || `${product.name} at ${shopInfo.name}.`;
+  const url = `${origin}/shop/${product.slug}`;
+
+  // Price up front: in a chat preview the title and the first line of the
+  // description are all that shows, and "how much" is what people ask.
+  const prices = product.variants.map((v) => Number(v.priceKes)).filter((n) => n > 0);
+  const priceLine = prices.length ? `${shopInfo.currency} ${Math.min(...prices).toLocaleString('en-US')}` : '';
+  const body = truncate(product.description || `${product.name} at ${shopInfo.name}.`, 160);
+  const description = priceLine ? `${priceLine} - ${body}` : body;
+
   return {
     title: `${product.name} | ${shopInfo.name}`,
     description,
-    alternates: { canonical: `${origin}/shop/${product.slug}` },
+    alternates: { canonical: url },
     openGraph: {
-      title: product.name,
-      description,
-      url: `${origin}/shop/${product.slug}`,
-      images: product.imageUrls,
       type: 'website',
+      siteName: shopInfo.name,
+      title: priceLine ? `${product.name} - ${priceLine}` : product.name,
+      description,
+      url,
+      // /og/product/<slug> serves the first photo recomposed to a small 1200x630
+      // JPEG (see app/lib/og-image.ts) rather than the raw, often portrait,
+      // multi-hundred-KB upload.
+      images: product.imageUrls?.[0]
+        ? [{ url: `${origin}/og/product/${product.slug}`, ...OG_IMAGE_SIZE, alt: product.name }]
+        : [],
     },
   };
 }

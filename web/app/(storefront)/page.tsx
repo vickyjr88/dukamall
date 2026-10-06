@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getCategories, getFilters, getProducts, getShopInfo, getTheme } from '@/app/lib/api';
-import { currentOrigin } from '@/app/lib/seo';
+import { currentOrigin, OG_IMAGE_SIZE } from '@/app/lib/seo';
 import { StorefrontSearch } from './storefront-search';
 
 // Every shop shared the root layout's generic "Shop" title until now --
@@ -16,10 +16,16 @@ export async function generateMetadata(): Promise<Metadata> {
     description,
     alternates: { canonical: origin },
     openGraph: {
+      type: 'website',
+      siteName: shopInfo.name,
       title: shopInfo.name,
       description,
       url: origin,
-      images: theme.heroImageUrl ? [theme.heroImageUrl] : theme.logoUrl ? [theme.logoUrl] : [],
+      // /og/home serves the hero (or logo) resized to a small 1200x630 JPEG --
+      // the raw upload was often several MB, which WhatsApp and others skip.
+      images: theme.heroImageUrl || theme.logoUrl
+        ? [{ url: `${origin}/og/home`, ...OG_IMAGE_SIZE, alt: shopInfo.name }]
+        : [],
     },
   };
 }

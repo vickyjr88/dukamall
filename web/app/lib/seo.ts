@@ -16,3 +16,13 @@ export function currentOrigin(): string {
   const isLocal = /(^|\.)localhost(:\d+)?$/.test(host) || host.startsWith('127.0.0.1');
   return `${isLocal ? 'http' : 'https'}://${host}`;
 }
+
+/** Link previews cut long text off mid-word; trim to a word boundary instead. */
+export function truncate(text: string, max: number): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= max) return clean;
+  return clean.slice(0, max).replace(/\s+\S*$/, '').trimEnd() + '\u2026';
+}
+
+/** The size og-image.ts renders previews at -- declared in the tags so a crawler can lay the card out before it has fetched the image. */
+export const OG_IMAGE_SIZE = { width: 1200, height: 630 };

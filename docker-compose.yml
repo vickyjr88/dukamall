@@ -14,6 +14,11 @@ x-web-build: &web-build
 x-web-environment: &web-environment
   NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:3211}
   PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-dukamall.app}
+  # Extra hostnames web/app/lib/og-image.ts may fetch link-preview source
+  # images from, beyond the API host itself (comma-separated). Needed when
+  # media lives on another host -- e.g. api.dripemporium.store for the synced
+  # msa catalogue.
+  OG_IMAGE_EXTRA_HOSTS: ${OG_IMAGE_EXTRA_HOSTS:-}
 
 # This app resolves tenants by Host header (web/middleware.ts) -- a bare
 # request with no matching shop domain correctly 404s with "No shop found
