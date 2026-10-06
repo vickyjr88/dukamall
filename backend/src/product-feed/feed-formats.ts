@@ -43,9 +43,25 @@ export function feedXml(shopName: string, origin: string, rows: FeedRow[]): stri
 </rss>`;
 }
 
-const CSV_COLUMNS: (keyof FeedRow)[] = [
-  'id', 'title', 'description', 'link', 'imageLink', 'availability',
-  'price', 'condition', 'brand', 'mpn', 'itemGroupId', 'productType',
+// [FeedRow key, header name]. The header names are what Meta, Google Merchant
+// Center and TikTok match columns on, and they are snake_case -- the same
+// names the XML feed already uses as <g:image_link>, <g:item_group_id> and
+// <g:product_type>. The CSV used the row's camelCase keys as headers, so a
+// platform could not find an image_link column and reported every item as
+// having no product image URL, even though each row had one.
+export const CSV_COLUMNS: [keyof FeedRow, string][] = [
+  ['id', 'id'],
+  ['title', 'title'],
+  ['description', 'description'],
+  ['link', 'link'],
+  ['imageLink', 'image_link'],
+  ['availability', 'availability'],
+  ['price', 'price'],
+  ['condition', 'condition'],
+  ['brand', 'brand'],
+  ['mpn', 'mpn'],
+  ['itemGroupId', 'item_group_id'],
+  ['productType', 'product_type'],
 ];
 
 function csvCell(value: string): string {
@@ -53,7 +69,7 @@ function csvCell(value: string): string {
 }
 
 export function feedCsv(rows: FeedRow[]): string {
-  const header = CSV_COLUMNS.join(',');
-  const lines = rows.map((row) => CSV_COLUMNS.map((col) => csvCell(String(row[col] ?? ''))).join(','));
+  const header = CSV_COLUMNS.map(([, name]) => name).join(',');
+  const lines = rows.map((row) => CSV_COLUMNS.map(([key]) => csvCell(String(row[key] ?? ''))).join(','));
   return [header, ...lines].join('\n');
 }
