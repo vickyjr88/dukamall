@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { storefrontOriginForShop } from '../common/storefront-origin';
 import { UpdateStorefrontDto, UpdateThemeDto } from './storefront-content.dto';
+import { encryptSecret } from '../common/secrets';
 
 /** Blank/whitespace-only input means "clear it" -- the column stays null rather than holding an empty string. */
 const textOrNull = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim() || null);
@@ -224,7 +225,7 @@ export class ShopService {
         // An empty string / null clears these two; undefined leaves them alone.
         ...(notificationEmail !== undefined ? { notificationEmail: notificationEmail || null } : {}),
         ...(freeDeliveryOverKes !== undefined ? { freeDeliveryOverKes: freeDeliveryOverKes || null } : {}),
-        ...(paystackSecretKey ? { paystackSecretKey } : {}),
+        ...(paystackSecretKey ? { paystackSecretKey: encryptSecret(paystackSecretKey) } : {}),
         ...(paystackPublicKey ? { paystackPublicKey } : {}),
       },
     });

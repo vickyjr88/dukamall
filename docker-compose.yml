@@ -36,6 +36,13 @@ x-web-healthcheck: &web-healthcheck
 x-backend-environment: &backend-environment
   DATABASE_URL: ${DATABASE_URL}
   JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+  # Encrypts stored secrets (Paystack keys, SMTP password, admin 2FA seeds). Optional so a missing
+  # value can't stop a deploy, but without it those secrets are stored unencrypted.
+  SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-}
+  # Set to true to serve the Swagger UI at /api-docs (off by default).
+  ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
+  # Require every platform admin to enrol in two-factor sign-in before using the console.
+  ADMIN_REQUIRE_2FA: ${ADMIN_REQUIRE_2FA:-false}
   PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-dukamall.app}
   MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
   MINIO_PORT: ${MINIO_PORT:-9000}

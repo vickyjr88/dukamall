@@ -9,6 +9,7 @@ import { orderConfirmationEmail } from '../email/email-templates';
 import { PaymentMethod } from '@prisma/client';
 import { deliveryFeeFor, nextOrderNumber } from '../common/order-helpers';
 import { NotificationsService } from '../notifications/notifications.service';
+import { decryptSecret } from '../common/secrets';
 
 @Injectable()
 export class CheckoutService {
@@ -110,7 +111,7 @@ export class CheckoutService {
       return { order, online: false };
     }
 
-    const paystackResult = await this.paystack.initialise(shop.paystackSecretKey, shop.currency, {
+    const paystackResult = await this.paystack.initialise(decryptSecret(shop.paystackSecretKey), shop.currency, {
       email: dto.email || 'no-reply@example.com',
       amount: total,
       reference: order.id,
@@ -134,7 +135,7 @@ export class CheckoutService {
       throw new BadRequestException('This order has no online payment to verify');
     }
 
-    const result = await this.paystack.verify(shop.paystackSecretKey, order.paystackReference);
+    const result = await this.paystack.verify(decryptSecret(shop.paystackSecretKey), order.paystackReference);
     if (result.status === 'success') {
       await this.markPaid(orderId, { method: 'PAYSTACK', alertMerchant: true });
     }

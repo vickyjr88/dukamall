@@ -93,6 +93,7 @@ model Shop {
 
   theme         ShopTheme?
   pages         ShopPage[]
+  trialReminders TrialReminder[]
   staff         UserShop[]
   products      Product[]
   categories    ProductCategory[]
@@ -154,6 +155,14 @@ model User {
   // Set on every successful staff or admin login, so the operator can tell who
   // is active and which shops have gone quiet. Null = has never logged in.
   lastLoginAt   DateTime?
+  // Two-factor sign-in (TOTP), used for platform admins. totpSecret is stored
+  // encrypted (see common/secrets.ts) and only counts once totpEnabledAt is set,
+  // i.e. after the user proved they can generate a code. Recovery codes are kept
+  // as hashes and each works once. totpLastStep blocks replaying a code.
+  totpSecret         String?
+  totpEnabledAt      DateTime?
+  totpRecoveryHashes Json?
+  totpLastStep       Int?
   shops         UserShop[]
   adminAuditLog AdminAuditLog[]
   createdAt     DateTime        @default(now())
@@ -605,8 +614,9 @@ model EmailLog {
 
 model AdminAuditLog {
   id      String @id @default(cuid())
-  adminId String
-  admin   User   @relation(fields: [adminId], references: [id])
+  /// Null for something the platform did by itself (e.g. suspending an expired trial).
+  adminId String?
+  admin   User?  @relation(fields: [adminId], references: [id])
   shopId  String?
   shop    Shop?  @relation(fields: [shopId], references: [id], onDelete: SetNull)
 
@@ -684,5 +694,27 @@ model PlatformSettings {
   // for every provider.
   smtpSecure   Boolean @default(false)
 
+  // Trial policy. New self-serve shops get trialDays from signup. Merchants are
+  // emailed as the end approaches. Closing a shop automatically after the trial
+  // is OFF unless an operator turns it on, and only happens trialGraceDays after
+  // the end date (billing is tracked by hand, so a late payment shouldn't take a
+  // shop offline overnight).
+  trialDays            Int     @default(14)
+  suspendExpiredTrials Boolean @default(false)
+  trialGraceDays       Int     @default(7)
+
   updatedAt DateTime @updatedAt
+}
+
+/// Which trial notices have gone to which shop, so each is sent once. Keyed by
+/// the trial end date too: extending a trial starts a fresh set of reminders.
+model TrialReminder {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  kind        String
+  trialEndsAt DateTime
+  sentAt      DateTime @default(now())
+
+  @@unique([shopId, kind, trialEndsAt])
 }

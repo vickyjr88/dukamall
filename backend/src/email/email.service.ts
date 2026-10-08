@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
 import { PrismaService } from '../prisma/prisma.service';
+import { decryptSecret } from '../common/secrets';
 
 /** What an email was for and which shop it concerns, kept in EmailLog. */
 export type EmailMeta = { kind?: string; shopId?: string };
@@ -41,7 +42,7 @@ export class EmailService {
     const row = await this.prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
     const host = row?.smtpHost || process.env.SMTP_HOST;
     const user = row?.smtpUser || process.env.SMTP_USER;
-    const password = row?.smtpPassword || process.env.SMTP_PASSWORD;
+    const password = decryptSecret(row?.smtpPassword) || process.env.SMTP_PASSWORD;
     const from = row?.smtpFrom || process.env.SMTP_FROM;
     const port = row?.smtpPort ?? (process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : undefined);
     const secure = row?.smtpSecure ?? process.env.SMTP_SECURE === 'true';

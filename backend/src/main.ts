@@ -34,15 +34,19 @@ async function bootstrap() {
   });
   app.useGlobalPipes(new ValidationPipe({ transform: true }));
 
-  const config = new DocumentBuilder()
-    .setTitle('Shops Platform API')
-    .setDescription('API documentation for the Dubai Merchants Shops Platform')
-    .setVersion('0.1')
-    .addTag('api')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api-docs', app, document);
+  // The Swagger UI lists every route, admin ones included, so it is opt-in
+  // (ENABLE_API_DOCS=true) rather than open on a production API.
+  if (process.env.ENABLE_API_DOCS === 'true') {
+    const config = new DocumentBuilder()
+      .setTitle('Shops Platform API')
+      .setDescription('API documentation for the Dubai Merchants Shops Platform')
+      .setVersion('0.1')
+      .addTag('api')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api-docs', app, document);
+  }
 
   await app.listen(Number(process.env.PORT) || 3200, '0.0.0.0');
   console.log('Shops Platform backend listening on http://0.0.0.0:3200');

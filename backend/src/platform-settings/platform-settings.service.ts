@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { encryptSecret } from '../common/secrets';
 
 @Injectable()
 export class PlatformSettingsService {
@@ -31,8 +32,8 @@ export class PlatformSettingsService {
     const { smtpPassword, ...rest } = data;
     await this.prisma.platformSettings.upsert({
       where: { id: 'singleton' },
-      create: { id: 'singleton', ...rest, ...(smtpPassword ? { smtpPassword } : {}) },
-      update: { ...rest, ...(smtpPassword ? { smtpPassword } : {}) },
+      create: { id: 'singleton', ...rest, ...(smtpPassword ? { smtpPassword: encryptSecret(smtpPassword) } : {}) },
+      update: { ...rest, ...(smtpPassword ? { smtpPassword: encryptSecret(smtpPassword) } : {}) },
     });
     // Who changed the platform's mail setup, and which settings -- the names of
     // the fields only, never their values (the password in particular).

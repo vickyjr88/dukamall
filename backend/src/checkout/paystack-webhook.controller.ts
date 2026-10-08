@@ -6,6 +6,7 @@ import { PaystackService } from '../paystack/paystack.service';
 import { CheckoutService } from './checkout.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
+import { decryptSecret } from '../common/secrets';
 
 /**
  * Server-to-server payment confirmation, independent of the shopper's own
@@ -62,7 +63,7 @@ export class PaystackWebhookController {
       return { received: true };
     }
 
-    const secretKey = order.shop.paystackSecretKey;
+    const secretKey = decryptSecret(order.shop.paystackSecretKey);
     if (!this.paystack.verifySignature(secretKey || '', rawBody, signature)) {
       this.logger.warn(`Webhook signature check failed for order ${order.orderNumber} (shop ${order.shopId})`);
       throw new BadRequestException('Invalid signature');
