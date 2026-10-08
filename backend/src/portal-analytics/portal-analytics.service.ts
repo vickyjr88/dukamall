@@ -197,7 +197,7 @@ export class PortalAnalyticsService {
     const window = resolveWindow(from, to);
     const leads = await this.prisma.cartLead.findMany({
       where: { shopId, createdAt: { gte: window.from, lte: window.to } },
-      select: { id: true, source: true, customerPhone: true, createdAt: true },
+      select: { id: true, source: true, status: true, convertedOrderId: true, customerPhone: true, createdAt: true },
     });
 
     const phones = Array.from(new Set(leads.map((l) => l.customerPhone).filter((p): p is string => Boolean(p))));
@@ -210,7 +210,21 @@ export class PortalAnalyticsService {
 
     let converted = 0;
     let convertedRevenueKes = 0;
+    // A lead an order was created from (status CONVERTED) counts directly --
+    // that link is exact. The phone match remains for sales that were never
+    // linked (a customer who ordered on the website after enquiring).
+    const convertedOrders = await this.prisma.order.findMany({
+      where: { shopId, status: 'PAID', id: { in: leads.map((l) => l.convertedOrderId).filter((id): id is string => Boolean(id)) } },
+      select: { id: true, totalKes: true },
+    });
+    const isConvertedByLink = (lead: (typeof leads)[number]) => lead.status === 'CONVERTED';
     for (const lead of leads) {
+      if (isConvertedByLink(lead)) {
+        converted++;
+        const order = lead.convertedOrderId ? convertedOrders.find((o) => o.id === lead.convertedOrderId) : undefined;
+        convertedRevenueKes += Number(order?.totalKes ?? 0);
+        continue;
+      }
       if (!lead.customerPhone) continue;
       const match = paidOrdersByPhone.find((o) => o.phone === lead.customerPhone && o.createdAt >= lead.createdAt);
       if (match) {
@@ -222,6 +236,7 @@ export class PortalAnalyticsService {
     const bySource = (source: 'WHATSAPP_ORDER' | 'ABANDONED_CART') => {
       const sourceLeads = leads.filter((l) => l.source === source);
       const sourceConverted = sourceLeads.filter((l) => {
+        if (isConvertedByLink(l)) return true;
         if (!l.customerPhone) return false;
         return paidOrdersByPhone.some((o) => o.phone === l.customerPhone && o.createdAt >= l.createdAt);
       }).length;

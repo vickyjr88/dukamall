@@ -5,9 +5,10 @@ import { PaystackWebhookController } from './paystack-webhook.controller';
 import { PaystackModule } from '../paystack/paystack.module';
 import { PortalDiscountModule } from '../portal-discount/portal-discount.module';
 import { EmailModule } from '../email/email.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [PaystackModule, PortalDiscountModule, EmailModule],
+  imports: [PaystackModule, PortalDiscountModule, EmailModule, NotificationsModule],
   controllers: [CheckoutController, PaystackWebhookController],
   providers: [CheckoutService],
   // PortalOrderModule needs markPaid() for the merchant-initiated

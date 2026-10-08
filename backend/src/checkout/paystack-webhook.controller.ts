@@ -69,7 +69,7 @@ export class PaystackWebhookController {
     }
 
     if (event.event === 'charge.success') {
-      await this.checkout.markPaid(order.id);
+      await this.checkout.markPaid(order.id, { method: 'PAYSTACK', alertMerchant: true });
     }
 
     return { received: true };

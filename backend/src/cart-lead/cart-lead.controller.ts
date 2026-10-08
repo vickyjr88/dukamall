@@ -1,10 +1,18 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { IsIn } from 'class-validator';
+import { LeadStatus } from '@prisma/client';
 import { CartLeadService } from './cart-lead.service';
 import { RecordCartLeadDto } from './cart-lead.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { ShopId } from '../common/shop-context';
 import { RateLimit } from '../common/rate-limit.decorator';
+
+class SetLeadStatusDto {
+  // CONVERTED is deliberately not allowed: only creating an order from the
+  // lead sets it (see CartLeadService.setStatus).
+  @IsIn(['NEW', 'CONTACTED', 'LOST']) status!: LeadStatus;
+}
 
 @ApiTags('cart-lead')
 @Controller('cart-leads')
@@ -29,7 +37,12 @@ export class PortalCartLeadController {
   constructor(private cartLeadService: CartLeadService) {}
 
   @Get()
-  list(@ShopId() shopId: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string) {
-    return this.cartLeadService.list(shopId, page ? Number(page) : undefined, pageSize ? Number(pageSize) : undefined);
+  list(@ShopId() shopId: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('status') status?: LeadStatus) {
+    return this.cartLeadService.list(shopId, page ? Number(page) : undefined, pageSize ? Number(pageSize) : undefined, status);
+  }
+
+  @Patch(':id/status')
+  setStatus(@ShopId() shopId: string, @Param('id') id: string, @Body() dto: SetLeadStatusDto) {
+    return this.cartLeadService.setStatus(shopId, id, dto.status);
   }
 }

@@ -42,7 +42,15 @@ export class ShopService {
   // must never reach the browser.
   async getPublicInfo(shopId: string) {
     const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
-    return { name: shop.name, whatsappNumber: shop.whatsappNumber, currency: shop.currency };
+    return {
+      name: shop.name,
+      whatsappNumber: shop.whatsappNumber,
+      currency: shop.currency,
+      // The cart shows the delivery fee before checkout; checkout itself
+      // recomputes it (see deliveryFeeFor), so these are for display only.
+      deliveryFeeKes: Number(shop.deliveryFeeKes),
+      freeDeliveryOverKes: shop.freeDeliveryOverKes === null ? null : Number(shop.freeDeliveryOverKes),
+    };
   }
 
   // The portal's own settings read -- separate from getPublicInfo above
@@ -59,6 +67,9 @@ export class ShopService {
       orderPrefix: shop.orderPrefix,
       paystackSecretKeySet: Boolean(shop.paystackSecretKey),
       paystackPublicKeySet: Boolean(shop.paystackPublicKey),
+      notificationEmail: shop.notificationEmail,
+      deliveryFeeKes: Number(shop.deliveryFeeKes),
+      freeDeliveryOverKes: shop.freeDeliveryOverKes === null ? null : Number(shop.freeDeliveryOverKes),
     };
   }
 
@@ -77,16 +88,19 @@ export class ShopService {
     };
   }
 
-  async updateSettings(shopId: string, data: { whatsappNumber?: string; paystackSecretKey?: string; paystackPublicKey?: string; currency?: string; orderPrefix?: string }) {
+  async updateSettings(shopId: string, data: { whatsappNumber?: string; paystackSecretKey?: string; paystackPublicKey?: string; currency?: string; orderPrefix?: string; notificationEmail?: string | null; deliveryFeeKes?: number; freeDeliveryOverKes?: number | null }) {
     // Blank strings for the Paystack fields mean "leave the existing key
     // alone" (the portal form never round-trips a real key value back, so
     // there's nothing to send except "unchanged" or a genuinely new key) --
     // strip them rather than overwriting a working key with empty string.
-    const { paystackSecretKey, paystackPublicKey, ...rest } = data;
+    const { paystackSecretKey, paystackPublicKey, notificationEmail, freeDeliveryOverKes, ...rest } = data;
     return this.prisma.shop.update({
       where: { id: shopId },
       data: {
         ...rest,
+        // An empty string / null clears these two; undefined leaves them alone.
+        ...(notificationEmail !== undefined ? { notificationEmail: notificationEmail || null } : {}),
+        ...(freeDeliveryOverKes !== undefined ? { freeDeliveryOverKes: freeDeliveryOverKes || null } : {}),
         ...(paystackSecretKey ? { paystackSecretKey } : {}),
         ...(paystackPublicKey ? { paystackPublicKey } : {}),
       },

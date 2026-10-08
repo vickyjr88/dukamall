@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { OrderStatus, Prisma } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { FulfilmentStatus, OrderSource, OrderStatus, PaymentMethod, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckoutService } from '../checkout/checkout.service';
+import { nextOrderNumber } from '../common/order-helpers';
+import type { CreateManualOrderDto } from './portal-order.controller';
 
 export type PortalOrderListQuery = {
   status?: OrderStatus;
+  fulfilment?: FulfilmentStatus;
+  source?: OrderSource;
   search?: string;
   from?: Date;
   to?: Date;
@@ -29,6 +33,8 @@ export class PortalOrderService {
     const where: Prisma.OrderWhereInput = {
       shopId,
       ...(query.status ? { status: query.status } : {}),
+      ...(query.fulfilment ? { fulfilmentStatus: query.fulfilment } : {}),
+      ...(query.source ? { source: query.source } : {}),
       ...(query.from || query.to
         ? { createdAt: { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lte: query.to } : {}) } }
         : {}),
@@ -62,13 +68,17 @@ export class PortalOrderService {
   async get(shopId: string, orderId: string) {
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, shopId },
-      include: { lines: { include: { variant: { include: { product: true } } } } },
+      include: {
+        lines: { include: { variant: { include: { product: true } } } },
+        notes: { orderBy: { createdAt: 'desc' } },
+        discount: { select: { code: true } },
+      },
     });
     if (!order) throw new NotFoundException('Order not found');
     return order;
   }
 
-  async setStatus(shopId: string, orderId: string, status: OrderStatus) {
+  async setStatus(shopId: string, orderId: string, status: OrderStatus, payment: { method?: PaymentMethod; reference?: string } = {}) {
     const order = await this.prisma.order.findFirst({ where: { id: orderId, shopId } });
     if (!order) throw new NotFoundException('Order not found');
 
@@ -80,7 +90,9 @@ export class PortalOrderService {
     // decremented stock at all (a real, independent bug this fix also
     // closes, not just an email gap).
     if (order.status === 'PENDING' && status === 'PAID') {
-      await this.checkout.markPaid(orderId);
+      // How it was paid is recorded; defaulting to OTHER keeps older callers
+      // that send only a status working.
+      await this.checkout.markPaid(orderId, { method: payment.method ?? 'OTHER', reference: payment.reference });
       return this.prisma.order.findUniqueOrThrow({ where: { id: orderId } });
     }
 
@@ -106,5 +118,132 @@ export class PortalOrderService {
     }
 
     return this.prisma.order.update({ where: { id: orderId }, data: { status } });
+  }
+
+  /**
+   * Records a sale made outside the website. The order is built exactly as a
+   * checkout builds one -- prices come from the variants, never the caller --
+   * and, when it is already paid, goes through CheckoutService.markPaid so
+   * stock is decremented and the customer's confirmation is sent by the same
+   * code that handles an online payment.
+   */
+  async create(shopId: string, user: { id: string; firstName: string; lastName: string; role: string }, dto: CreateManualOrderDto) {
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+
+    if (dto.discountKes && dto.discountKes > 0 && user.role !== 'OWNER') {
+      throw new ForbiddenException('Only the shop owner can give a manual discount.');
+    }
+    if (dto.markPaid && !dto.paymentMethod) {
+      throw new BadRequestException('Choose how it was paid.');
+    }
+
+    // The same line can't appear twice; merge instead of failing.
+    const wanted = new Map<string, number>();
+    for (const line of dto.lines) wanted.set(line.variantId, (wanted.get(line.variantId) ?? 0) + line.quantity);
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: Array.from(wanted.keys()) }, product: { shopId } },
+    });
+    if (variants.length !== wanted.size) throw new BadRequestException('One or more of those items no longer exists.');
+
+    let subtotal = 0;
+    const lines = variants.map((variant) => {
+      const quantity = wanted.get(variant.id)!;
+      const price = Number(variant.priceKes);
+      subtotal += price * quantity;
+      return { variantId: variant.id, quantity, priceKes: price };
+    });
+
+    const discountKes = Math.min(dto.discountKes ?? 0, subtotal);
+    const shippingKes = dto.shippingKes ?? 0;
+    const total = subtotal - discountKes + shippingKes;
+
+    if (dto.leadId) {
+      const lead = await this.prisma.cartLead.findFirst({ where: { id: dto.leadId, shopId } });
+      if (!lead) throw new BadRequestException('That lead no longer exists.');
+      if (lead.status === 'CONVERTED') throw new BadRequestException('An order has already been created from that lead.');
+    }
+
+    // Link to an existing customer account when the contact details match one,
+    // so the sale shows in their history and lifetime value. Never creates one:
+    // guests stay guests, exactly as they do at checkout.
+    const contactMatch = [
+      ...(dto.email ? [{ email: dto.email }] : []),
+      ...(dto.phone ? [{ phone: dto.phone }] : []),
+    ];
+    const customer = contactMatch.length
+      ? await this.prisma.customer.findFirst({ where: { shopId, OR: contactMatch }, select: { id: true } })
+      : null;
+
+    const authorName = `${user.firstName} ${user.lastName}`.trim();
+
+    const order = await this.prisma.$transaction(async (tx) => {
+      const orderNumber = await nextOrderNumber(tx, shopId, shop.orderPrefix);
+      const created = await tx.order.create({
+        data: {
+          shopId,
+          customerId: customer?.id,
+          orderNumber,
+          firstName: dto.firstName.trim(),
+          lastName: (dto.lastName ?? '').trim(),
+          email: dto.email || null,
+          phone: dto.phone?.trim() || null,
+          shippingAddress: dto.shippingAddress?.trim() || null,
+          subtotalKes: subtotal,
+          discountKes,
+          shippingKes,
+          totalKes: total,
+          source: dto.source,
+          createdByUserId: user.id,
+          lines: { create: lines },
+          ...(dto.note?.trim() ? { notes: { create: { authorName, text: dto.note.trim() } } } : {}),
+        },
+      });
+      if (dto.leadId) {
+        await tx.cartLead.update({ where: { id: dto.leadId }, data: { status: 'CONVERTED', convertedOrderId: created.id } });
+      }
+      return created;
+    });
+
+    if (dto.markPaid) {
+      await this.checkout.markPaid(order.id, { method: dto.paymentMethod, reference: dto.paymentReference });
+    }
+    return this.get(shopId, order.id);
+  }
+
+  /**
+   * Where the goods are, kept apart from payment. Moving to SHIPPED or
+   * DELIVERED stamps the time (and DELIVERED fills in a missing SHIPPED
+   * time); moving back to UNFULFILLED clears them, so a mistaken click can be
+   * undone. A cancelled order isn't shipped.
+   */
+  async setFulfilment(shopId: string, orderId: string, status: FulfilmentStatus, trackingNote?: string) {
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, shopId } });
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status === 'CANCELLED') throw new BadRequestException('A cancelled order can\'t be shipped.');
+
+    const now = new Date();
+    const data: Prisma.OrderUpdateInput = { fulfilmentStatus: status };
+    if (trackingNote !== undefined) data.trackingNote = trackingNote.trim() || null;
+    if (status === 'UNFULFILLED') {
+      data.shippedAt = null;
+      data.deliveredAt = null;
+    } else if (status === 'SHIPPED') {
+      data.shippedAt = order.shippedAt ?? now;
+      data.deliveredAt = null;
+    } else {
+      data.shippedAt = order.shippedAt ?? now;
+      data.deliveredAt = now;
+    }
+    await this.prisma.order.update({ where: { id: orderId }, data });
+    return this.get(shopId, orderId);
+  }
+
+  async addNote(shopId: string, orderId: string, user: { firstName: string; lastName: string }, text: string) {
+    const order = await this.prisma.order.findFirst({ where: { id: orderId, shopId }, select: { id: true } });
+    if (!order) throw new NotFoundException('Order not found');
+    return this.prisma.orderNote.create({
+      data: { orderId, authorName: `${user.firstName} ${user.lastName}`.trim() || 'Staff', text: text.trim() },
+    });
   }
 }

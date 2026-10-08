@@ -69,6 +69,14 @@ model Shop {
   trialEndsAt  DateTime?
   billingNotes String?
 
+  // Where new-order and new-lead alerts go. Null means every OWNER of the shop.
+  notificationEmail   String?
+  // Flat delivery charge added at checkout, waived when the order (after any
+  // discount) reaches freeDeliveryOverKes. No zones or weights: a single flat
+  // fee is what a shop this size can actually quote.
+  deliveryFeeKes      Decimal  @default(0) @db.Decimal(12, 2)
+  freeDeliveryOverKes Decimal? @db.Decimal(12, 2)
+
   theme         ShopTheme?
   staff         UserShop[]
   products      Product[]
@@ -305,6 +313,33 @@ enum OrderStatus {
   CANCELLED
 }
 
+/// Where the goods are, kept apart from OrderStatus (which is about payment).
+/// An order is PAID long before it is delivered, and the stock logic keys off
+/// payment, so the two are separate fields rather than one overloaded status.
+enum FulfilmentStatus {
+  UNFULFILLED
+  SHIPPED
+  DELIVERED
+}
+
+/// How an order reached the shop. WHATSAPP and IN_PERSON are sales a merchant
+/// records by hand -- until orders could be created from the portal those
+/// never became orders at all, so stock, revenue and customers missed them.
+enum OrderSource {
+  WEBSITE
+  WHATSAPP
+  IN_PERSON
+  OTHER
+}
+
+enum PaymentMethod {
+  PAYSTACK
+  CASH
+  MPESA
+  BANK_TRANSFER
+  OTHER
+}
+
 model Order {
   id         String      @id @default(cuid())
   shopId     String
@@ -338,6 +373,25 @@ model Order {
 
   paystackReference String?
 
+  fulfilmentStatus FulfilmentStatus @default(UNFULFILLED)
+  shippedAt        DateTime?
+  deliveredAt      DateTime?
+  // Courier, waybill number, "left with the rider" -- free text, since what a
+  // small shop tells its customer here varies too much for fixed fields.
+  trackingNote     String?
+
+  source           OrderSource @default(WEBSITE)
+  // Null on an unpaid order. An online order that predates this column has a
+  // paystackReference and no paymentMethod; readers treat that as PAYSTACK.
+  paymentMethod    PaymentMethod?
+  // M-Pesa code, bank reference, receipt number -- whatever lets the merchant
+  // find the money again. (paystackReference above stays for Paystack.)
+  paymentReference String?
+  paidAt           DateTime?
+  // The staff member who recorded a manual order; null for a customer's own.
+  createdByUserId  String?
+
+  notes OrderNote[]
   lines OrderLine[]
 
   createdAt DateTime @default(now())
@@ -416,6 +470,20 @@ model OrderLine {
   priceKes Decimal @db.Decimal(12, 2)
 }
 
+/// A merchant's internal note on an order ("customer will collect Friday",
+/// "size swapped to 43") -- never shown to the customer. authorName is stored
+/// rather than joined so a note still reads correctly after its author leaves.
+model OrderNote {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  authorName String
+  text       String
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+}
+
 // ---------------------------------------------------------------------------
 // WhatsApp / cart leads
 // ---------------------------------------------------------------------------
@@ -423,6 +491,15 @@ model OrderLine {
 enum CartLeadSource {
   WHATSAPP_ORDER
   ABANDONED_CART
+}
+
+/// Where a lead is in the merchant's follow-up. CONVERTED is set when an order
+/// is created from it (convertedOrderId); the rest are the merchant's own.
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  LOST
 }
 
 model CartLead {
@@ -439,6 +516,11 @@ model CartLead {
   customerEmail   String?
   shippingAddress String?
   message         String?
+
+  status           LeadStatus @default(NEW)
+  // The order created from this lead. A plain id, not a relation: the lead
+  // outlives the order's deletion rules and the link is only ever read.
+  convertedOrderId String?
 
   lines CartLeadLine[]
 
