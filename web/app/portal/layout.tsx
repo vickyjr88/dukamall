@@ -3,7 +3,7 @@
 import { usePathname } from 'next/navigation';
 import './portal.css';
 import { PortalNav } from './portal-nav';
-import { OWNER_ONLY_PATHS, OwnerOnlyNotice, PortalSessionProvider, useSession } from './portal-session';
+import { clearCachedRole, OWNER_ONLY_PATHS, OwnerOnlyNotice, PortalSessionProvider, useSession } from './portal-session';
 
 // Login/signup render their own full-page .portal-auth-shell (see
 // login/page.tsx) -- no session exists yet, so there's nothing for a
@@ -24,7 +24,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
 function PortalChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { ready, role } = useSession();
+  const { ready, role, me } = useSession();
 
   if (NO_SIDEBAR_PATHS.includes(pathname)) {
     return (
@@ -54,7 +54,21 @@ function PortalChrome({ children }: { children: React.ReactNode }) {
           <div className="portal-sidebar-brand">Shops Platform</div>
           <PortalNav />
         </aside>
-        <main className="portal-content">{content}</main>
+        <main className="portal-content">
+          {me?.impersonating ? (
+            <div className="portal-alert is-warn" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span><strong>Platform support session.</strong> You&apos;re viewing this shop as its owner. It ends automatically after an hour, and password, profile and staff changes are turned off.</span>
+              <button
+                type="button"
+                className="portal-btn-outline portal-btn portal-btn-sm"
+                onClick={() => { window.localStorage.removeItem('shops_platform_token'); clearCachedRole(); window.location.href = '/portal/login'; }}
+              >
+                End session
+              </button>
+            </div>
+          ) : null}
+          {content}
+        </main>
       </div>
     </div>
   );

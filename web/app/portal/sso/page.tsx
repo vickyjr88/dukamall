@@ -3,28 +3,35 @@
 /**
  * One-time landing for the admin console's "View as shop" -- the admin
  * origin can't set localStorage on this shop's own origin directly, so the
- * token rides here as a query param instead. Stores it under the same key
- * every other portal login already uses (login/page.tsx) and redirects
- * immediately, so the token never lingers in the visible URL past this one
- * hop.
+ * token rides here in the URL fragment (#token=...) instead. A fragment is
+ * never sent to the server, so it stays out of access logs and Referer
+ * headers; a query string would not. Stores it under the same key every other
+ * portal login already uses (login/page.tsx) and replaces the history entry,
+ * so the token doesn't linger in the address bar or in history.
  */
 
-import { Suspense, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 
 function SsoHandler() {
   const router = useRouter();
-  const params = useSearchParams();
+  // Effects can run twice in development (React StrictMode). The first run removes
+  // the fragment, so a second run would find no token and bounce to the login page.
+  const handled = useRef(false);
 
   useEffect(() => {
-    const token = params.get('token');
+    if (handled.current) return;
+    handled.current = true;
+    const token = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
+    // Drop the fragment straight away, whatever happens next.
+    window.history.replaceState(null, '', window.location.pathname);
     if (!token) {
       router.replace('/portal/login');
       return;
     }
     window.localStorage.setItem('shops_platform_token', token);
     router.replace('/portal/dashboard');
-  }, [params, router]);
+  }, [router]);
 
   return (
     <div className="portal-auth-shell">

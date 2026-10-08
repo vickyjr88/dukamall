@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { portalFetch } from './portal-api';
 
 export type PortalRole = 'OWNER' | 'STAFF';
-export type PortalMe = { id: string; email: string; firstName: string; lastName: string; shopId: string; role: PortalRole };
+export type PortalMe = { id: string; email: string; firstName: string; lastName: string; shopId: string; role: PortalRole; /** True on a platform admin's "view as shop" session. */ impersonating?: boolean };
 
 const ROLE_KEY = 'shops_platform_role';
 

@@ -6,6 +6,7 @@ import { PortalStaffService } from './portal-staff.service';
 import { ShopId } from '../common/shop-context';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { assertNotImpersonating } from '../common/impersonation';
 
 class InviteStaffDto {
   @IsEmail() email!: string;
@@ -27,13 +28,15 @@ export class PortalStaffController {
 
   @Roles('OWNER')
   @Post()
-  invite(@ShopId() shopId: string, @CurrentUser() user: { role: string }, @Body() dto: InviteStaffDto) {
+  invite(@ShopId() shopId: string, @CurrentUser() user: { role: string; impersonatedBy?: string | null }, @Body() dto: InviteStaffDto) {
+    assertNotImpersonating(user, 'add staff');
     return this.portalStaffService.invite(shopId, user.role, dto);
   }
 
   @Roles('OWNER')
   @Delete(':userId')
-  remove(@ShopId() shopId: string, @CurrentUser() user: { id: string; role: string }, @Param('userId') userId: string) {
+  remove(@ShopId() shopId: string, @CurrentUser() user: { id: string; role: string; impersonatedBy?: string | null }, @Param('userId') userId: string) {
+    assertNotImpersonating(user, 'remove staff');
     return this.portalStaffService.remove(shopId, user.role, user.id, userId);
   }
 }

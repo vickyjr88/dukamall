@@ -100,14 +100,16 @@ export default function ShopDetailPage() {
       if (!res.ok) throw new Error(data?.message || 'Could not view as this shop');
       // Cross-origin: the admin console and a shop's own portal are
       // different hosts, so localStorage can't be set here directly for
-      // that origin. The token rides a one-time query param to a portal
-      // page that stores it and redirects -- see portal/sso/page.tsx.
+      // that origin. The token rides in the URL *fragment* to a portal page
+      // that stores it and redirects -- see portal/sso/page.tsx. A fragment
+      // is never sent to the server, so unlike a query string it can't end up
+      // in access logs or a Referer header.
       // A verified custom domain is the host that's actually configured to
       // resolve to this shop; only fall back to the platform subdomain when
       // there is none.
       const host = shop.customDomain || `${data.shopSlug}.${process.env.NEXT_PUBLIC_PLATFORM_DOMAIN || 'localhost:3203'}`;
       const portalBase = `${window.location.protocol}//${host}`;
-      window.open(`${portalBase}/portal/sso?token=${encodeURIComponent(data.access_token)}`, '_blank', 'noopener');
+      window.open(`${portalBase}/portal/sso#token=${encodeURIComponent(data.access_token)}`, '_blank', 'noopener');
     } catch (e: any) {
       setError(e.message);
     } finally {

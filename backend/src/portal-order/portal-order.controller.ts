@@ -12,7 +12,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { toCsv } from '../common/csv';
 
-type StaffUser = { id: string; firstName: string; lastName: string; role: string };
+type StaffUser = { id: string; firstName: string; lastName: string; role: string; impersonatedBy?: string | null };
 
 // A date-only "to" (the filter's date picker) means the whole of that day, not midnight at its start --
 // otherwise every order placed on the last day is left out.

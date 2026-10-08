@@ -127,3 +127,26 @@ export function newLeadAlertEmail(params: {
     `),
   };
 }
+
+/** Sent to a shop's owners when the platform operator suspends or reactivates it. The operator's internal reason is never included. */
+export function shopStatusEmail(params: { shopName: string; suspended: boolean; portalUrl: string }) {
+  const { shopName, suspended, portalUrl } = params;
+  return suspended
+    ? {
+        subject: `${shopName} has been suspended`,
+        html: wrapper(shopName, `
+          <h2 style="margin: 0 0 8px;">Your shop has been suspended</h2>
+          <p style="color:#555;">${esc(shopName)} is currently closed to customers: its storefront and checkout are unavailable. You can still log in to the merchant portal.</p>
+          <p style="color:#555;">If you think this is a mistake, or want to get it reopened, please reply to this email or contact the platform team.</p>
+          <p><a href="${esc(portalUrl)}" style="color:#2438a8;">Open the merchant portal &rarr;</a></p>
+        `),
+      }
+    : {
+        subject: `${shopName} is open again`,
+        html: wrapper(shopName, `
+          <h2 style="margin: 0 0 8px;">Your shop is open again</h2>
+          <p style="color:#555;">${esc(shopName)} has been reactivated. Customers can browse and order again.</p>
+          <p><a href="${esc(portalUrl)}" style="color:#2438a8;">Open the merchant portal &rarr;</a></p>
+        `),
+      };
+}

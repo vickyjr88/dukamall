@@ -6,8 +6,9 @@ import { BillingPlan, Prisma, ShopRole, ShopStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { DomainVerificationService } from '../shop/domain-verification.service';
 import { EmailService } from '../email/email.service';
-import { staffInviteEmail } from '../email/email-templates';
+import { shopStatusEmail, staffInviteEmail } from '../email/email-templates';
 import { storefrontOriginForShop } from '../common/storefront-origin';
+import { IMPERSONATION_TTL_SECONDS } from '../common/impersonation';
 
 const TRIAL_EXPIRING_SOON_DAYS = 7;
 
@@ -298,6 +299,17 @@ export class AdminService {
     if (!shop) throw new NotFoundException('Shop not found');
     const updated = await this.prisma.shop.update({ where: { id: shopId }, data: { status } });
     await this.logAction(adminId, shopId, 'shop.status_changed', reason, { from: shop.status, to: status });
+
+    // Tell the owners when the shop is closed or reopened -- a merchant who finds
+    // their storefront dead with no explanation will assume it's broken. Best
+    // effort (see EmailService.send): never blocks the status change itself.
+    const closing = status === 'SUSPENDED' && shop.status !== 'SUSPENDED';
+    const reopening = status !== 'SUSPENDED' && shop.status === 'SUSPENDED';
+    if (closing || reopening) {
+      const owners = await this.prisma.userShop.findMany({ where: { shopId, role: 'OWNER' }, include: { user: { select: { email: true } } } });
+      const { subject, html } = shopStatusEmail({ shopName: shop.name, suspended: closing, portalUrl: `${storefrontOriginForShop(shop)}/portal/login` });
+      await Promise.all(owners.map((o) => this.email.send(o.user.email, subject, html)));
+    }
     return updated;
   }
 
@@ -323,10 +335,18 @@ export class AdminService {
     });
     if (!membership) throw new NotFoundException('This shop has no staff to impersonate');
 
-    const payload = { sub: membership.user.id, email: membership.user.email, shopId, role: membership.role };
+    // `imp` marks this as a support session: the portal shows a banner, notes
+    // are credited to "platform support", and account-level changes (password,
+    // profile, staff) are refused. It expires on its own -- it is the owner's real
+    // login, so it must never be a long-lived token.
+    const payload = { sub: membership.user.id, email: membership.user.email, shopId, role: membership.role, imp: adminId };
     await this.logAction(adminId, shopId, 'shop.impersonated', undefined, { asUserId: membership.user.id });
 
-    return { access_token: this.jwtService.sign(payload), shopSlug: shop.slug };
+    return {
+      access_token: this.jwtService.sign(payload, { expiresIn: IMPERSONATION_TTL_SECONDS }),
+      expiresInSeconds: IMPERSONATION_TTL_SECONDS,
+      shopSlug: shop.slug,
+    };
   }
 
   private async logAction(adminId: string, shopId: string | null, action: string, reason?: string, metadata?: Prisma.InputJsonValue) {
@@ -496,7 +516,11 @@ export class AdminService {
     const [products, categories, customers, orders, cartLeads, staff] = await Promise.all([
       this.prisma.product.findMany({ where: { shopId }, include: { variants: true } }),
       this.prisma.productCategory.findMany({ where: { shopId } }),
-      this.prisma.customer.findMany({ where: { shopId } }),
+      // Explicit columns: a bare findMany() also returns each customer's passwordHash.
+      this.prisma.customer.findMany({
+        where: { shopId },
+        select: { id: true, shopId: true, firstName: true, lastName: true, email: true, phone: true, createdAt: true },
+      }),
       this.prisma.order.findMany({ where: { shopId }, include: { lines: true } }),
       this.prisma.cartLead.findMany({ where: { shopId }, include: { lines: true } }),
       this.prisma.userShop.findMany({
@@ -505,7 +529,8 @@ export class AdminService {
       }),
     ]);
 
-    const { paystackSecretKey, paystackPublicKey, ...shopWithoutKeys } = shop;
+    // Credentials and verification secrets never leave in an export.
+    const { paystackSecretKey, paystackPublicKey, domainVerificationToken, ...shopWithoutKeys } = shop;
     await this.logAction(adminId, shopId, 'shop.exported', undefined, undefined);
 
     return {

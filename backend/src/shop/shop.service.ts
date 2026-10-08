@@ -19,11 +19,16 @@ export class ShopService {
    */
   async resolveByHost(host: string) {
     const bareHost = host.split(':')[0].toLowerCase();
+    // A shop is reached either on its own verified custom domain, or at
+    // <slug>.<platform domain>. The slug match is limited to the platform's own
+    // domain: matching the first label of ANY host would let anyone point
+    // "msa.their-site.com" at this server and have it serve msa's shop.
+    const slugFromPlatformHost = this.slugOnPlatformDomain(bareHost);
     const shop = await this.prisma.shop.findFirst({
       where: {
         OR: [
           { customDomain: bareHost },
-          { slug: bareHost.split('.')[0] },
+          ...(slugFromPlatformHost ? [{ slug: slugFromPlatformHost }] : []),
         ],
       },
       include: { theme: true },
@@ -40,6 +45,15 @@ export class ShopService {
       throw new ForbiddenException('This shop is currently unavailable.');
     }
     return shop;
+  }
+
+  /** "msa" for "msa.<platform domain>" (or "msa.localhost" in development); null for any other host. */
+  private slugOnPlatformDomain(bareHost: string): string | null {
+    const platformDomain = (process.env.PLATFORM_DOMAIN || 'dukamall.app').split(':')[0].toLowerCase();
+    const [slug, ...rest] = bareHost.split('.');
+    const parent = rest.join('.');
+    if (!slug || !parent) return null;
+    return parent === platformDomain || parent === 'localhost' ? slug : null;
   }
 
   // The handful of shop fields the storefront itself needs client-side (the

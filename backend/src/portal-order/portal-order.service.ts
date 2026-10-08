@@ -16,6 +16,12 @@ export type PortalOrderListQuery = {
   pageSize?: number;
 };
 
+/** Who a note is credited to; a platform-support session says so rather than posing as the owner. */
+function authorLabel(user: { firstName: string; lastName: string; impersonatedBy?: string | null }): string {
+  const name = `${user.firstName} ${user.lastName}`.trim() || 'Staff';
+  return user.impersonatedBy ? `${name} (platform support)` : name;
+}
+
 @Injectable()
 export class PortalOrderService {
   constructor(private prisma: PrismaService, private checkout: CheckoutService) {}
@@ -210,7 +216,7 @@ export class PortalOrderService {
       ? await this.prisma.customer.findFirst({ where: { shopId, OR: contactMatch }, select: { id: true } })
       : null;
 
-    const authorName = `${user.firstName} ${user.lastName}`.trim();
+    const authorName = authorLabel(user);
 
     const order = await this.prisma.$transaction(async (tx) => {
       const orderNumber = await nextOrderNumber(tx, shopId, shop.orderPrefix);
@@ -278,7 +284,7 @@ export class PortalOrderService {
     const order = await this.prisma.order.findFirst({ where: { id: orderId, shopId }, select: { id: true } });
     if (!order) throw new NotFoundException('Order not found');
     return this.prisma.orderNote.create({
-      data: { orderId, authorName: `${user.firstName} ${user.lastName}`.trim() || 'Staff', text: text.trim() },
+      data: { orderId, authorName: authorLabel(user), text: text.trim() },
     });
   }
 }

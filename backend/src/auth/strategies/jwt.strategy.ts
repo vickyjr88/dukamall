@@ -3,7 +3,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-type StaffJwtPayload = { kind?: 'customer' | 'admin'; sub: string; email: string; shopId: string; role: string };
+// `imp` is set only on a platform admin's "view as shop" session (see AdminService.impersonate).
+type StaffJwtPayload = { kind?: 'customer' | 'admin'; sub: string; email: string; shopId: string; role: string; imp?: string };
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -38,6 +39,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       lastName: membership.user.lastName,
       shopId: membership.shopId,
       role: membership.role,
+      impersonatedBy: payload.imp ?? null,
     };
   }
 }

@@ -8,9 +8,20 @@ export function adminAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export function adminFetch(path: string, init: RequestInit = {}) {
-  return fetch(`${ADMIN_API_BASE}${path}`, {
+/**
+ * An admin session lasts 12 hours. When one expires (or the account's admin
+ * access is revoked) every call comes back 401; send the operator to the login
+ * page from here, once, rather than leaving each screen to notice and cope --
+ * several (analytics, settings, the revenue chart) didn't, and showed a broken page.
+ */
+export async function adminFetch(path: string, init: RequestInit = {}) {
+  const res = await fetch(`${ADMIN_API_BASE}${path}`, {
     ...init,
     headers: { ...adminAuthHeaders(), ...(init.headers || {}) },
   });
+  if (res.status === 401 && !window.location.pathname.startsWith('/admin/login')) {
+    window.localStorage.removeItem('shops_platform_admin_token');
+    window.location.replace('/admin/login');
+  }
+  return res;
 }

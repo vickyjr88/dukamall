@@ -16,6 +16,16 @@ export class OnboardingService {
     const existingShop = await this.prisma.shop.findUnique({ where: { slug: dto.slug } });
     if (existingShop) throw new BadRequestException('That shop URL is already taken');
 
+    // An email that already has an account may only be used to add another shop
+    // by someone who knows that account's password. Without this, anyone could
+    // create shops owned by another person's account just by typing their email.
+    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.ownerEmail } });
+    if (existingUser && !(await bcrypt.compare(dto.password, existingUser.passwordHash))) {
+      throw new BadRequestException(
+        'That email already has an account. Enter its existing password to add another shop, or use a different email.',
+      );
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     return this.prisma.$transaction(async (tx) => {
@@ -28,7 +38,7 @@ export class OnboardingService {
         },
       });
 
-      let user = await tx.user.findUnique({ where: { email: dto.ownerEmail } });
+      let user = existingUser;
       if (!user) {
         user = await tx.user.create({
           data: {

@@ -8,6 +8,7 @@ import { Public } from './decorators/public.decorator';
 import { NoShopScope } from './decorators/no-shop-scope.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { RateLimit } from '../common/rate-limit.decorator';
+import { assertNotImpersonating } from '../common/impersonation';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -30,14 +31,16 @@ export class AuthController {
   // can't do; the API enforces the same limits regardless (see RolesGuard).
   @ApiBearerAuth()
   @Get('me')
-  me(@CurrentUser() user: { id: string; email: string; firstName: string; lastName: string; shopId: string; role: string }) {
-    return { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, shopId: user.shopId, role: user.role };
+  me(@CurrentUser() user: { id: string; email: string; firstName: string; lastName: string; shopId: string; role: string; impersonatedBy?: string | null }) {
+    // `impersonating` lets the portal show that this is a platform-support session, not the owner.
+    return { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, shopId: user.shopId, role: user.role, impersonating: Boolean(user.impersonatedBy) };
   }
 
   // The caller's own name. Their user row is the only thing it can touch.
   @ApiBearerAuth()
   @Patch('profile')
-  updateProfile(@CurrentUser() user: { id: string }, @Body() dto: UpdateProfileDto) {
+  updateProfile(@CurrentUser() user: { id: string; impersonatedBy?: string | null }, @Body() dto: UpdateProfileDto) {
+    assertNotImpersonating(user, 'edit this profile');
     return this.authService.updateProfile(user.id, dto);
   }
 
@@ -45,7 +48,8 @@ export class AuthController {
   // token and populates @CurrentUser() from it -- see jwt.strategy.ts.
   @ApiBearerAuth()
   @Post('change-password')
-  changePassword(@CurrentUser() user: { id: string }, @Body() dto: ChangePasswordDto) {
+  changePassword(@CurrentUser() user: { id: string; impersonatedBy?: string | null }, @Body() dto: ChangePasswordDto) {
+    assertNotImpersonating(user, 'change the password');
     return this.authService.changePassword(user.id, dto);
   }
 }
