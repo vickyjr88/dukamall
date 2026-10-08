@@ -30,15 +30,32 @@ export class PasswordResetService {
   }
 
   /**
-   * Staff/admin reset: User.email is globally unique, so no shop context is
-   * needed to find the account -- a shopSlug isn't collected on this form at
-   * all. originBaseUrl comes from the caller's own window.location.origin
-   * (the same "the browser tells us where it is" approach
-   * AdminService.impersonate's portal/sso link already uses), since a staff
-   * member could be resetting from the platform's own domain or a shop's
-   * custom domain and the backend has no other way to know which.
+   * The origin the emailed reset link points at -- decided HERE, never taken
+   * from the request. This used to be the caller's own `originBaseUrl`, which
+   * meant anyone could ask for a reset of someone else's account with
+   * originBaseUrl=https://evil.example and have the platform email the victim
+   * a genuine reset link, live token included, pointing at the attacker's
+   * site. The portal and admin pages are served on every platform host (they
+   * skip shop resolution), so one of the account's own shops' addresses works;
+   * a platform admin with no shop uses the platform domain.
    */
-  async requestStaffReset(email: string, originBaseUrl: string) {
+  private async staffOriginFor(userId: string): Promise<string> {
+    const membership = await this.prisma.userShop.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      include: { shop: true },
+    });
+    if (membership) return storefrontOriginForShop(membership.shop);
+    const domain = process.env.PLATFORM_DOMAIN || 'dukamall.app';
+    const isLocal = /(^|\.)localhost(:\d+)?$/.test(domain);
+    return `${isLocal ? 'http' : 'https'}://${domain}`;
+  }
+
+  /**
+   * Staff/admin reset: User.email is globally unique, so no shop context is
+   * needed to find the account.
+   */
+  async requestStaffReset(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     // Always returns the same success shape whether or not the email
     // matched -- a different response here would let anyone enumerate
@@ -56,7 +73,7 @@ export class PasswordResetService {
       },
     });
 
-    const resetUrl = `${originBaseUrl}/portal/reset-password?token=${token}`;
+    const resetUrl = `${await this.staffOriginFor(user.id)}/portal/reset-password?token=${token}`;
     const { subject, html } = passwordResetEmail({ shopName: 'Shops Platform', resetUrl });
     await this.email.send(user.email, subject, html);
     return { success: true };

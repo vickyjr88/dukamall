@@ -1,6 +1,6 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength, IsUrl } from 'class-validator';
+import { IsEmail, IsString, MinLength } from 'class-validator';
 import { PasswordResetService } from './password-reset.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
@@ -9,10 +9,8 @@ import { RateLimit } from '../common/rate-limit.decorator';
 
 class RequestStaffResetDto {
   @IsEmail() email!: string;
-  // http(s) only, since this becomes a clickable link in an email --
-  // require_tld: false so a local dev origin like http://localhost:3202
-  // still validates.
-  @IsUrl({ require_tld: false }) originBaseUrl!: string;
+  // Older clients still send an `originBaseUrl`. It is ignored: the link's
+  // host is decided server-side (see PasswordResetService.staffOriginFor).
 }
 
 class RequestCustomerResetDto {
@@ -38,7 +36,7 @@ export class PasswordResetController {
   @RateLimit(5, 600)
   @Post('staff/request')
   requestStaffReset(@Body() dto: RequestStaffResetDto) {
-    return this.passwordResetService.requestStaffReset(dto.email, dto.originBaseUrl);
+    return this.passwordResetService.requestStaffReset(dto.email);
   }
 
   // Shop-scoped like every other customer-auth route -- x-shop-id (set by
