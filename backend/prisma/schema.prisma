@@ -151,6 +151,9 @@ model User {
   firstName     String
   lastName      String
   isSuperAdmin  Boolean         @default(false)
+  // Set on every successful staff or admin login, so the operator can tell who
+  // is active and which shops have gone quiet. Null = has never logged in.
+  lastLoginAt   DateTime?
   shops         UserShop[]
   adminAuditLog AdminAuditLog[]
   createdAt     DateTime        @default(now())
@@ -580,6 +583,26 @@ model CartLeadLine {
 /// show for it later. shopId is nullable (not every future admin action
 /// will be shop-scoped) and onDelete: SetNull so a log entry outlives the
 /// shop it was about, once shop deletion exists (a later batch).
+/// One row per email the platform tried to send, so an operator can see whether
+/// order alerts, invites and password resets are actually arriving. The message
+/// body is deliberately not stored (it can carry a temporary password or a reset
+/// link) -- only who it was for, what it was about, and how it went.
+model EmailLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  to        String
+  subject   String
+  /// SENT, FAILED, or SKIPPED (SMTP not configured).
+  status    String
+  error     String?
+  /// What triggered it: "test", "order", "invite", "reset", "alert", "shop_status", ...
+  kind      String?
+  shopId    String?
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
 model AdminAuditLog {
   id      String @id @default(cuid())
   adminId String

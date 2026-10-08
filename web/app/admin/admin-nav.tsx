@@ -7,6 +7,8 @@ const LINKS = [
   { href: '/admin/shops', label: 'Shops' },
   { href: '/admin/analytics', label: 'Analytics' },
   { href: '/admin/leads', label: 'Leads' },
+  { href: '/admin/audit', label: 'Activity' },
+  { href: '/admin/emails', label: 'Email log' },
   { href: '/admin/search', label: 'Search' },
   { href: '/admin/users', label: 'Users' },
   { href: '/admin/settings', label: 'Settings' },

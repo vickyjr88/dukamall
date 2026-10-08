@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { adminFetch } from '../admin-api';
 
 type SmtpSettings = {
@@ -106,6 +107,60 @@ export default function AdminSettingsPage() {
           <button type="submit" className="admin-btn" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
         </form>
       </div>
+
+      <TestEmailCard />
+    </div>
+  );
+}
+
+// Sends a real message through the saved settings and shows the mail server's
+// own answer, so "it doesn't work" can be told apart from a wrong password or a
+// blocked port without reading server logs.
+function TestEmailCard() {
+  const [to, setTo] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function onSend(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await adminFetch('/admin/platform-settings/smtp/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(to.trim() ? { to: to.trim() } : {}),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setResult({ ok: false, message: Array.isArray(data?.message) ? data.message.join(', ') : data?.message || 'Could not send the test' });
+      } else if (data.ok) {
+        setResult({ ok: true, message: `Sent to ${data.to}. Check that inbox (and its spam folder).` });
+      } else {
+        setResult({ ok: false, message: `${data.status === 'SKIPPED' ? 'Not sent' : 'Failed'}: ${data.error}` });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="admin-card" style={{ maxWidth: 480, marginTop: 20 }}>
+      <h4>Test the email settings</h4>
+      <p style={{ fontSize: 13, color: 'var(--a-muted)', marginBottom: 16 }}>
+        Save your settings first, then send a test. Leave the address blank to send it to your own login email.
+      </p>
+      <form onSubmit={onSend}>
+        <div className="admin-field">
+          <label htmlFor="test-to">Send to (optional)</label>
+          <input id="test-to" type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="you@example.com" />
+        </div>
+        {result ? <div className={`admin-alert ${result.ok ? 'is-success' : 'is-error'}`}>{result.message}</div> : null}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button type="submit" className="admin-btn" disabled={busy}>{busy ? 'Sending...' : 'Send test email'}</button>
+          <Link href="/admin/emails">View the email log</Link>
+        </div>
+      </form>
     </div>
   );
 }

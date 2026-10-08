@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { passwordResetEmail } from '../email/email-templates';
 import { storefrontOriginForShop } from '../common/storefront-origin';
+import { findUserByEmail } from '../common/user-email';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 // At most this many reset emails per account per hour. The per-IP limit on the
@@ -56,7 +57,7 @@ export class PasswordResetService {
    * needed to find the account.
    */
   async requestStaffReset(email: string) {
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await findUserByEmail(this.prisma, email);
     // Always returns the same success shape whether or not the email
     // matched -- a different response here would let anyone enumerate
     // which email addresses have an account on the platform.
@@ -75,7 +76,7 @@ export class PasswordResetService {
 
     const resetUrl = `${await this.staffOriginFor(user.id)}/portal/reset-password?token=${token}`;
     const { subject, html } = passwordResetEmail({ shopName: 'Shops Platform', resetUrl });
-    await this.email.send(user.email, subject, html);
+    await this.email.send(user.email, subject, html, undefined, { kind: 'reset' });
     return { success: true };
   }
 
@@ -104,7 +105,7 @@ export class PasswordResetService {
 
     const resetUrl = `${storefrontOriginForShop(shop)}/account/reset-password?token=${token}`;
     const { subject, html } = passwordResetEmail({ shopName: shop.name, resetUrl });
-    await this.email.send(customer.email!, subject, html);
+    await this.email.send(customer.email!, subject, html, undefined, { kind: 'reset', shopId });
     return { success: true };
   }
 

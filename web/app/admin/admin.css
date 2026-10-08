@@ -112,10 +112,17 @@
 .admin-content { flex: 1; min-width: 0; padding: 32px 40px; max-width: 1200px; }
 @media (max-width: 800px) {
   .admin-shell { flex-direction: column; }
-  .admin-sidebar { width: 100%; flex-direction: row; align-items: center; padding: 12px 16px; flex-wrap: wrap; }
+  .admin-sidebar { width: 100%; flex-direction: row; align-items: center; padding: 12px 16px; flex-wrap: wrap; min-width: 0; }
   .admin-sidebar-tag { padding: 0 0 0 10px; }
-  .admin-nav { flex-direction: row; flex-wrap: wrap; }
-  .admin-content { padding: 20px; }
+  /* One swipeable row of links instead of a tall wrapped block above the page. */
+  .admin-nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; min-width: 0; flex: 1 1 100%; scrollbar-width: none; }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  .admin-nav a, .admin-nav button { white-space: nowrap; flex-shrink: 0; }
+  .admin-content { padding: 20px 16px; }
+  /* Wide tables scroll sideways inside themselves rather than stretching the page. */
+  .admin-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .admin-table th, .admin-table td { white-space: nowrap; }
+  .admin-stat-row { flex-wrap: wrap; }
 }
 
 .admin-page-head { margin-bottom: 24px; }
@@ -307,3 +314,6 @@
   border-radius: var(--a-radius-sm);
   border: 1px solid var(--a-line-strong);
 }
+
+/* Small uppercase label above a select/input in a list toolbar */
+.admin-filter { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--a-muted); text-transform: uppercase; }

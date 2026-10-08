@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { adminFetch, ADMIN_API_BASE, adminAuthHeaders } from '../../admin-api';
+import { ACTION_LABEL, describeMetadata } from '../../audit-labels';
 
 type Theme = {
   primaryColor: string; accentColor: string; logoUrl: string | null;
@@ -26,16 +27,6 @@ type ShopDetail = {
 
 const BADGE_CLASS: Record<ShopDetail['status'], string> = { TRIAL: 'is-trial', ACTIVE: 'is-active', SUSPENDED: 'is-suspended' };
 
-const ACTION_LABEL: Record<string, string> = {
-  'shop.status_changed': 'Status changed',
-  'shop.impersonated': 'Viewed as shop',
-  'domain.force_verified': 'Domain force-verified',
-  'domain.disconnected': 'Domain disconnected',
-  'staff.invited': 'Staff invited',
-  'staff.removed': 'Staff removed',
-  'billing.updated': 'Billing updated',
-  'shop.exported': 'Data exported',
-};
 
 // A plain <a href> can't carry the admin's Authorization header, so the
 // export button fetches the file itself and hands the browser a Blob URL
@@ -440,7 +431,10 @@ export default function ShopDetailPage() {
       </div>
 
       <div className="admin-card">
-        <h4>Recent admin activity</h4>
+        <h4 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Recent admin activity
+          <Link href={`/admin/audit?shopId=${shop.id}`} style={{ fontSize: 12, textTransform: 'none', fontWeight: 400 }}>View all &rarr;</Link>
+        </h4>
         {shop.auditLog.length === 0 ? (
           <p style={{ color: 'var(--a-muted)', fontSize: 13 }}>No admin actions recorded for this shop yet.</p>
         ) : (
@@ -452,12 +446,7 @@ export default function ShopDetailPage() {
                   <td style={{ whiteSpace: 'nowrap' }}>{new Date(entry.createdAt).toLocaleString()}</td>
                   <td>
                     {ACTION_LABEL[entry.action] ?? entry.action}
-                    {entry.metadata && typeof entry.metadata === 'object' && 'from' in entry.metadata ? (
-                      <span style={{ color: 'var(--a-muted)' }}> ({String((entry.metadata as any).from)} &rarr; {String((entry.metadata as any).to)})</span>
-                    ) : null}
-                    {entry.metadata && typeof entry.metadata === 'object' && 'domain' in entry.metadata ? (
-                      <span style={{ color: 'var(--a-muted)' }}> ({String((entry.metadata as any).domain)})</span>
-                    ) : null}
+                    {describeMetadata(entry.action, entry.metadata) ? <span style={{ color: 'var(--a-muted)' }}> ({describeMetadata(entry.action, entry.metadata)})</span> : null}
                   </td>
                   <td>{entry.admin.email}</td>
                   <td>{entry.reason ?? <span style={{ color: 'var(--a-muted)' }}>&mdash;</span>}</td>

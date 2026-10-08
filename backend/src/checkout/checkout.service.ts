@@ -199,7 +199,7 @@ export class CheckoutService {
         totalKes: Number(order.totalKes),
         currency: shop.currency,
       });
-      const sent = await this.email.send(order.email, subject, html);
+      const sent = await this.email.send(order.email, subject, html, undefined, { kind: 'order', shopId: order.shopId });
       if (!sent) this.logger.warn(`Order confirmation email not sent for order ${order.orderNumber} (SMTP unconfigured or send failed)`);
     }
 

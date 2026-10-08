@@ -50,7 +50,7 @@ export class NotificationsService {
         paid: order.status === 'PAID',
         portalUrl: `${storefrontOriginForShop(order.shop)}/portal/orders/${order.id}`,
       });
-      await Promise.all(to.map((address) => this.email.send(address, subject, html)));
+      await Promise.all(to.map((address) => this.email.send(address, subject, html, undefined, { kind: 'alert', shopId: order.shopId })));
     } catch (err) {
       this.logger.warn(`New-order alert failed for ${orderId}: ${(err as Error).message}`);
     }
@@ -75,7 +75,7 @@ export class NotificationsService {
         items: lead.lines.map((l) => `${l.quantity} x ${l.name} (${l.size})`),
         portalUrl: `${storefrontOriginForShop(lead.shop)}/portal/leads`,
       });
-      await Promise.all(to.map((address) => this.email.send(address, subject, html)));
+      await Promise.all(to.map((address) => this.email.send(address, subject, html, undefined, { kind: 'alert', shopId: lead.shopId })));
     } catch (err) {
       this.logger.warn(`New-lead alert failed for ${leadId}: ${(err as Error).message}`);
     }

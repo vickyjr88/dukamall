@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { staffInviteEmail } from '../email/email-templates';
 import { storefrontOriginForShop } from '../common/storefront-origin';
+import { findUserByEmail, normaliseEmail } from '../common/user-email';
 
 /**
  * A merchant's own staff management -- the same invite/remove behaviour
@@ -34,7 +35,7 @@ export class PortalStaffService {
       throw new ForbiddenException('Only an owner can add staff');
     }
 
-    let user = await this.prisma.user.findUnique({ where: { email: data.email } });
+    let user = await findUserByEmail(this.prisma, data.email);
     let temporaryPassword: string | undefined;
 
     if (user) {
@@ -48,7 +49,7 @@ export class PortalStaffService {
       temporaryPassword = randomBytes(9).toString('base64').replace(/[+/=]/g, '');
       const passwordHash = await bcrypt.hash(temporaryPassword, 10);
       user = await this.prisma.user.create({
-        data: { email: data.email, passwordHash, firstName: data.firstName, lastName: data.lastName },
+        data: { email: normaliseEmail(data.email), passwordHash, firstName: data.firstName, lastName: data.lastName },
       });
     }
 
@@ -63,7 +64,7 @@ export class PortalStaffService {
         temporaryPassword,
         portalUrl: `${storefrontOriginForShop(shop)}/portal/login`,
       });
-      await this.email.send(data.email, subject, html);
+      await this.email.send(data.email, subject, html, undefined, { kind: 'invite', shopId });
     }
 
     return {

@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { findUserByEmail } from '../common/user-email';
 
 @Injectable()
 export class AuthService {
@@ -16,7 +17,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await findUserByEmail(this.prisma, dto.email);
     if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -27,6 +28,8 @@ export class AuthService {
     if (!membership) {
       throw new UnauthorizedException('You do not have access to this shop');
     }
+
+    await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
     const payload = { sub: user.id, email: user.email, shopId: shop.id, role: membership.role };
     return {

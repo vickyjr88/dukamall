@@ -9,6 +9,7 @@ import { EmailService } from '../email/email.service';
 import { shopStatusEmail, staffInviteEmail } from '../email/email-templates';
 import { storefrontOriginForShop } from '../common/storefront-origin';
 import { IMPERSONATION_TTL_SECONDS } from '../common/impersonation';
+import { findUserByEmail, normaliseEmail } from '../common/user-email';
 
 const TRIAL_EXPIRING_SOON_DAYS = 7;
 
@@ -19,12 +20,25 @@ function isTrialExpiringSoon(trialEndsAt: Date | null): boolean {
   return msUntil > 0 && msUntil <= TRIAL_EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
 }
 
+export const SHOP_SORTS = ['created', 'name', 'orders', 'revenue', 'lastOrder', 'lastLogin'] as const;
+export type ShopSort = (typeof SHOP_SORTS)[number];
+
 export type AdminShopListQuery = {
   search?: string;
   status?: ShopStatus;
+  plan?: BillingPlan;
+  /** Whether Paystack is set up. */
+  payments?: 'ready' | 'missing';
+  trial?: 'expiring' | 'expired';
+  /** Shops that are at least this many days old and have had no order in that long. */
+  inactiveDays?: number;
+  sort?: ShopSort;
+  dir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class AdminService {
@@ -36,64 +50,121 @@ export class AdminService {
   ) {}
 
   /**
-   * Search/filter/pagination shape mirrors PortalProductService.list (the
-   * portal's own products-page fix from an earlier session) -- this table
-   * had the identical "loads everything, no way to narrow it" gap once
-   * there are enough shops to matter.
+   * Every shop with the figures an operator triages by -- orders, paid revenue,
+   * when it last took an order and when someone last logged in -- so a quiet or
+   * stuck shop stands out. The per-shop numbers come from a few grouped queries
+   * (one row per shop, however many orders exist) and the shop rows themselves
+   * are filtered, sorted and paged in memory, which is fine at the number of
+   * shops a platform like this has; revisit if it ever runs to tens of thousands.
    */
-  async listShops(query: AdminShopListQuery = {}) {
-    const page = Math.max(1, query.page ?? 1);
-    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
-
+  private async shopRows(query: AdminShopListQuery) {
     const where: Prisma.ShopWhereInput = {
       ...(query.status ? { status: query.status } : {}),
+      ...(query.plan ? { billingPlan: query.plan } : {}),
       ...(query.search
-        ? {
-            OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { slug: { contains: query.search, mode: 'insensitive' } },
-            ],
-          }
+        ? { OR: [{ name: { contains: query.search, mode: 'insensitive' } }, { slug: { contains: query.search, mode: 'insensitive' } }] }
         : {}),
     };
 
-    const [total, shops] = await Promise.all([
-      this.prisma.shop.count({ where }),
-      this.prisma.shop.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          _count: { select: { products: true, orders: true, customers: true } },
-        },
-      }),
+    const [shops, orderStats, paidStats, loginStats] = await Promise.all([
+      this.prisma.shop.findMany({ where, include: { _count: { select: { products: true, orders: true, customers: true } } } }),
+      this.prisma.order.groupBy({ by: ['shopId'], _max: { createdAt: true } }),
+      this.prisma.order.groupBy({ by: ['shopId'], where: { status: 'PAID' }, _sum: { totalKes: true } }),
+      this.prisma.$queryRaw<{ shopId: string; last: Date | null }[]>`
+        SELECT us."shopId", max(u."lastLoginAt") AS last
+        FROM "UserShop" us JOIN "User" u ON u.id = us."userId"
+        GROUP BY us."shopId"`,
     ]);
 
+    const lastOrder = new Map(orderStats.map((r) => [r.shopId, r._max.createdAt]));
+    const revenue = new Map(paidStats.map((r) => [r.shopId, Number(r._sum.totalKes ?? 0)]));
+    const lastLogin = new Map(loginStats.map((r) => [r.shopId, r.last]));
+    const now = Date.now();
+
+    let rows = shops.map((s) => ({
+      id: s.id,
+      slug: s.slug,
+      name: s.name,
+      customDomain: s.customDomain,
+      // Where the shop actually lives (its own domain, else <slug>.<platform domain>).
+      storefrontUrl: storefrontOriginForShop(s),
+      status: s.status,
+      currency: s.currency,
+      createdAt: s.createdAt,
+      productCount: s._count.products,
+      orderCount: s._count.orders,
+      customerCount: s._count.customers,
+      paidRevenue: revenue.get(s.id) ?? 0,
+      lastOrderAt: lastOrder.get(s.id) ?? null,
+      lastLoginAt: lastLogin.get(s.id) ?? null,
+      // Never the actual keys -- listShops doesn't select them at all,
+      // only whether both are present.
+      paymentReady: Boolean(s.paystackSecretKey && s.paystackPublicKey),
+      billingPlan: s.billingPlan,
+      trialEndsAt: s.trialEndsAt,
+      trialExpiringSoon: isTrialExpiringSoon(s.trialEndsAt),
+    }));
+
+    if (query.payments) rows = rows.filter((r) => r.paymentReady === (query.payments === 'ready'));
+    if (query.trial === 'expiring') rows = rows.filter((r) => r.trialExpiringSoon);
+    if (query.trial === 'expired') rows = rows.filter((r) => r.trialEndsAt && r.trialEndsAt.getTime() < now);
+    if (query.inactiveDays && query.inactiveDays > 0) {
+      const cutoff = now - query.inactiveDays * DAY_MS;
+      rows = rows.filter((r) => r.createdAt.getTime() < cutoff && (!r.lastOrderAt || r.lastOrderAt.getTime() < cutoff));
+    }
+
+    // Missing dates sort as "never": last when newest-first, first when oldest-first.
+    const time = (d: Date | null) => (d ? d.getTime() : 0);
+    const keyOf: Record<ShopSort, (r: (typeof rows)[number]) => number | string> = {
+      created: (r) => time(r.createdAt),
+      name: (r) => r.name.toLowerCase(),
+      orders: (r) => r.orderCount,
+      revenue: (r) => r.paidRevenue,
+      lastOrder: (r) => time(r.lastOrderAt),
+      lastLogin: (r) => time(r.lastLoginAt),
+    };
+    const sort = query.sort && SHOP_SORTS.includes(query.sort) ? query.sort : 'created';
+    const dir = query.dir === 'asc' ? 1 : -1;
+    const key = keyOf[sort];
+    rows.sort((a, b) => {
+      const ka = key(a); const kb = key(b);
+      return (ka < kb ? -1 : ka > kb ? 1 : 0) * dir || a.name.localeCompare(b.name);
+    });
+    return rows;
+  }
+
+  async listShops(query: AdminShopListQuery = {}) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
+    const rows = await this.shopRows(query);
     return {
-      shops: shops.map((s) => ({
-        id: s.id,
-        slug: s.slug,
-        name: s.name,
-        customDomain: s.customDomain,
-        status: s.status,
-        currency: s.currency,
-        createdAt: s.createdAt,
-        productCount: s._count.products,
-        orderCount: s._count.orders,
-        customerCount: s._count.customers,
-        // Never the actual keys -- listShops doesn't select them at all,
-        // only whether both are present.
-        paymentReady: Boolean(s.paystackSecretKey && s.paystackPublicKey),
-        billingPlan: s.billingPlan,
-        trialEndsAt: s.trialEndsAt,
-        trialExpiringSoon: isTrialExpiringSoon(s.trialEndsAt),
-      })),
-      total,
+      shops: rows.slice((page - 1) * pageSize, page * pageSize),
+      total: rows.length,
       page,
       pageSize,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      totalPages: Math.max(1, Math.ceil(rows.length / pageSize)),
     };
+  }
+
+  /** The same filtered, sorted list as flat rows for a spreadsheet. */
+  async exportShopsRows(query: AdminShopListQuery = {}) {
+    return (await this.shopRows(query)).map((r) => ({
+      name: r.name,
+      slug: r.slug,
+      address: r.storefrontUrl,
+      status: r.status,
+      plan: r.billingPlan,
+      trialEndsAt: r.trialEndsAt?.toISOString() ?? '',
+      currency: r.currency,
+      products: r.productCount,
+      orders: r.orderCount,
+      customers: r.customerCount,
+      paidRevenue: r.paidRevenue,
+      lastOrderAt: r.lastOrderAt?.toISOString() ?? '',
+      lastLoginAt: r.lastLoginAt?.toISOString() ?? '',
+      paymentsReady: r.paymentReady ? 'yes' : 'no',
+      createdAt: r.createdAt.toISOString(),
+    }));
   }
 
   /**
@@ -115,9 +186,9 @@ export class AdminService {
     });
     if (!shop) throw new NotFoundException('Shop not found');
 
-    const [orderCount, paidOrders, auditLog] = await Promise.all([
+    const [orderCount, paid, auditLog] = await Promise.all([
       this.prisma.order.count({ where: { shopId } }),
-      this.prisma.order.findMany({ where: { shopId, status: 'PAID' }, select: { totalKes: true } }),
+      this.prisma.order.aggregate({ where: { shopId, status: 'PAID' }, _count: { _all: true }, _sum: { totalKes: true } }),
       this.prisma.adminAuditLog.findMany({
         where: { shopId },
         include: { admin: { select: { email: true } } },
@@ -137,8 +208,8 @@ export class AdminService {
       trialExpiringSoon: isTrialExpiringSoon(shop.trialEndsAt),
       orderSummary: {
         orderCount,
-        paidOrderCount: paidOrders.length,
-        totalRevenueKes: paidOrders.reduce((sum, o) => sum + Number(o.totalKes), 0),
+        paidOrderCount: paid._count._all,
+        totalRevenueKes: Number(paid._sum.totalKes ?? 0),
       },
       auditLog,
     };
@@ -195,7 +266,7 @@ export class AdminService {
     const shop = await this.prisma.shop.findUnique({ where: { id: shopId } });
     if (!shop) throw new NotFoundException('Shop not found');
 
-    let user = await this.prisma.user.findUnique({ where: { email: data.email } });
+    let user = await findUserByEmail(this.prisma, data.email);
     let temporaryPassword: string | undefined;
 
     if (user) {
@@ -207,7 +278,7 @@ export class AdminService {
       temporaryPassword = randomBytes(9).toString('base64').replace(/[+/=]/g, '');
       const passwordHash = await bcrypt.hash(temporaryPassword, 10);
       user = await this.prisma.user.create({
-        data: { email: data.email, passwordHash, firstName: data.firstName, lastName: data.lastName },
+        data: { email: normaliseEmail(data.email), passwordHash, firstName: data.firstName, lastName: data.lastName },
       });
     }
 
@@ -227,7 +298,7 @@ export class AdminService {
         temporaryPassword,
         portalUrl: `${storefrontOriginForShop(shop)}/portal/login`,
       });
-      await this.email.send(data.email, subject, html);
+      await this.email.send(data.email, subject, html, undefined, { kind: 'invite', shopId });
     }
 
     return {
@@ -308,7 +379,7 @@ export class AdminService {
     if (closing || reopening) {
       const owners = await this.prisma.userShop.findMany({ where: { shopId, role: 'OWNER' }, include: { user: { select: { email: true } } } });
       const { subject, html } = shopStatusEmail({ shopName: shop.name, suspended: closing, portalUrl: `${storefrontOriginForShop(shop)}/portal/login` });
-      await Promise.all(owners.map((o) => this.email.send(o.user.email, subject, html)));
+      await Promise.all(owners.map((o) => this.email.send(o.user.email, subject, html, undefined, { kind: 'shop_status', shopId })));
     }
     return updated;
   }
@@ -357,11 +428,12 @@ export class AdminService {
 
   /** Cross-platform totals for the admin dashboard -- deliberately as shallow as the per-shop sales tally (design doc S:2.3): counts and sums read straight off existing tables, no new reporting schema, no per-shop breakdown beyond what listShops already gives. */
   async platformStats() {
-    const [shopCount, activeShopCount, totalOrders, paidOrders, totalCustomers] = await Promise.all([
+    const [shopCount, activeShopCount, totalOrders, paid, totalCustomers] = await Promise.all([
       this.prisma.shop.count(),
       this.prisma.shop.count({ where: { status: 'ACTIVE' } }),
       this.prisma.order.count(),
-      this.prisma.order.findMany({ where: { status: 'PAID' }, select: { totalKes: true } }),
+      // Summed by the database -- not by loading every paid order into memory.
+      this.prisma.order.aggregate({ where: { status: 'PAID' }, _count: { _all: true }, _sum: { totalKes: true } }),
       this.prisma.customer.count(),
     ]);
 
@@ -369,8 +441,8 @@ export class AdminService {
       shopCount,
       activeShopCount,
       totalOrders,
-      paidOrderCount: paidOrders.length,
-      totalRevenueKes: paidOrders.reduce((sum, o) => sum + Number(o.totalKes), 0),
+      paidOrderCount: paid._count._all,
+      totalRevenueKes: Number(paid._sum.totalKes ?? 0),
       totalCustomers,
     };
   }
@@ -405,7 +477,7 @@ export class AdminService {
    * getting inquiries at all versus going quiet. */
   async listCartLeads(limit: number) {
     return this.prisma.cartLead.findMany({
-      take: Math.min(200, Math.max(1, limit)),
+      take: Math.min(200, Math.max(1, Number.isFinite(limit) ? limit : 50)),
       orderBy: { createdAt: 'desc' },
       include: {
         shop: { select: { id: true, name: true, slug: true } },
@@ -446,29 +518,49 @@ export class AdminService {
    * Finds a person to promote/demote -- every User, not just current
    * admins, since the whole point is finding someone who is *currently*
    * shop staff (found via listShops/getShop) and making them a platform
-   * admin too. A lookup tool, not a full user-management table: capped at
-   * 50 results per search rather than paginated.
+   * admin too. Each row lists the shops the person belongs to and when
+   * they last logged in.
    */
-  async listUsers(search: string) {
-    const words = search.trim().split(/\s+/).filter(Boolean);
-    const where: Prisma.UserWhereInput = words.length
-      ? {
-          AND: words.map((word) => ({
-            OR: [
-              { email: { contains: word, mode: 'insensitive' as const } },
-              { firstName: { contains: word, mode: 'insensitive' as const } },
-              { lastName: { contains: word, mode: 'insensitive' as const } },
-            ],
-          })),
-        }
-      : {};
+  async listUsers(query: { search?: string; admin?: boolean; page?: number; pageSize?: number } = {}) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
+    const words = (query.search ?? '').trim().split(/\s+/).filter(Boolean);
+    const where: Prisma.UserWhereInput = {
+      ...(query.admin !== undefined ? { isSuperAdmin: query.admin } : {}),
+      ...(words.length
+        ? {
+            AND: words.map((word) => ({
+              OR: [
+                { email: { contains: word, mode: 'insensitive' as const } },
+                { firstName: { contains: word, mode: 'insensitive' as const } },
+                { lastName: { contains: word, mode: 'insensitive' as const } },
+              ],
+            })),
+          }
+        : {}),
+    };
 
-    return this.prisma.user.findMany({
-      where,
-      select: { id: true, email: true, firstName: true, lastName: true, isSuperAdmin: true, createdAt: true },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
+    const [total, users] = await Promise.all([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        select: {
+          id: true, email: true, firstName: true, lastName: true, isSuperAdmin: true, createdAt: true, lastLoginAt: true,
+          shops: { select: { role: true, shop: { select: { id: true, name: true, slug: true } } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    return {
+      users: users.map(({ shops, ...u }) => ({ ...u, shops: shops.map((m) => ({ ...m.shop, role: m.role })) })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+    };
   }
 
   /**
@@ -542,6 +634,78 @@ export class AdminService {
       orders,
       cartLeads,
       staff,
+    };
+  }
+
+  /**
+   * Everything operators have done on the platform -- not just per shop. Actions
+   * with no shop (promoting an admin, changing SMTP, admin logins) used to be
+   * recorded but shown nowhere, because the only view was a shop's own page.
+   */
+  async listAudit(query: { action?: string; shopId?: string; adminId?: string; from?: Date; to?: Date; page?: number; pageSize?: number }) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 50));
+    const validDate = (d?: Date) => (d && !Number.isNaN(d.getTime()) ? d : undefined);
+    const from = validDate(query.from);
+    const to = validDate(query.to);
+    const where: Prisma.AdminAuditLogWhereInput = {
+      ...(query.action ? { action: query.action } : {}),
+      ...(query.shopId ? { shopId: query.shopId } : {}),
+      ...(query.adminId ? { adminId: query.adminId } : {}),
+      ...(from || to ? { createdAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}),
+    };
+    const [total, entries, actions, admins] = await Promise.all([
+      this.prisma.adminAuditLog.count({ where }),
+      this.prisma.adminAuditLog.findMany({
+        where,
+        include: { admin: { select: { email: true } }, shop: { select: { id: true, name: true, slug: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.adminAuditLog.groupBy({ by: ['action'], _count: { _all: true }, orderBy: { action: 'asc' } }),
+      this.prisma.user.findMany({ where: { isSuperAdmin: true }, select: { id: true, email: true }, orderBy: { email: 'asc' } }),
+    ]);
+    return {
+      entries,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      // For the filter dropdowns.
+      actions: actions.map((a) => a.action),
+      admins,
+    };
+  }
+
+  /** Whether the platform's email is actually getting out, newest first, with a 7-day tally. */
+  async listEmailLog(query: { status?: string; kind?: string; search?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 50));
+    const where: Prisma.EmailLogWhereInput = {
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.kind ? { kind: query.kind } : {}),
+      ...(query.search ? { OR: [{ to: { contains: query.search, mode: 'insensitive' } }, { subject: { contains: query.search, mode: 'insensitive' } }] } : {}),
+    };
+    const since = new Date(Date.now() - 7 * DAY_MS);
+    const [total, rows, tally] = await Promise.all([
+      this.prisma.emailLog.count({ where }),
+      this.prisma.emailLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.emailLog.groupBy({ by: ['status'], where: { createdAt: { gte: since } }, _count: { _all: true } }),
+    ]);
+
+    const shopIds = Array.from(new Set(rows.map((r) => r.shopId).filter((id): id is string => Boolean(id))));
+    const shops = shopIds.length ? await this.prisma.shop.findMany({ where: { id: { in: shopIds } }, select: { id: true, name: true, slug: true } }) : [];
+    const shopById = new Map(shops.map((s) => [s.id, s]));
+
+    const count = (status: string) => tally.find((t) => t.status === status)?._count._all ?? 0;
+    return {
+      emails: rows.map((r) => ({ ...r, shop: r.shopId ? shopById.get(r.shopId) ?? null : null })),
+      total,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      last7Days: { sent: count('SENT'), failed: count('FAILED'), skipped: count('SKIPPED') },
     };
   }
 }

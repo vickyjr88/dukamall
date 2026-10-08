@@ -1,12 +1,31 @@
 import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsIn, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
 import { BillingPlan, ShopRole, ShopStatus } from '@prisma/client';
 import type { Response } from 'express';
-import { AdminService } from './admin.service';
+import { AdminService, AdminShopListQuery, SHOP_SORTS } from './admin.service';
+import { toCsv } from '../common/csv';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { Public } from '../auth/decorators/public.decorator';
 import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
+
+const toInt = (v?: string) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : undefined);
+
+function parseShopQuery(q: Record<string, string | undefined>): AdminShopListQuery {
+  const pick = <T extends string>(v: string | undefined, allowed: readonly T[]) => (allowed as readonly string[]).includes(v ?? '') ? (v as T) : undefined;
+  return {
+    search: q.search || undefined,
+    status: pick(q.status, ['TRIAL', 'ACTIVE', 'SUSPENDED'] as const),
+    plan: pick(q.plan, ['TRIAL', 'BASIC', 'PRO'] as const),
+    payments: pick(q.payments, ['ready', 'missing'] as const),
+    trial: pick(q.trial, ['expiring', 'expired'] as const),
+    inactiveDays: toInt(q.inactiveDays),
+    sort: pick(q.sort, SHOP_SORTS),
+    dir: pick(q.dir, ['asc', 'desc'] as const),
+    page: toInt(q.page),
+    pageSize: toInt(q.pageSize),
+  };
+}
 
 class SetShopStatusDto {
   @IsIn(['TRIAL', 'ACTIVE', 'SUSPENDED']) status!: ShopStatus;
@@ -19,18 +38,17 @@ class ForceVerifyDomainDto {
 
 class InviteStaffDto {
   @IsEmail() email!: string;
-  @IsString() firstName!: string;
-  @IsString() lastName!: string;
+  @IsString() @IsNotEmpty() @MaxLength(80) firstName!: string;
+  @IsString() @IsNotEmpty() @MaxLength(80) lastName!: string;
   @IsIn(['OWNER', 'STAFF']) role!: ShopRole;
 }
 
 class UpdateBillingDto {
   @IsOptional() @IsIn(['TRIAL', 'BASIC', 'PRO']) billingPlan?: BillingPlan;
-  // Accepts null explicitly (clearing the trial end date) as well as an
-  // ISO date string -- IsDateString alone would reject null, so this is
-  // validated loosely here and parsed in the controller method instead.
-  @IsOptional() trialEndsAt?: string | null;
-  @IsOptional() @IsString() billingNotes?: string;
+  // An ISO date, or null to clear the trial end. A garbage string used to reach
+  // the database as an Invalid Date and come back as a 500.
+  @ValidateIf((_, v) => v !== null) @IsOptional() @IsISO8601() trialEndsAt?: string | null;
+  @IsOptional() @IsString() @MaxLength(2000) billingNotes?: string;
 }
 
 class SetSuperAdminDto {
@@ -57,18 +75,20 @@ export class AdminController {
   constructor(private adminService: AdminService) {}
 
   @Get('shops')
-  listShops(
-    @Query('search') search?: string,
-    @Query('status') status?: ShopStatus,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
-  ) {
-    return this.adminService.listShops({
-      search,
-      status,
-      page: page ? Number(page) : undefined,
-      pageSize: pageSize ? Number(pageSize) : undefined,
-    });
+  listShops(@Query() q: Record<string, string | undefined>) {
+    return this.adminService.listShops(parseShopQuery(q));
+  }
+
+  // The same filters as the list, as a spreadsheet. Declared before ':id' so
+  // "export-csv" isn't read as a shop id.
+  @Get('shops/export-csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async exportShopsCsv(@Query() q: Record<string, string | undefined>) {
+    const rows = await this.adminService.exportShopsRows(parseShopQuery(q));
+    return toCsv(rows, [
+      'name', 'slug', 'address', 'status', 'plan', 'trialEndsAt', 'currency', 'products', 'orders', 'customers',
+      'paidRevenue', 'lastOrderAt', 'lastLoginAt', 'paymentsReady', 'createdAt',
+    ]);
   }
 
   @Get('shops/:id')
@@ -145,7 +165,7 @@ export class AdminController {
 
   @Get('cart-leads')
   cartLeads(@Query('limit') limit?: string) {
-    return this.adminService.listCartLeads(limit ? Number(limit) : 50);
+    return this.adminService.listCartLeads(toInt(limit) ?? 50);
   }
 
   // Cross-shop -- finds which shop a product/SKU belongs to, for a support
@@ -159,8 +179,50 @@ export class AdminController {
   // own comment for why: finding someone who is currently shop staff and
   // promoting them is the common case.
   @Get('users')
-  listUsers(@Query('search') search?: string) {
-    return this.adminService.listUsers(search || '');
+  listUsers(
+    @Query('search') search?: string,
+    @Query('admin') admin?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.adminService.listUsers({
+      search,
+      admin: admin === 'true' ? true : admin === 'false' ? false : undefined,
+      page: toInt(page),
+      pageSize: toInt(pageSize),
+    });
+  }
+
+  // Everything operators have done -- including actions with no shop attached.
+  @Get('audit')
+  audit(
+    @Query('action') action?: string,
+    @Query('shopId') shopId?: string,
+    @Query('adminId') adminId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.adminService.listAudit({
+      action, shopId, adminId,
+      from: from ? new Date(from) : undefined,
+      // A date-only "to" means the whole of that day.
+      to: to ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(to) ? `${to}T23:59:59.999Z` : to) : undefined,
+      page: toInt(page),
+      pageSize: toInt(pageSize),
+    });
+  }
+
+  @Get('email-log')
+  emailLog(
+    @Query('status') status?: string,
+    @Query('kind') kind?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.adminService.listEmailLog({ status, kind, search, page: toInt(page), pageSize: toInt(pageSize) });
   }
 
   @Patch('users/:id/super-admin')
