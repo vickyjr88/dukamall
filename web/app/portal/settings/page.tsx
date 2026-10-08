@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { portalFetch } from '../portal-api';
+import { OwnerOnlyNotice, useSession } from '../portal-session';
 
 const CURRENCIES = ['KES', 'UGX', 'TZS', 'USD'];
 
 export default function SettingsPage() {
+  const { ready, isOwner } = useSession();
   const [whatsappNumber, setWhatsappNumber] = useState('');
   const [currency, setCurrency] = useState('KES');
   const [orderPrefix, setOrderPrefix] = useState('');
@@ -41,6 +43,12 @@ export default function SettingsPage() {
     <div>
       <div className="portal-page-head"><h3>Settings</h3></div>
 
+      {ready && !isOwner ? (
+        <div style={{ maxWidth: 480, marginBottom: 20 }}>
+          <OwnerOnlyNotice what="change shop settings or payment keys" />
+        </div>
+      ) : (
+      <>
       <div className="portal-card" style={{ maxWidth: 480, marginBottom: 20 }}>
         <h4>Shop settings</h4>
         <form onSubmit={onSave}>
@@ -74,6 +82,8 @@ export default function SettingsPage() {
       </div>
 
       <PaystackCard />
+      </>
+      )}
       <StaffCard />
       <ChangePasswordCard />
     </div>
@@ -151,6 +161,7 @@ function PaystackCard() {
 type StaffRow = { userId: string; role: 'OWNER' | 'STAFF'; user: { id: string; email: string; firstName: string; lastName: string } };
 
 function StaffCard() {
+  const { isOwner } = useSession();
   const [staff, setStaff] = useState<StaffRow[] | null>(null);
   const [form, setForm] = useState({ email: '', firstName: '', lastName: '', role: 'STAFF' as 'OWNER' | 'STAFF' });
   const [busy, setBusy] = useState(false);
@@ -205,7 +216,7 @@ function StaffCard() {
     <div className="portal-card" style={{ maxWidth: 560, marginBottom: 20 }}>
       <h4>Staff</h4>
       <p style={{ fontSize: 13, color: 'var(--p-muted)', marginBottom: 12 }}>
-        Only an owner can add or remove staff.
+        {isOwner ? 'Add the people who help run your shop. Staff can manage orders and products; payment settings, discounts, analytics and the shop\'s look stay with owners.' : 'Only an owner can add or remove staff.'}
       </p>
 
       {!staff ? <p>Loading...</p> : (
@@ -218,7 +229,7 @@ function StaffCard() {
                 <td>{s.user.email}</td>
                 <td>{s.role}</td>
                 <td>
-                  {s.role === 'OWNER' && ownerCount <= 1 ? (
+                  {!isOwner ? null : s.role === 'OWNER' && ownerCount <= 1 ? (
                     <span style={{ fontSize: 12, color: 'var(--p-muted)' }}>Only owner</span>
                   ) : (
                     <button className="portal-btn-ghost" onClick={() => onRemove(s.userId)}>Remove</button>
@@ -230,36 +241,40 @@ function StaffCard() {
         </table>
       )}
 
+      {isOwner ? (
+        <>
       {invitedCredentials ? (
-        <div className="portal-alert is-success">
-          Added {invitedCredentials.email} with a temporary password: <strong>{invitedCredentials.temporaryPassword}</strong>
-          <br />Share this with them now -- it won&apos;t be shown again. They should change it after logging in.
-        </div>
+          <div className="portal-alert is-success">
+            Added {invitedCredentials.email} with a temporary password: <strong>{invitedCredentials.temporaryPassword}</strong>
+            <br />Share this with them now -- it won&apos;t be shown again. They should change it after logging in.
+          </div>
+        ) : null}
+        {error ? <div className="portal-alert is-error">{error}</div> : null}
+  
+        <form onSubmit={onInvite} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div className="portal-field" style={{ marginBottom: 0, flex: '1 1 200px' }}>
+            <label>Email</label>
+            <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
+          </div>
+          <div className="portal-field" style={{ marginBottom: 0, flex: '1 1 140px' }}>
+            <label>First name</label>
+            <input value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} required />
+          </div>
+          <div className="portal-field" style={{ marginBottom: 0, flex: '1 1 140px' }}>
+            <label>Last name</label>
+            <input value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} required />
+          </div>
+          <div className="portal-field" style={{ marginBottom: 0, flex: '0 1 120px' }}>
+            <label>Role</label>
+            <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as 'OWNER' | 'STAFF' }))}>
+              <option value="STAFF">Staff</option>
+              <option value="OWNER">Owner</option>
+            </select>
+          </div>
+          <button type="submit" className="portal-btn" disabled={busy}>{busy ? 'Adding...' : 'Add staff'}</button>
+        </form>
+        </>
       ) : null}
-      {error ? <div className="portal-alert is-error">{error}</div> : null}
-
-      <form onSubmit={onInvite} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div className="portal-field" style={{ marginBottom: 0, flex: '1 1 200px' }}>
-          <label>Email</label>
-          <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required />
-        </div>
-        <div className="portal-field" style={{ marginBottom: 0, flex: '1 1 140px' }}>
-          <label>First name</label>
-          <input value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} required />
-        </div>
-        <div className="portal-field" style={{ marginBottom: 0, flex: '1 1 140px' }}>
-          <label>Last name</label>
-          <input value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} required />
-        </div>
-        <div className="portal-field" style={{ marginBottom: 0, flex: '0 1 120px' }}>
-          <label>Role</label>
-          <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as 'OWNER' | 'STAFF' }))}>
-            <option value="STAFF">Staff</option>
-            <option value="OWNER">Owner</option>
-          </select>
-        </div>
-        <button type="submit" className="portal-btn" disabled={busy}>{busy ? 'Adding...' : 'Add staff'}</button>
-      </form>
     </div>
   );
 }

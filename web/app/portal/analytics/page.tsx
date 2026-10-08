@@ -58,10 +58,14 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const query = new URLSearchParams({ from, to });
-    portalFetch(`/portal/analytics/revenue-trend?${query.toString()}&granularity=${granularity}`).then((r) => r.json()).then(setTrend);
-    portalFetch(`/portal/analytics/sales-breakdown?${query.toString()}`).then((r) => r.json()).then(setBreakdown);
-    portalFetch(`/portal/analytics/customers?${query.toString()}`).then((r) => r.json()).then(setCustomers);
-    portalFetch(`/portal/analytics/lead-conversion?${query.toString()}`).then((r) => r.json()).then(setLeads);
+    // A refused or failed request leaves a section empty rather than crashing
+    // the whole page (the analytics routes are owner-only on the API).
+    const load = <T,>(path: string, set: (v: T) => void) =>
+      portalFetch(path).then((r) => (r.ok ? r.json() : null)).then((v) => { if (v) set(v); }).catch(() => {});
+    load<TrendPoint[]>(`/portal/analytics/revenue-trend?${query.toString()}&granularity=${granularity}`, setTrend);
+    load<{ byCategory: BreakdownRow[]; byBrand: BreakdownRow[] }>(`/portal/analytics/sales-breakdown?${query.toString()}`, setBreakdown);
+    load<CustomerInsights>(`/portal/analytics/customers?${query.toString()}`, setCustomers);
+    load<LeadConversion>(`/portal/analytics/lead-conversion?${query.toString()}`, setLeads);
   }, [from, to, granularity]);
 
   const totalRevenue = trend?.reduce((sum, p) => sum + p.revenueKes, 0) ?? 0;

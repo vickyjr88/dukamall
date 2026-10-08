@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from 'next/navigation';
+import { clearCachedRole, OWNER_ONLY_PATHS, useSession } from './portal-session';
 
 const LINKS = [
   { href: '/portal/dashboard', label: 'Dashboard' },
@@ -24,17 +25,19 @@ const NO_NAV_PATHS = ['/portal/login', '/portal/signup', '/portal/sso', '/portal
 export function PortalNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { role } = useSession();
 
   if (NO_NAV_PATHS.includes(pathname)) return null;
 
   function onLogout() {
     window.localStorage.removeItem('shops_platform_token');
+    clearCachedRole();
     router.push('/portal/login');
   }
 
   return (
     <nav className="portal-nav">
-      {LINKS.map((link) => (
+      {LINKS.filter((link) => role !== 'STAFF' || !OWNER_ONLY_PATHS.includes(link.href)).map((link) => (
         <a key={link.href} href={link.href} className={pathname.startsWith(link.href) ? 'is-active' : ''}>
           {link.label}
         </a>

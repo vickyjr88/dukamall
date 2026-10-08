@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { authHeaders, portalFetch, PORTAL_API_BASE } from '../portal-api';
+import { useSession } from '../portal-session';
 
 type Variant = { id: string; sku: string; name: string; size: string | null; priceKes: string; wasPriceKes: string | null; stockOnHand: number; isActive: boolean };
 type Product = { id: string; name: string; slug: string; description: string | null; imageUrls: string[]; isActive: boolean; isFeatured: boolean; variants: Variant[] };
@@ -11,6 +12,7 @@ type Category = { id: string; name: string; slug: string; isActive: boolean };
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function ProductsPage() {
+  const { isOwner } = useSession();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [total, setTotal] = useState(0);
@@ -113,11 +115,15 @@ export default function ProductsPage() {
       <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h3>Products</h3>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="portal-btn-outline portal-btn" onClick={onExportCsv}>Export CSV</button>
-          <button className="portal-btn-outline portal-btn" onClick={() => csvInputRef.current?.click()} disabled={importBusy}>
-            {importBusy ? 'Importing...' : 'Import CSV'}
-          </button>
-          <input ref={csvInputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onImportCsv} />
+          {isOwner ? (
+            <>
+              <button className="portal-btn-outline portal-btn" onClick={onExportCsv}>Export CSV</button>
+              <button className="portal-btn-outline portal-btn" onClick={() => csvInputRef.current?.click()} disabled={importBusy}>
+                {importBusy ? 'Importing...' : 'Import CSV'}
+              </button>
+              <input ref={csvInputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={onImportCsv} />
+            </>
+          ) : null}
           <Link href="/portal/products/new" className="portal-btn">Add product</Link>
         </div>
       </div>

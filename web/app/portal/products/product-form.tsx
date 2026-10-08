@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { portalFetch } from '../portal-api';
+import { useSession } from '../portal-session';
 import { ImagePicker } from './image-picker';
 import { SizeBuilder } from './size-builder';
 import { ApiProduct, Category, newRowKey, SizeRow, slugify, suggestSku } from './product-types';
@@ -39,6 +40,7 @@ function rowsFromProduct(product: ApiProduct): SizeRow[] {
  */
 export function ProductForm({ product, initialNotice }: { product?: ApiProduct; initialNotice?: string }) {
   const router = useRouter();
+  const { isOwner } = useSession();
   const editing = Boolean(product);
 
   const [name, setName] = useState(product?.name ?? '');
@@ -389,7 +391,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
             </label>
           </div>
 
-          {product ? (
+          {product && isOwner ? (
             <div className="portal-card">
               <h4>Danger zone</h4>
               <p style={{ fontSize: 13, color: 'var(--p-muted)', marginBottom: 10 }}>
