@@ -807,6 +807,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 }
 
 .pdp-description {
+  /* The product form promises line breaks are kept; without this a
+     multi-paragraph description collapses into one block. */
+  white-space: pre-line;
   color: var(--shop-ink-soft);
   line-height: 1.7;
   margin-bottom: var(--shop-space-6);
