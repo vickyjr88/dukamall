@@ -5,5 +5,6 @@ import { MediaController } from './media.controller';
 @Module({
   controllers: [MediaController],
   providers: [MediaService],
+  exports: [MediaService],
 })
 export class MediaModule {}

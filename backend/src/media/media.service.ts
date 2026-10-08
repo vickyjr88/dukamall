@@ -121,6 +121,18 @@ export class MediaService {
     }
   }
 
+  /** Can the object store be reached, and does our bucket exist? For the admin health panel. */
+  async ping(): Promise<{ ok: boolean; ms: number; error?: string }> {
+    const started = Date.now();
+    try {
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out after 5s')), 5000));
+      const exists = await Promise.race([this.client.bucketExists(this.bucketName), timeout]);
+      return exists ? { ok: true, ms: Date.now() - started } : { ok: false, ms: Date.now() - started, error: `bucket "${this.bucketName}" does not exist` };
+    } catch (err) {
+      return { ok: false, ms: Date.now() - started, error: (err as Error).message };
+    }
+  }
+
   private urlFor(objectKey: string) {
     return `${this.publicBaseUrl.replace(/\/$/, '')}/media/${objectKey}`;
   }

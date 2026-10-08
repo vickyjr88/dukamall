@@ -5,6 +5,8 @@ import { AdminController } from './admin.controller';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { ShopModule } from '../shop/shop.module';
 import { EmailModule } from '../email/email.module';
+import { MediaModule } from '../media/media.module';
+import { PlatformHealthService } from './platform-health.service';
 
 @Module({
   imports: [
@@ -13,8 +15,9 @@ import { EmailModule } from '../email/email.module';
     }),
     ShopModule,
     EmailModule,
+    MediaModule,
   ],
   controllers: [AdminController],
-  providers: [AdminService, AdminJwtGuard],
+  providers: [AdminService, AdminJwtGuard, PlatformHealthService],
 })
 export class AdminModule {}

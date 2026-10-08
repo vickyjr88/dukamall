@@ -4,6 +4,7 @@ import { IsBoolean, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, 
 import { BillingPlan, ShopRole, ShopStatus } from '@prisma/client';
 import type { Response } from 'express';
 import { AdminService, AdminShopListQuery, SHOP_SORTS } from './admin.service';
+import { PlatformHealthService } from './platform-health.service';
 import { toCsv } from '../common/csv';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { Public } from '../auth/decorators/public.decorator';
@@ -72,7 +73,7 @@ class SetSuperAdminDto {
 @NoShopScope()
 @UseGuards(AdminJwtGuard)
 export class AdminController {
-  constructor(private adminService: AdminService) {}
+  constructor(private adminService: AdminService, private health: PlatformHealthService) {}
 
   @Get('shops')
   listShops(@Query() q: Record<string, string | undefined>) {
@@ -151,6 +152,13 @@ export class AdminController {
   @Delete('shops/:id/staff/:userId')
   removeStaff(@Req() req: any, @Param('id') id: string, @Param('userId') userId: string) {
     return this.adminService.removeStaff(id, req.adminId, userId);
+  }
+
+  // Is the platform healthy? Database, storage, email, payments, secrets, admin
+  // security and trials in one answer; see PlatformHealthService.
+  @Get('health')
+  platformHealth() {
+    return this.health.check();
   }
 
   @Get('stats')

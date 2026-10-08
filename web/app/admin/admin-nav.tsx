@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/admin/emails', label: 'Email log' },
   { href: '/admin/search', label: 'Search' },
   { href: '/admin/users', label: 'Users' },
+  { href: '/admin/health', label: 'Health' },
   { href: '/admin/settings', label: 'Settings' },
 ];
 
