@@ -72,7 +72,7 @@ export class StorefrontService {
 
     const products = await this.prisma.product.findMany({
       where,
-      include: { variants: { where: { isActive: true } }, category: true },
+      include: { variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }, category: true },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -146,14 +146,14 @@ export class StorefrontService {
   listFeatured(shopId: string) {
     return this.prisma.product.findMany({
       where: { shopId, isActive: true, isFeatured: true },
-      include: { variants: { where: { isActive: true } } },
+      include: { variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } },
     });
   }
 
   async getBySlug(shopId: string, slug: string) {
     const product = await this.prisma.product.findUnique({
       where: { shopId_slug: { shopId, slug } },
-      include: { variants: { where: { isActive: true } }, category: true },
+      include: { variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }, category: true },
     });
     if (!product || !product.isActive) throw new NotFoundException('Product not found');
 
@@ -174,7 +174,7 @@ export class StorefrontService {
   ) {
     const take = 8;
     const baseWhere = { shopId, isActive: true, id: { not: excludeProductId } };
-    const include = { variants: { where: { isActive: true } }, category: true } as const;
+    const include = { variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }, category: true } satisfies Prisma.ProductInclude;
 
     if (categoryId) {
       const byCategory = await this.prisma.product.findMany({

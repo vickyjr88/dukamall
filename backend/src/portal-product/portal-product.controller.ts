@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Header, Param, Patch, Post, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Res, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { PortalProductService } from './portal-product.service';
-import { CreateProductDto, UpdateProductDto, UpdateVariantDto } from './portal-product.dto';
+import { CreateProductDto, SyncVariantsDto, UpdateProductDto, UpdateVariantDto } from './portal-product.dto';
 import { ShopId } from '../common/shop-context';
 import { parseCsv, toCsv } from '../common/csv';
 
@@ -75,6 +75,19 @@ export class PortalProductController {
     return this.portalProductService.importVariantsFromCsv(shopId, rows);
   }
 
+  // Brands and already-used images for the product form's pickers -- see
+  // PortalProductService.meta. Declared before GET :id, or "meta" would be
+  // read as a product id.
+  @Get('meta')
+  meta(@ShopId() shopId: string) {
+    return this.portalProductService.meta(shopId);
+  }
+
+  @Get(':id')
+  get(@ShopId() shopId: string, @Param('id') id: string) {
+    return this.portalProductService.get(shopId, id);
+  }
+
   @Post()
   create(@ShopId() shopId: string, @Body() dto: CreateProductDto) {
     return this.portalProductService.create(shopId, dto);
@@ -88,6 +101,18 @@ export class PortalProductController {
   @Patch(':id/active')
   setActive(@ShopId() shopId: string, @Param('id') id: string, @Body('isActive') isActive: boolean) {
     return this.portalProductService.setActive(shopId, id, isActive);
+  }
+
+  // Saves the whole size list in one step -- see
+  // PortalProductService.syncVariants for how removals and stock are handled.
+  @Put(':id/variants')
+  syncVariants(@ShopId() shopId: string, @Param('id') id: string, @Body() dto: SyncVariantsDto) {
+    return this.portalProductService.syncVariants(shopId, id, dto.variants);
+  }
+
+  @Delete(':id')
+  remove(@ShopId() shopId: string, @Param('id') id: string) {
+    return this.portalProductService.remove(shopId, id);
   }
 
   @Patch('variants/:variantId')

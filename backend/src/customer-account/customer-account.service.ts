@@ -34,7 +34,7 @@ export class CustomerAccountService {
   listFavorites(customerId: string) {
     return this.prisma.favorite.findMany({
       where: { customerId },
-      include: { product: { include: { variants: { where: { isActive: true } } } } },
+      include: { product: { include: { variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] } } } },
       orderBy: { createdAt: 'desc' },
     });
   }

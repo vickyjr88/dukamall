@@ -243,6 +243,12 @@ model ProductVariant {
   stockOnHand Int    @default(0)
   isActive   Boolean @default(true)
 
+  // Merchant-controlled display order (EUR 40 before EUR 41, S before M) --
+  // sizes don't sort sensibly by name alone, and the storefront previously
+  // loaded variants with no orderBy at all. Ties (every variant created
+  // before this column existed has 0) fall back to creation order.
+  position   Int     @default(0)
+
   orderLines OrderLine[]
   cartLeadLines CartLeadLine[]
 

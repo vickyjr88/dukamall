@@ -6,7 +6,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { Public } from '../auth/decorators/public.decorator';
 import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
 import { ShopId } from '../common/shop-context';
-import { MediaService } from './media.service';
+import { MAX_UPLOAD_BYTES, MediaService } from './media.service';
 
 @ApiTags('media')
 @Controller('media')
@@ -16,7 +16,7 @@ export class MediaController {
   @ApiBearerAuth()
   @Post('upload')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 } }))
   async upload(@ShopId() shopId: string, @UploadedFile() file?: any) {
     if (!file) throw new BadRequestException('No file uploaded');
     return this.mediaService.upload(shopId, file);

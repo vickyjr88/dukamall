@@ -35,7 +35,7 @@ export class ProductFeedService {
     const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
     const products = await this.prisma.product.findMany({
       where: { shopId, isActive: true },
-      include: { variants: { where: { isActive: true } }, category: true },
+      include: { variants: { where: { isActive: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }, category: true },
     });
 
     const origin = storefrontOriginForShop(shop);
