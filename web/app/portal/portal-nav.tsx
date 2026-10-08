@@ -17,6 +17,7 @@ const LINKS = [
   { href: '/portal/pages', label: 'Pages' },
   { href: '/portal/domain', label: 'Domain' },
   { href: '/portal/settings', label: 'Settings' },
+  { href: '/portal/profile', label: 'My profile' },
 ];
 
 // Login/signup have no session yet -- no nav chrome (or a logout button

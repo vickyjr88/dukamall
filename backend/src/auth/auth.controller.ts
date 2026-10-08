@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { Public } from './decorators/public.decorator';
 import { NoShopScope } from './decorators/no-shop-scope.decorator';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -31,6 +32,13 @@ export class AuthController {
   @Get('me')
   me(@CurrentUser() user: { id: string; email: string; firstName: string; lastName: string; shopId: string; role: string }) {
     return { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, shopId: user.shopId, role: user.role };
+  }
+
+  // The caller's own name. Their user row is the only thing it can touch.
+  @ApiBearerAuth()
+  @Patch('profile')
+  updateProfile(@CurrentUser() user: { id: string }, @Body() dto: UpdateProfileDto) {
+    return this.authService.updateProfile(user.id, dto);
   }
 
   // Not @Public(): the global JwtAuthGuard already requires a valid staff

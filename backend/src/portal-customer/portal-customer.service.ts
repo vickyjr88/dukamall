@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type PortalCustomerListQuery = {
@@ -23,12 +24,6 @@ export type CustomerSummary = {
   lifetimeValueKes: number;
 };
 
-type OrderRow = {
-  id: string; orderNumber: string; customerId: string | null; firstName: string; lastName: string;
-  email: string | null; phone: string | null; status: string; fulfilmentStatus: string; source: string;
-  totalKes: unknown; createdAt: Date;
-};
-
 /** Digits only, with Kenyan numbers brought to one shape (0712..., 712..., +254712... all match). */
 export function normalisePhone(phone?: string | null): string | null {
   let digits = (phone ?? '').replace(/\D/g, '');
@@ -38,133 +33,158 @@ export function normalisePhone(phone?: string | null): string | null {
   return digits;
 }
 
-const normaliseEmail = (email?: string | null) => (email?.trim().toLowerCase() || null);
+/** The same normalisation as normalisePhone, as SQL, for a column named in our own code (never user input). */
+const phoneSql = (column: string) => Prisma.raw(`(
+  SELECT CASE
+    WHEN length(d) < 7 THEN NULL
+    WHEN length(d) = 10 AND d LIKE '0%' THEN '254' || substr(d, 2)
+    WHEN length(d) = 9 AND d ~ '^[17]' THEN '254' || d
+    ELSE d
+  END FROM (SELECT regexp_replace(coalesce(${column}, ''), '\\D', '', 'g') AS d) digits
+)`);
 
-// A hard stop on how many orders are read to build the picture of "who buys
-// from this shop" -- generous for a shop this size, and a bound if one isn't.
-const MAX_ORDERS_SCANNED = 20000;
+// Hard ceiling on one export, so a runaway shop can't build an unbounded file.
+const EXPORT_LIMIT = 50000;
+
+/**
+ * Who has bought from, or has an account with, a shop -- worked out in the
+ * database, so a page of customers costs one query however many orders exist.
+ *
+ * Most shoppers never create an account (they check out as guests, order over
+ * WhatsApp, or are recorded by hand), so listing only account holders hid most
+ * of the customer base. Each order is assigned to a person: its own account if
+ * it has one, else the account with the same email, else the same phone; guests
+ * are keyed by email, or by phone when there's no email. A phone-only order
+ * joins the person who last used that phone together with an email, so the same
+ * buyer ordering twice with different spellings of their number is one row.
+ */
+function peopleCte(shopId: string): Prisma.Sql {
+  return Prisma.sql`
+    acc AS (
+      SELECT c.id, c."firstName", c."lastName", c.email, c.phone, c."createdAt",
+             lower(nullif(trim(c.email), '')) AS e, ${phoneSql('c.phone')} AS p
+      FROM "Customer" c WHERE c."shopId" = ${shopId}
+    ),
+    ord AS (
+      SELECT o.id, o."orderNumber", o."customerId", o."firstName", o."lastName", o.email, o.phone, o.status,
+             o."fulfilmentStatus", o.source, o."totalKes", o."createdAt",
+             lower(nullif(trim(o.email), '')) AS e, ${phoneSql('o.phone')} AS p
+      FROM "Order" o WHERE o."shopId" = ${shopId}
+    ),
+    acc_e AS (SELECT DISTINCT ON (e) e, id FROM acc WHERE e IS NOT NULL ORDER BY e, "createdAt"),
+    acc_p AS (SELECT DISTINCT ON (p) p, id FROM acc WHERE p IS NOT NULL ORDER BY p, "createdAt"),
+    phone_email AS (
+      SELECT DISTINCT ON (p) p, e FROM ord
+      WHERE e IS NOT NULL AND p IS NOT NULL AND "customerId" IS NULL
+      ORDER BY p, "createdAt" DESC
+    ),
+    keyed AS (
+      SELECT ord.*,
+        CASE
+          WHEN ord."customerId" IS NOT NULL THEN 'c_' || ord."customerId"
+          WHEN ord.e IS NOT NULL THEN coalesce('c_' || ae.id, 'e_' || ord.e)
+          WHEN ord.p IS NOT NULL THEN coalesce('c_' || ap.id, 'c_' || pae.id, 'e_' || pe.e, 'p_' || ord.p)
+        END AS key
+      FROM ord
+      LEFT JOIN acc_e ae ON ae.e = ord.e
+      LEFT JOIN acc_p ap ON ap.p = ord.p
+      LEFT JOIN phone_email pe ON pe.p = ord.p
+      LEFT JOIN acc_e pae ON pae.e = pe.e
+    ),
+    agg AS (
+      SELECT key,
+        count(*) FILTER (WHERE status <> 'CANCELLED') AS order_count,
+        count(*) FILTER (WHERE status = 'PAID') AS paid_count,
+        coalesce(sum("totalKes") FILTER (WHERE status = 'PAID'), 0) AS ltv,
+        max("createdAt") FILTER (WHERE status <> 'CANCELLED') AS last_order_at,
+        min("createdAt") AS first_order_at,
+        (array_agg(trim(concat_ws(' ', "firstName", "lastName")) ORDER BY "createdAt" DESC))[1] AS g_name,
+        (array_agg(email ORDER BY "createdAt" DESC) FILTER (WHERE email IS NOT NULL AND email <> ''))[1] AS g_email,
+        (array_agg(phone ORDER BY "createdAt" DESC) FILTER (WHERE phone IS NOT NULL AND phone <> ''))[1] AS g_phone
+      FROM keyed WHERE key IS NOT NULL GROUP BY key
+    ),
+    people AS (
+      SELECT 'c_' || a.id AS key, true AS has_account,
+             trim(concat_ws(' ', a."firstName", a."lastName")) AS name,
+             coalesce(a.email, g.g_email) AS email, coalesce(a.phone, g.g_phone) AS phone,
+             a."createdAt" AS first_seen, g.last_order_at,
+             coalesce(g.order_count, 0) AS order_count, coalesce(g.paid_count, 0) AS paid_count, coalesce(g.ltv, 0) AS ltv
+      FROM acc a LEFT JOIN agg g ON g.key = 'c_' || a.id
+      UNION ALL
+      SELECT g.key, false, g.g_name, g.g_email, g.g_phone, g.first_order_at, g.last_order_at,
+             g.order_count, g.paid_count, g.ltv
+      FROM agg g WHERE left(g.key, 2) <> 'c_'
+    )`;
+}
+
+type PersonRow = {
+  key: string; has_account: boolean; name: string; email: string | null; phone: string | null;
+  first_seen: Date; last_order_at: Date | null; order_count: bigint; paid_count: bigint; ltv: Prisma.Decimal | number | string;
+  total?: bigint;
+};
+
+const toSummary = (r: PersonRow): CustomerSummary => ({
+  key: r.key,
+  hasAccount: r.has_account,
+  name: r.name ?? '',
+  email: r.email,
+  phone: r.phone,
+  firstSeenAt: r.first_seen,
+  lastOrderAt: r.last_order_at,
+  orderCount: Number(r.order_count),
+  paidOrderCount: Number(r.paid_count),
+  lifetimeValueKes: Number(r.ltv),
+});
+
+/** Escapes LIKE wildcards so a search for "50%" or "a_b" matches that text, not a pattern. */
+const likeEscape = (word: string) => word.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 @Injectable()
 export class PortalCustomerService {
   constructor(private prisma: PrismaService) {}
 
-  /**
-   * Everyone who has bought from, or has an account with, this shop.
-   *
-   * Most shoppers never create an account -- they check out as guests, order
-   * over WhatsApp, or are recorded by hand -- so listing only account holders
-   * (as this used to) hid most of the customer base. People are matched by
-   * account first, then email, then phone, so the same person ordering twice
-   * with a different spelling of their number is still one customer.
-   */
-  private async build(shopId: string) {
-    const [accounts, orders] = await Promise.all([
-      this.prisma.customer.findMany({ where: { shopId } }),
-      this.prisma.order.findMany({
-        where: { shopId },
-        select: {
-          id: true, orderNumber: true, customerId: true, firstName: true, lastName: true, email: true, phone: true,
-          status: true, fulfilmentStatus: true, source: true, totalKes: true, createdAt: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        take: MAX_ORDERS_SCANNED,
-      }),
-    ]);
+  private searchFilter(search?: string): Prisma.Sql {
+    const words = (search ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return Prisma.empty;
+    const phoneNeedle = normalisePhone(search);
+    const patterns = words.map((w) => `%${likeEscape(w)}%`);
+    const wordsMatch = Prisma.sql`lower(name || ' ' || coalesce(email, '') || ' ' || coalesce(phone, '')) LIKE ALL(${patterns}::text[])`;
+    if (!phoneNeedle) return Prisma.sql`WHERE ${wordsMatch}`;
+    return Prisma.sql`WHERE ${wordsMatch} OR ${phoneSql('phone')} LIKE ${`%${likeEscape(phoneNeedle)}%`}`;
+  }
 
-    const accountByEmail = new Map<string, string>();
-    const accountByPhone = new Map<string, string>();
-    for (const a of accounts) {
-      const e = normaliseEmail(a.email);
-      const p = normalisePhone(a.phone);
-      if (e) accountByEmail.set(e, a.id);
-      if (p) accountByPhone.set(p, a.id);
-    }
-
-    // A guest order with an email and a phone teaches us that phone belongs to that
-    // email, so a later phone-only order (e.g. over WhatsApp) joins the same person.
-    const phoneToEmailKey = new Map<string, string>();
-    for (const o of orders) {
-      const e = normaliseEmail(o.email);
-      const p = normalisePhone(o.phone);
-      if (e && p && !o.customerId && !phoneToEmailKey.has(p)) phoneToEmailKey.set(p, `e_${e}`);
-    }
-
-    const keyOf = (o: OrderRow): string | null => {
-      if (o.customerId) return `c_${o.customerId}`;
-      const e = normaliseEmail(o.email);
-      const p = normalisePhone(o.phone);
-      if (e) return accountByEmail.has(e) ? `c_${accountByEmail.get(e)}` : `e_${e}`;
-      if (p) {
-        if (accountByPhone.has(p)) return `c_${accountByPhone.get(p)}`;
-        return phoneToEmailKey.get(p) ?? `p_${p}`;
-      }
-      return null; // an order with no way to contact the buyer
-    };
-
-    const people = new Map<string, CustomerSummary & { orders: OrderRow[] }>();
-    for (const a of accounts) {
-      people.set(`c_${a.id}`, {
-        key: `c_${a.id}`,
-        hasAccount: true,
-        name: [a.firstName, a.lastName].filter(Boolean).join(' '),
-        email: a.email,
-        phone: a.phone,
-        firstSeenAt: a.createdAt,
-        lastOrderAt: null,
-        orderCount: 0,
-        paidOrderCount: 0,
-        lifetimeValueKes: 0,
-        orders: [],
-      });
-    }
-
-    // Orders are newest first, so the first one seen for a guest has their latest details.
-    for (const o of orders) {
-      const key = keyOf(o);
-      if (!key) continue;
-      let person = people.get(key);
-      if (!person) {
-        person = {
-          key,
-          hasAccount: false,
-          name: [o.firstName, o.lastName].filter(Boolean).join(' '),
-          email: o.email,
-          phone: o.phone,
-          firstSeenAt: o.createdAt,
-          lastOrderAt: null,
-          orderCount: 0,
-          paidOrderCount: 0,
-          lifetimeValueKes: 0,
-          orders: [],
-        };
-        people.set(key, person);
-      }
-      if (!person.email && o.email) person.email = o.email;
-      if (!person.phone && o.phone) person.phone = o.phone;
-      if (o.createdAt < person.firstSeenAt && !person.hasAccount) person.firstSeenAt = o.createdAt;
-      person.orders.push(o);
-      if (o.status === 'CANCELLED') continue;
-      person.orderCount += 1;
-      if (!person.lastOrderAt || o.createdAt > person.lastOrderAt) person.lastOrderAt = o.createdAt;
-      if (o.status === 'PAID') {
-        person.paidOrderCount += 1;
-        person.lifetimeValueKes += Number(o.totalKes);
-      }
-    }
-    return people;
+  private orderBy(sort?: PortalCustomerListQuery['sort']): Prisma.Sql {
+    const recency = Prisma.sql`coalesce(last_order_at, first_seen) DESC, key`;
+    if (sort === 'spent') return Prisma.sql`ORDER BY ltv DESC, ${recency}`;
+    if (sort === 'orders') return Prisma.sql`ORDER BY order_count DESC, ${recency}`;
+    return Prisma.sql`ORDER BY ${recency}`;
   }
 
   async list(shopId: string, query: PortalCustomerListQuery) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
-    const all = this.filterAndSort(await this.build(shopId), query);
-    const customers = all.slice((page - 1) * pageSize, page * pageSize).map(({ orders, ...summary }) => summary);
-    return { customers, total: all.length, page, pageSize, totalPages: Math.max(1, Math.ceil(all.length / pageSize)) };
+    const rows = await this.prisma.$queryRaw<PersonRow[]>(Prisma.sql`
+      WITH ${peopleCte(shopId)}
+      SELECT *, count(*) OVER () AS total FROM people
+      ${this.searchFilter(query.search)}
+      ${this.orderBy(query.sort)}
+      LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`);
+
+    // An empty page past the end has no row to read the total from; ask for it directly.
+    const total = rows.length
+      ? Number(rows[0].total)
+      : Number((await this.prisma.$queryRaw<{ n: bigint }[]>(Prisma.sql`
+          WITH ${peopleCte(shopId)} SELECT count(*) AS n FROM people ${this.searchFilter(query.search)}`))[0].n);
+
+    return { customers: rows.map(toSummary), total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   /** Every customer matching the search, as flat rows for a spreadsheet. */
   async exportRows(shopId: string, query: PortalCustomerListQuery) {
-    return this.filterAndSort(await this.build(shopId), query).map((c) => ({
+    const rows = await this.prisma.$queryRaw<PersonRow[]>(Prisma.sql`
+      WITH ${peopleCte(shopId)}
+      SELECT * FROM people ${this.searchFilter(query.search)} ${this.orderBy(query.sort)} LIMIT ${EXPORT_LIMIT}`);
+    return rows.map(toSummary).map((c) => ({
       name: c.name,
       email: c.email ?? '',
       phone: c.phone ?? '',
@@ -178,49 +198,37 @@ export class PortalCustomerService {
   }
 
   async get(shopId: string, key: string) {
-    const person = (await this.build(shopId)).get(key);
+    const [person] = await this.prisma.$queryRaw<PersonRow[]>(Prisma.sql`
+      WITH ${peopleCte(shopId)} SELECT * FROM people WHERE key = ${key} LIMIT 1`);
     if (!person) throw new NotFoundException('Customer not found');
-    const { orders, ...summary } = person;
+    const summary = toSummary(person);
+
+    const orders = await this.prisma.$queryRaw<{
+      id: string; orderNumber: string; status: string; fulfilmentStatus: string; source: string;
+      totalKes: Prisma.Decimal | number | string; createdAt: Date;
+    }[]>(Prisma.sql`
+      WITH ${peopleCte(shopId)}
+      SELECT id, "orderNumber", status, "fulfilmentStatus", source, "totalKes", "createdAt"
+      FROM keyed WHERE key = ${key} ORDER BY "createdAt" DESC LIMIT 500`);
 
     // Leads (WhatsApp enquiries, abandoned carts) from the same person, so the
     // full story of how they came to the shop is in one place.
-    const e = normaliseEmail(person.email);
-    const p = normalisePhone(person.phone);
     const accountId = key.startsWith('c_') ? key.slice(2) : null;
-    const leads = (await this.prisma.cartLead.findMany({
-      where: { shopId },
-      orderBy: { createdAt: 'desc' },
-      take: 2000,
-      select: { id: true, source: true, status: true, customerId: true, customerEmail: true, customerPhone: true, createdAt: true, convertedOrderId: true },
-    })).filter((l) =>
-      (accountId && l.customerId === accountId)
-      || (e && normaliseEmail(l.customerEmail) === e)
-      || (p && normalisePhone(l.customerPhone) === p),
-    ).slice(0, 20);
+    const email = summary.email?.trim().toLowerCase() || null;
+    const phone = normalisePhone(summary.phone);
+    const leads = await this.prisma.$queryRaw<{
+      id: string; source: string; status: string; createdAt: Date; convertedOrderId: string | null;
+    }[]>(Prisma.sql`
+      SELECT l.id, l.source, l.status, l."createdAt", l."convertedOrderId"
+      FROM "CartLead" l
+      WHERE l."shopId" = ${shopId}
+        AND (
+          (${accountId}::text IS NOT NULL AND l."customerId" = ${accountId})
+          OR (${email}::text IS NOT NULL AND lower(trim(l."customerEmail")) = ${email})
+          OR (${phone}::text IS NOT NULL AND ${phoneSql('l."customerPhone"')} = ${phone})
+        )
+      ORDER BY l."createdAt" DESC LIMIT 20`);
 
-    return {
-      ...summary,
-      orders: orders.map((o) => ({ ...o, totalKes: Number(o.totalKes) })),
-      leads,
-    };
-  }
-
-  private filterAndSort(people: Map<string, CustomerSummary & { orders: OrderRow[] }>, query: PortalCustomerListQuery) {
-    const words = (query.search ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
-    const phoneNeedle = normalisePhone(query.search);
-    let list = Array.from(people.values());
-    if (words.length) {
-      list = list.filter((c) => {
-        const haystack = `${c.name} ${c.email ?? ''} ${c.phone ?? ''}`.toLowerCase();
-        const phoneMatch = phoneNeedle && normalisePhone(c.phone)?.includes(phoneNeedle);
-        return phoneMatch || words.every((w) => haystack.includes(w));
-      });
-    }
-    const byRecency = (a: CustomerSummary, b: CustomerSummary) =>
-      (b.lastOrderAt ?? b.firstSeenAt).getTime() - (a.lastOrderAt ?? a.firstSeenAt).getTime();
-    if (query.sort === 'spent') list.sort((a, b) => b.lifetimeValueKes - a.lifetimeValueKes || byRecency(a, b));
-    else if (query.sort === 'orders') list.sort((a, b) => b.orderCount - a.orderCount || byRecency(a, b));
-    else list.sort(byRecency);
-    return list;
+    return { ...summary, orders: orders.map((o) => ({ ...o, totalKes: Number(o.totalKes) })), leads };
   }
 }

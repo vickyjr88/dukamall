@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class AuthService {
@@ -53,5 +54,13 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
     return { success: true };
+  }
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    if (!firstName || !lastName) throw new BadRequestException('Enter your first and last name');
+    const user = await this.prisma.user.update({ where: { id: userId }, data: { firstName, lastName } });
+    return { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName };
   }
 }

@@ -17,8 +17,8 @@ const ROLE_KEY = 'shops_platform_role';
  */
 export const OWNER_ONLY_PATHS = ['/portal/analytics', '/portal/discounts', '/portal/theme', '/portal/storefront', '/portal/pages', '/portal/domain'];
 
-type Session = { me: PortalMe | null; role: PortalRole | null; isOwner: boolean; ready: boolean };
-const SessionContext = createContext<Session>({ me: null, role: null, isOwner: false, ready: false });
+type Session = { me: PortalMe | null; role: PortalRole | null; isOwner: boolean; ready: boolean; refresh: () => void };
+const SessionContext = createContext<Session>({ me: null, role: null, isOwner: false, ready: false, refresh: () => {} });
 
 /**
  * Who is logged in and what they may do, from GET /auth/me (a live read of
@@ -35,6 +35,8 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
   // fetch would leave the role unknown right after login. It also keeps the
   // role current if the owner changes it mid-session.
   const pathname = usePathname();
+  // Bumped by refresh() so a page that changed the user's own details (the profile page) can re-read them.
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     const token = window.localStorage.getItem('shops_platform_token');
@@ -52,9 +54,9 @@ export function PortalSessionProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => { /* offline: keep the cached hint */ })
       .finally(() => setReady(true));
-  }, [pathname]);
+  }, [pathname, version]);
 
-  return <SessionContext.Provider value={{ me, role, isOwner: role === 'OWNER', ready }}>{children}</SessionContext.Provider>;
+  return <SessionContext.Provider value={{ me, role, isOwner: role === 'OWNER', ready, refresh: () => setVersion((v) => v + 1) }}>{children}</SessionContext.Provider>;
 }
 
 export function useSession(): Session {
