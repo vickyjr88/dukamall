@@ -27,6 +27,12 @@ export class OnboardingService {
       );
     }
 
+    // New shops get a dated trial, so reminders and the (optional) end-of-trial
+    // suspension have something to work from.
+    const policy = await this.prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
+    const trialDays = policy?.trialDays ?? 14;
+    const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000);
+
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     return this.prisma.$transaction(async (tx) => {
@@ -35,6 +41,7 @@ export class OnboardingService {
           slug: dto.slug,
           name: dto.shopName,
           status: 'TRIAL',
+          trialEndsAt,
           theme: { create: {} }, // Platform defaults -- see ShopService.getTheme fallback.
         },
       });

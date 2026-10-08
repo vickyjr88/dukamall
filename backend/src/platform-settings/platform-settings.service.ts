@@ -68,4 +68,31 @@ export class PlatformSettingsService {
   async adminEmail(adminId: string): Promise<string> {
     return (await this.prisma.user.findUniqueOrThrow({ where: { id: adminId }, select: { email: true } })).email;
   }
+
+  async getTrialPolicy() {
+    const row = await this.prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
+    return {
+      trialDays: row?.trialDays ?? 14,
+      suspendExpiredTrials: row?.suspendExpiredTrials ?? false,
+      trialGraceDays: row?.trialGraceDays ?? 7,
+    };
+  }
+
+  async updateTrialPolicy(adminId: string, data: { trialDays?: number; suspendExpiredTrials?: boolean; trialGraceDays?: number }) {
+    const before = await this.getTrialPolicy();
+    await this.prisma.platformSettings.upsert({
+      where: { id: 'singleton' },
+      create: { id: 'singleton', ...data },
+      update: data,
+    });
+    const after = await this.getTrialPolicy();
+    const diff: Record<string, { from: unknown; to: unknown }> = {};
+    for (const k of Object.keys(after) as (keyof typeof after)[]) {
+      if (before[k] !== after[k]) diff[k] = { from: before[k], to: after[k] };
+    }
+    if (Object.keys(diff).length) {
+      await this.prisma.adminAuditLog.create({ data: { adminId, shopId: null, action: 'platform.trial_policy_updated', metadata: diff as object } });
+    }
+    return after;
+  }
 }

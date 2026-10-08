@@ -11,7 +11,7 @@ type Theme = {
   heroImageUrl: string | null; fontPairing: string; layoutPreset: string;
 };
 type StaffRow = { userId: string; role: 'OWNER' | 'STAFF'; user: { email: string; firstName: string; lastName: string } };
-type AuditEntry = { id: string; action: string; reason: string | null; metadata: Record<string, unknown> | null; createdAt: string; admin: { email: string } };
+type AuditEntry = { id: string; action: string; reason: string | null; metadata: Record<string, unknown> | null; createdAt: string; admin: { email: string } | null };
 type BillingPlan = 'TRIAL' | 'BASIC' | 'PRO';
 type ShopDetail = {
   id: string; slug: string; name: string; customDomain: string | null;
@@ -448,7 +448,7 @@ export default function ShopDetailPage() {
                     {ACTION_LABEL[entry.action] ?? entry.action}
                     {describeMetadata(entry.action, entry.metadata) ? <span style={{ color: 'var(--a-muted)' }}> ({describeMetadata(entry.action, entry.metadata)})</span> : null}
                   </td>
-                  <td>{entry.admin.email}</td>
+                  <td>{entry.admin?.email ?? <span style={{ color: 'var(--a-muted)' }}>Platform (automatic)</span>}</td>
                   <td>{entry.reason ?? <span style={{ color: 'var(--a-muted)' }}>&mdash;</span>}</td>
                 </tr>
               ))}

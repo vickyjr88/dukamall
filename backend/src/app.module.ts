@@ -10,6 +10,7 @@ import { ShopScopeGuard } from './common/shop-scope.guard';
 import { RolesGuard } from './auth/guards/roles.guard';
 import { ShopModule } from './shop/shop.module';
 import { SecretsModule } from './secrets/secrets.module';
+import { TrialModule } from './trial/trial.module';
 import { ShopPageModule } from './shop-page/shop-page.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { ProductFeedModule } from './product-feed/product-feed.module';
@@ -48,6 +49,7 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     CustomerAccountModule,
     ShopModule,
     SecretsModule,
+    TrialModule,
     ShopPageModule,
     StorefrontModule,
     ProductFeedModule,

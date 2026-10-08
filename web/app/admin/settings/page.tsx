@@ -108,6 +108,7 @@ export default function AdminSettingsPage() {
         </form>
       </div>
 
+      <TrialPolicyCard />
       <TestEmailCard />
     </div>
   );
@@ -159,6 +160,84 @@ function TestEmailCard() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button type="submit" className="admin-btn" disabled={busy}>{busy ? 'Sending...' : 'Send test email'}</button>
           <Link href="/admin/emails">View the email log</Link>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// How trials work for new shops, and what happens when one ends. Closing a shop
+// automatically is off unless you switch it on here.
+function TrialPolicyCard() {
+  const [form, setForm] = useState({ trialDays: '14', suspendExpiredTrials: false, trialGraceDays: '7' });
+  const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    adminFetch('/admin/platform-settings/trial').then(async (res) => {
+      if (!res.ok) return;
+      const d = await res.json();
+      setForm({ trialDays: String(d.trialDays), suspendExpiredTrials: d.suspendExpiredTrials, trialGraceDays: String(d.trialGraceDays) });
+    });
+  }, []);
+
+  async function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    const res = await adminFetch('/admin/platform-settings/trial', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trialDays: Number(form.trialDays), suspendExpiredTrials: form.suspendExpiredTrials, trialGraceDays: Number(form.trialGraceDays) }),
+    });
+    setSaving(false);
+    if (res.ok) setMessage({ ok: true, text: 'Saved.' });
+    else {
+      const d = await res.json().catch(() => null);
+      setMessage({ ok: false, text: Array.isArray(d?.message) ? d.message.join(', ') : d?.message || 'Could not save' });
+    }
+  }
+
+  async function onRun() {
+    if (!window.confirm('Run the trial check now? It emails merchants whose trial is ending or ended, and suspends shops past their grace period if automatic suspension is on.')) return;
+    setRunning(true);
+    setMessage(null);
+    const res = await adminFetch('/admin/platform-settings/trial/run', { method: 'POST' });
+    setRunning(false);
+    if (res.ok) {
+      const d = await res.json();
+      setMessage({ ok: true, text: `Done: ${d.reminders} reminder email${d.reminders === 1 ? '' : 's'} sent, ${d.suspended} shop${d.suspended === 1 ? '' : 's'} suspended.` });
+    } else setMessage({ ok: false, text: 'The check could not run.' });
+  }
+
+  return (
+    <div className="admin-card" style={{ maxWidth: 480, marginTop: 20 }}>
+      <h4>Free trials</h4>
+      <p style={{ fontSize: 13, color: 'var(--a-muted)', marginBottom: 16 }}>
+        New shops get a trial of this length. Their owners are emailed 7, 3 and 1 day before it ends, and when it ends. Shops that signed up before this existed have no end date until you set one on the shop&apos;s page.
+      </p>
+      <form onSubmit={onSave}>
+        <div className="admin-field">
+          <label htmlFor="trial-days">Trial length (days)</label>
+          <input id="trial-days" type="number" min={1} max={90} value={form.trialDays} onChange={(e) => setForm((f) => ({ ...f, trialDays: e.target.value }))} />
+        </div>
+        <div className="admin-field" style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+          <input type="checkbox" id="trial-suspend" checked={form.suspendExpiredTrials} onChange={(e) => setForm((f) => ({ ...f, suspendExpiredTrials: e.target.checked }))} style={{ width: 'auto', marginTop: 3 }} />
+          <label htmlFor="trial-suspend" style={{ marginBottom: 0 }}>
+            Close shops automatically after their trial ends
+            <span className="hint" style={{ display: 'block' }}>Off means nothing happens when a trial ends beyond the emails; you decide shop by shop.</span>
+          </label>
+        </div>
+        <div className="admin-field">
+          <label htmlFor="trial-grace">Grace period before closing (days)</label>
+          <input id="trial-grace" type="number" min={0} max={60} value={form.trialGraceDays} disabled={!form.suspendExpiredTrials} onChange={(e) => setForm((f) => ({ ...f, trialGraceDays: e.target.value }))} />
+          <span className="hint">Time after the end date for a late payment to arrive. Only used when automatic closing is on.</span>
+        </div>
+        {message ? <div className={`admin-alert ${message.ok ? 'is-success' : 'is-error'}`}>{message.text}</div> : null}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="submit" className="admin-btn" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+          <button type="button" className="admin-btn-outline admin-btn" disabled={running} onClick={onRun}>{running ? 'Running...' : 'Run the check now'}</button>
         </div>
       </form>
     </div>

@@ -9,7 +9,7 @@ import { Pagination } from '../pagination';
 
 type Entry = {
   id: string; action: string; reason: string | null; metadata: unknown; createdAt: string;
-  admin: { email: string }; shop: { id: string; name: string; slug: string } | null;
+  admin: { email: string } | null; shop: { id: string; name: string; slug: string } | null;
 };
 
 // Everything operators have done on the platform -- shop actions and the ones
@@ -90,7 +90,7 @@ function AuditContent() {
                       {detail ? <div style={{ fontSize: 12, color: 'var(--a-muted)' }}>{detail}</div> : null}
                     </td>
                     <td>{e.shop ? <Link href={`/admin/shops/${e.shop.id}`}>{e.shop.name}</Link> : <span style={{ color: 'var(--a-muted)' }}>Platform</span>}</td>
-                    <td>{e.admin.email}</td>
+                    <td>{e.admin?.email ?? <span style={{ color: 'var(--a-muted)' }}>Platform (automatic)</span>}</td>
                     <td>{e.reason ?? <span style={{ color: 'var(--a-muted)' }}>&mdash;</span>}</td>
                   </tr>
                 );

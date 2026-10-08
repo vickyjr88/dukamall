@@ -150,3 +150,28 @@ export function shopStatusEmail(params: { shopName: string; suspended: boolean; 
         `),
       };
 }
+
+/** Trial reminders: 7, 3 and 1 day before the end, and once it has ended. */
+export function trialEmail(params: { shopName: string; kind: '7d' | '3d' | '1d' | 'ended'; endsOn: string; portalUrl: string; suspendOn?: string }) {
+  const { shopName, kind, endsOn, portalUrl, suspendOn } = params;
+  const days = kind === '7d' ? 7 : kind === '3d' ? 3 : 1;
+  if (kind === 'ended') {
+    return {
+      subject: `Your ${shopName} trial has ended`,
+      html: wrapper(shopName, `
+        <h2 style="margin: 0 0 8px;">Your free trial has ended</h2>
+        <p style="color:#555;">The trial for ${esc(shopName)} ended on ${esc(endsOn)}. To keep your shop running, please contact the platform team to choose a plan.</p>
+        ${suspendOn ? `<p style="color:#a85b00;">If we haven't heard from you, your shop will be closed to customers on ${esc(suspendOn)}.</p>` : ''}
+        <p><a href="${esc(portalUrl)}" style="color:#2438a8;">Open the merchant portal &rarr;</a></p>
+      `),
+    };
+  }
+  return {
+    subject: `Your ${shopName} trial ends in ${days} day${days === 1 ? '' : 's'}`,
+    html: wrapper(shopName, `
+      <h2 style="margin: 0 0 8px;">Your free trial ends in ${days} day${days === 1 ? '' : 's'}</h2>
+      <p style="color:#555;">The trial for ${esc(shopName)} ends on ${esc(endsOn)}. To keep your shop running without interruption, please contact the platform team to choose a plan before then.</p>
+      <p><a href="${esc(portalUrl)}" style="color:#2438a8;">Open the merchant portal &rarr;</a></p>
+    `),
+  };
+}
