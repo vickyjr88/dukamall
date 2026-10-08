@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { storefrontOriginForShop } from '../common/storefront-origin';
 import { UpdateStorefrontDto, UpdateThemeDto } from './storefront-content.dto';
 
 /** Blank/whitespace-only input means "clear it" -- the column stays null rather than holding an empty string. */
@@ -65,6 +66,56 @@ export class ShopService {
       instagramUrl: shop.instagramUrl,
       facebookUrl: shop.facebookUrl,
       tiktokUrl: shop.tiktokUrl,
+    };
+  }
+
+
+  /**
+   * What the portal's home screens need to orient the owner: which plan the shop
+   * is on and when a trial ends, the addresses to paste into other services
+   * (product feeds for Google/Meta/TikTok, the Paystack webhook), and a setup
+   * checklist worked out from what the shop actually has.
+   */
+  async getOverview(shopId: string) {
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId }, include: { theme: true } });
+    const [activeProducts, publishedPages] = await Promise.all([
+      this.prisma.product.count({ where: { shopId, isActive: true } }),
+      this.prisma.shopPage.count({ where: { shopId, published: true } }),
+    ]);
+
+    const origin = storefrontOriginForShop(shop);
+    const apiBase = (process.env.PUBLIC_API_BASE_URL || process.env.MEDIA_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
+    const msLeft = shop.trialEndsAt ? shop.trialEndsAt.getTime() - Date.now() : null;
+
+    const checklist = [
+      { key: 'products', label: 'Add your first product', done: activeProducts > 0, href: '/portal/products/new', optional: false },
+      { key: 'whatsapp', label: 'Add your WhatsApp number', done: Boolean(shop.whatsappNumber), href: '/portal/settings', optional: false },
+      { key: 'delivery', label: 'Set your delivery charge', done: Number(shop.deliveryFeeKes) > 0 || shop.freeDeliveryOverKes !== null, href: '/portal/settings', optional: true },
+      { key: 'payments', label: 'Connect Paystack to take card and M-Pesa payments', done: Boolean(shop.paystackSecretKey && shop.paystackPublicKey), href: '/portal/settings', optional: true },
+      { key: 'logo', label: 'Upload your logo', done: Boolean(shop.theme?.logoUrl), href: '/portal/theme', optional: true },
+      { key: 'info', label: 'Add contact details and a footer blurb', done: Boolean(shop.tagline || shop.contactPhone || shop.contactEmail || shop.address), href: '/portal/storefront', optional: true },
+      { key: 'pages', label: 'Publish a delivery & returns or about page', done: publishedPages > 0, href: '/portal/pages', optional: true },
+      { key: 'domain', label: 'Connect your own domain', done: Boolean(shop.customDomain), href: '/portal/domain', optional: true },
+    ];
+
+    return {
+      shop: { name: shop.name, status: shop.status },
+      plan: {
+        plan: shop.billingPlan,
+        trialEndsAt: shop.trialEndsAt,
+        // Whole days left; negative once it has passed. Null when there is no end date.
+        trialDaysLeft: msLeft === null ? null : Math.ceil(msLeft / 86_400_000),
+      },
+      urls: {
+        storefront: origin,
+        productFeedXml: `${origin}/product-feed.xml`,
+        productFeedCsv: `${origin}/product-feed.csv`,
+        tiktokFeedXml: `${origin}/product-feed-tiktok.xml`,
+        tiktokFeedCsv: `${origin}/product-feed-tiktok.csv`,
+        sitemap: `${origin}/sitemap.xml`,
+        paystackWebhook: apiBase ? `${apiBase}/paystack/webhook` : null,
+      },
+      checklist,
     };
   }
 

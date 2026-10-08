@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { portalFetch } from '../portal-api';
+import { PORTAL_API_BASE, portalFetch } from '../portal-api';
 import { OwnerOnlyNotice, useSession } from '../portal-session';
+import { Overview, useOverview } from '../setup-panel';
 
 const CURRENCIES = ['KES', 'UGX', 'TZS', 'USD'];
 
@@ -83,6 +84,7 @@ export default function SettingsPage() {
 
       <DeliveryCard />
       <PaystackCard />
+      <ConnectionsCard />
       </>
       )}
       <StaffCard />
@@ -409,6 +411,54 @@ function ChangePasswordCard() {
           {submitting ? 'Changing...' : 'Change password'}
         </button>
       </form>
+    </div>
+  );
+}
+
+const PLAN_LABEL: Record<Overview['plan']['plan'], string> = { TRIAL: 'Free trial', BASIC: 'Basic', PRO: 'Pro' };
+
+/** Addresses to paste into other services, and which plan the shop is on. */
+function ConnectionsCard() {
+  const overview = useOverview();
+  const [copied, setCopied] = useState<string | null>(null);
+  if (!overview) return null;
+
+  const { urls, plan } = overview;
+  const rows: { label: string; hint: string; value: string | null }[] = [
+    { label: 'Your shop', hint: 'The address customers visit.', value: urls.storefront },
+    { label: 'Product feed (CSV)', hint: 'For Google Merchant Center, Meta Commerce and similar catalogue imports.', value: urls.productFeedCsv },
+    { label: 'Product feed (XML)', hint: 'The same catalogue as an XML feed.', value: urls.productFeedXml },
+    { label: 'TikTok feed (CSV)', hint: 'For TikTok Shop / TikTok catalogue.', value: urls.tiktokFeedCsv },
+    { label: 'Sitemap', hint: 'For Google Search Console.', value: urls.sitemap },
+    // The backend only knows its own public address when it is configured; this page is served from it otherwise.
+    { label: 'Paystack webhook', hint: 'Paste this under Settings > API Keys & Webhooks in your Paystack dashboard so payments are confirmed even if a customer closes their browser.', value: urls.paystackWebhook ?? `${PORTAL_API_BASE}/paystack/webhook` },
+  ];
+
+  async function copy(value: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+      setTimeout(() => setCopied((c) => (c === label ? null : c)), 1500);
+    } catch { /* clipboard can be blocked; the text is still selectable */ }
+  }
+
+  return (
+    <div className="portal-card" style={{ maxWidth: 640, marginBottom: 20 }}>
+      <h4>Connections</h4>
+      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--p-muted)' }}>
+        Plan: <strong style={{ color: 'var(--p-ink)' }}>{PLAN_LABEL[plan.plan]}</strong>
+        {plan.plan === 'TRIAL' && plan.trialEndsAt ? ` — ends ${new Date(plan.trialEndsAt).toLocaleDateString()}` : ''}
+      </p>
+      {rows.map((row) => row.value ? (
+        <div className="portal-field" key={row.label}>
+          <label>{row.label}</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input readOnly value={row.value} onFocus={(e) => e.currentTarget.select()} style={{ flex: 1 }} />
+            <button type="button" className="portal-btn-outline portal-btn" onClick={() => copy(row.value!, row.label)}>{copied === row.label ? 'Copied' : 'Copy'}</button>
+          </div>
+          <span className="hint">{row.hint}</span>
+        </div>
+      ) : null)}
     </div>
   );
 }

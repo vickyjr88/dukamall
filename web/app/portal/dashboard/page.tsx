@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { portalFetch } from '../portal-api';
 import { useSession } from '../portal-session';
+import { PlanNotice, SetupChecklist, useOverview } from '../setup-panel';
 
 type SalesSummary = {
   orderCount: number;
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   const [recentOrders, setRecentOrders] = useState<RecentOrder[] | null>(null);
 
   const { ready, isOwner } = useSession();
+  const overview = useOverview();
 
   useEffect(() => {
     if (!ready) return;
@@ -41,6 +43,13 @@ export default function DashboardPage() {
   return (
     <div>
       <div className="portal-page-head"><h3>Dashboard</h3></div>
+
+      {isOwner && overview ? (
+        <>
+          <PlanNotice plan={overview.plan} />
+          <SetupChecklist items={overview.checklist} />
+        </>
+      ) : null}
 
       <div className="portal-stat-row">
         {isOwner ? (

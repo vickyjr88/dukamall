@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { portalFetch } from '../portal-api';
+import { downloadFile, today } from '../download';
+import { useSession } from '../portal-session';
 import {
   FulfilmentBadge, FulfilmentStatus, OrderDetail, OrderSource, PaymentBadge, PaymentStatus, SOURCE_LABEL, money, whatsappLink,
 } from '../order-ui';
@@ -20,6 +22,9 @@ export default function OrdersPage() {
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
+  const { isOwner } = useSession();
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const [payment, setPayment] = useState<'ALL' | PaymentStatus>('ALL');
   const [fulfilment, setFulfilment] = useState<'' | FulfilmentStatus>('');
@@ -54,6 +59,20 @@ export default function OrdersPage() {
 
   useEffect(() => { load(); }, [payment, fulfilment, source, search, from, to, page, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The same filters as the list on screen, as a spreadsheet of every matching order (not just this page).
+  async function onExport() {
+    const query = new URLSearchParams();
+    if (payment !== 'ALL') query.set('status', payment);
+    if (fulfilment) query.set('fulfilment', fulfilment);
+    if (source) query.set('source', source);
+    if (search) query.set('search', search);
+    if (from) query.set('from', from);
+    if (to) query.set('to', to);
+    setExporting(true);
+    setExportError(await downloadFile(`/portal/orders/export-csv?${query.toString()}`, `orders-${today()}.csv`));
+    setExporting(false);
+  }
+
   // Any filter change goes back to page 1 -- staying on page 6 of a now-3-page result shows nothing.
   function filtered(change: () => void) { change(); setPage(1); }
   const hasFilters = Boolean(search || from || to || fulfilment || source);
@@ -62,8 +81,12 @@ export default function OrdersPage() {
     <div>
       <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <h3>Orders</h3>
-        <Link href="/portal/orders/new" className="portal-btn">New order</Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {isOwner ? <button type="button" className="portal-btn-outline portal-btn" disabled={exporting || total === 0} onClick={onExport}>{exporting ? 'Preparing...' : 'Export CSV'}</button> : null}
+          <Link href="/portal/orders/new" className="portal-btn">New order</Link>
+        </div>
       </div>
+      {exportError ? <div className="portal-alert is-error">{exportError}</div> : null}
 
       <div className="portal-tabs">
         {PAYMENT_TABS.map((t) => (

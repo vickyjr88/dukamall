@@ -48,10 +48,22 @@ function splitCsvRows(text: string): string[][] {
   return rows;
 }
 
+/**
+ * Spreadsheet apps run a cell that starts with = + - @ as a formula, so a
+ * customer who types "=HYPERLINK(...)" as their name would get it executed on
+ * the merchant's machine when they open an export. Text like that gets a
+ * leading apostrophe (shown as plain text); real numbers (-5) are left alone.
+ */
+function neutraliseFormula(value: string): string {
+  if (!/^[=+\-@\t\r]/.test(value)) return value;
+  if (value.trim() !== '' && Number.isFinite(Number(value))) return value;
+  return `'${value}`;
+}
+
 export function toCsv(rows: Record<string, string | number | boolean>[], columns: string[]): string {
   const escape = (value: unknown) => {
-    const str = String(value ?? '');
-    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    const str = typeof value === 'string' ? neutraliseFormula(value) : String(value ?? '');
+    return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
   };
   const lines = [columns.join(',')];
   for (const row of rows) {

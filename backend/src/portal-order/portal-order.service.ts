@@ -26,11 +26,8 @@ export class PortalOrderService {
   // Search matches order number or customer name/phone/email; unlike the
   // product search this has no fuzzy fallback, since order numbers and
   // phone numbers are exact-match lookups by nature, not typo-prone browsing.
-  async list(shopId: string, query: PortalOrderListQuery) {
-    const page = Math.max(1, query.page ?? 1);
-    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
-
-    const where: Prisma.OrderWhereInput = {
+  private buildWhere(shopId: string, query: PortalOrderListQuery): Prisma.OrderWhereInput {
+    return {
       shopId,
       ...(query.status ? { status: query.status } : {}),
       ...(query.fulfilment ? { fulfilmentStatus: query.fulfilment } : {}),
@@ -50,6 +47,44 @@ export class PortalOrderService {
           }
         : {}),
     };
+  }
+
+  /** The filtered orders as flat rows for a spreadsheet: one row per order (capped, newest first). */
+  async exportRows(shopId: string, query: PortalOrderListQuery) {
+    const orders = await this.prisma.order.findMany({
+      where: this.buildWhere(shopId, query),
+      include: { lines: { include: { variant: { include: { product: true } } } }, discount: { select: { code: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 20000,
+    });
+    return orders.map((o) => ({
+      orderNumber: o.orderNumber,
+      date: o.createdAt.toISOString(),
+      status: o.status,
+      delivery: o.status === 'CANCELLED' ? '' : o.fulfilmentStatus,
+      source: o.source,
+      firstName: o.firstName,
+      lastName: o.lastName,
+      phone: o.phone ?? '',
+      email: o.email ?? '',
+      shippingAddress: o.shippingAddress ?? '',
+      items: o.lines.map((l) => `${l.quantity} x ${l.variant.product.name} (${l.variant.size ?? l.variant.name})`).join('; '),
+      subtotalKes: Number(o.subtotalKes),
+      discountKes: Number(o.discountKes ?? 0),
+      shippingKes: Number(o.shippingKes ?? 0),
+      totalKes: Number(o.totalKes),
+      discountCode: o.discount?.code ?? '',
+      paymentMethod: o.paymentMethod ?? (o.paystackReference ? 'PAYSTACK' : ''),
+      paymentReference: o.paymentReference ?? o.paystackReference ?? '',
+      trackingNote: o.trackingNote ?? '',
+    }));
+  }
+
+  async list(shopId: string, query: PortalOrderListQuery) {
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
+
+    const where = this.buildWhere(shopId, query);
 
     const [orders, total] = await Promise.all([
       this.prisma.order.findMany({

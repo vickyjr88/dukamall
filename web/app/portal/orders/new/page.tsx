@@ -56,7 +56,13 @@ export default function NewOrderPage() {
       if (s) setSettings({ deliveryFeeKes: Number(s.deliveryFeeKes ?? 0), freeDeliveryOverKes: s.freeDeliveryOverKes ?? null });
     }).catch(() => {});
 
-    const id = new URLSearchParams(window.location.search).get('lead');
+    const params = new URLSearchParams(window.location.search);
+    // Coming from a customer's page: start with their details filled in.
+    if (params.get('first') || params.get('phone') || params.get('email')) {
+      setFirst(params.get('first') ?? ''); setLast(params.get('last') ?? '');
+      setPhone(params.get('phone') ?? ''); setEmail(params.get('email') ?? ''); setAddress(params.get('address') ?? '');
+    }
+    const id = params.get('lead');
     if (!id) return;
     portalFetch(`/portal/cart-leads/${id}`).then(async (res) => {
       if (!res.ok) return;

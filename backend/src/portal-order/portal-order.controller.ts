@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
@@ -9,8 +9,22 @@ import { FulfilmentStatus, OrderSource, OrderStatus, PaymentMethod } from '@pris
 import { PortalOrderService } from './portal-order.service';
 import { ShopId } from '../common/shop-context';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { toCsv } from '../common/csv';
 
 type StaffUser = { id: string; firstName: string; lastName: string; role: string };
+
+// A date-only "to" (the filter's date picker) means the whole of that day, not midnight at its start --
+// otherwise every order placed on the last day is left out.
+function endOfDay(to?: string): Date | undefined {
+  if (!to) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(to) ? new Date(`${to}T23:59:59.999Z`) : new Date(to);
+}
+
+const ORDER_CSV_COLUMNS = [
+  'orderNumber', 'date', 'status', 'delivery', 'source', 'firstName', 'lastName', 'phone', 'email', 'shippingAddress',
+  'items', 'subtotalKes', 'discountKes', 'shippingKes', 'totalKes', 'discountCode', 'paymentMethod', 'paymentReference', 'trackingNote',
+];
 
 const MANUAL_PAYMENT_METHODS = ['CASH', 'MPESA', 'BANK_TRANSFER', 'OTHER'] as const;
 
@@ -86,10 +100,33 @@ export class PortalOrderController {
       source,
       search,
       from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      to: endOfDay(to),
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
     });
+  }
+
+  // The same filters as the list, as a spreadsheet. Owner-only: it carries every
+  // customer's name, phone, email and address in one file. Declared before
+  // ':id' so "export-csv" isn't read as an order id.
+  @Roles('OWNER')
+  @Get('export-csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async exportCsv(
+    @ShopId() shopId: string,
+    @Query('status') status?: OrderStatus,
+    @Query('fulfilment') fulfilment?: FulfilmentStatus,
+    @Query('source') source?: OrderSource,
+    @Query('search') search?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const rows = await this.portalOrderService.exportRows(shopId, {
+      status, fulfilment, source, search,
+      from: from ? new Date(from) : undefined,
+      to: endOfDay(to),
+    });
+    return toCsv(rows, ORDER_CSV_COLUMNS);
   }
 
   // A sale the merchant records by hand -- a WhatsApp order, a walk-in -- so it

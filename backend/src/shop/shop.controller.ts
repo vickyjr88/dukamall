@@ -60,6 +60,11 @@ export class ShopController {
 
   // Shop name, tagline, contact details, social links, announcement bar and
   // the home page's search description -- the words around the catalogue.
+  @Get('portal/overview')
+  getOverview(@ShopId() shopId: string) {
+    return this.shopService.getOverview(shopId);
+  }
+
   @Get('portal/storefront')
   getStorefrontContent(@ShopId() shopId: string) {
     return this.shopService.getStorefrontContent(shopId);
