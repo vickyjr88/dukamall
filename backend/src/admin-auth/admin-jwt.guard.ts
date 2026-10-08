@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -42,6 +42,13 @@ export class AdminJwtGuard implements CanActivate {
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
     if (!user?.isSuperAdmin) {
       throw new UnauthorizedException('Admin access has been revoked');
+    }
+
+    // When the platform requires two-factor sign-in, an admin who hasn't set it
+    // up yet can only reach the setup routes -- nothing else in the console.
+    // (A session obtained before the requirement existed gets the same treatment.)
+    if (process.env.ADMIN_REQUIRE_2FA === 'true' && !user.totpEnabledAt && !String(request.path ?? request.url).startsWith('/admin-auth/2fa')) {
+      throw new ForbiddenException({ message: 'Two-factor sign-in is required. Set it up to continue.', code: 'two_factor_required' });
     }
 
     request.adminId = payload.sub;
