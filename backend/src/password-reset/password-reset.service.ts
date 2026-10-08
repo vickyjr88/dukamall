@@ -8,6 +8,11 @@ import { passwordResetEmail } from '../email/email-templates';
 import { storefrontOriginForShop } from '../common/storefront-origin';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+// At most this many reset emails per account per hour. The per-IP limit on the
+// request routes doesn't stop one victim's inbox being flooded from many
+// addresses; this does, and it is silent (same response, no email) so it
+// can't be used to probe which accounts exist.
+const MAX_RESETS_PER_HOUR = 3;
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -16,6 +21,13 @@ function hashToken(token: string): string {
 @Injectable()
 export class PasswordResetService {
   constructor(private prisma: PrismaService, private email: EmailService) {}
+
+  private async resetQuotaExceeded(accountKind: PasswordResetAccountKind, accountId: string): Promise<boolean> {
+    const recent = await this.prisma.passwordResetToken.count({
+      where: { accountKind, accountId, createdAt: { gt: new Date(Date.now() - TOKEN_TTL_MS) } },
+    });
+    return recent >= MAX_RESETS_PER_HOUR;
+  }
 
   /**
    * Staff/admin reset: User.email is globally unique, so no shop context is
@@ -32,6 +44,7 @@ export class PasswordResetService {
     // matched -- a different response here would let anyone enumerate
     // which email addresses have an account on the platform.
     if (!user) return { success: true };
+    if (await this.resetQuotaExceeded(PasswordResetAccountKind.STAFF, user.id)) return { success: true };
 
     const token = randomBytes(32).toString('hex');
     await this.prisma.passwordResetToken.create({
@@ -60,6 +73,7 @@ export class PasswordResetService {
     const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
     const customer = await this.prisma.customer.findUnique({ where: { shopId_email: { shopId, email } } });
     if (!customer) return { success: true };
+    if (await this.resetQuotaExceeded(PasswordResetAccountKind.CUSTOMER, customer.id)) return { success: true };
 
     const token = randomBytes(32).toString('hex');
     await this.prisma.passwordResetToken.create({

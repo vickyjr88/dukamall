@@ -4,6 +4,7 @@ import { IsEmail, IsString, IsNotEmpty } from 'class-validator';
 import { AdminAuthService } from './admin-auth.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
+import { RateLimit } from '../common/rate-limit.decorator';
 
 class AdminLoginDto {
   @IsEmail() email!: string;
@@ -20,6 +21,7 @@ export class AdminAuthController {
   // the shop.
   @Public()
   @NoShopScope()
+  @RateLimit(10, 60)
   @Post('login')
   login(@Body() dto: AdminLoginDto) {
     return this.adminAuthService.login(dto.email, dto.password);

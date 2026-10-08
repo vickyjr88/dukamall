@@ -4,6 +4,7 @@ import { IsBoolean, IsDateString, IsIn, IsInt, IsOptional, IsPositive, IsString,
 import { DiscountType } from '@prisma/client';
 import { PortalDiscountService } from './portal-discount.service';
 import { ShopId } from '../common/shop-context';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 class CreateDiscountDto {
   @IsString() code!: string;
@@ -22,6 +23,8 @@ class SetActiveDto {
 @ApiTags('portal-discount')
 @ApiBearerAuth()
 @Controller('portal/discounts')
+// Owner-only: discount rules change what every customer pays.
+@Roles('OWNER')
 export class PortalDiscountController {
   constructor(private portalDiscountService: PortalDiscountService) {}
 

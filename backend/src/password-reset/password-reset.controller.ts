@@ -5,6 +5,7 @@ import { PasswordResetService } from './password-reset.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
 import { ShopId } from '../common/shop-context';
+import { RateLimit } from '../common/rate-limit.decorator';
 
 class RequestStaffResetDto {
   @IsEmail() email!: string;
@@ -34,6 +35,7 @@ export class PasswordResetController {
 
   @Public()
   @NoShopScope()
+  @RateLimit(5, 600)
   @Post('staff/request')
   requestStaffReset(@Body() dto: RequestStaffResetDto) {
     return this.passwordResetService.requestStaffReset(dto.email, dto.originBaseUrl);
@@ -42,6 +44,7 @@ export class PasswordResetController {
   // Shop-scoped like every other customer-auth route -- x-shop-id (set by
   // web/middleware.ts) tells this which shop's Customer table to look in.
   @Public()
+  @RateLimit(5, 600)
   @Post('customer/request')
   requestCustomerReset(@ShopId() shopId: string, @Body() dto: RequestCustomerResetDto) {
     return this.passwordResetService.requestCustomerReset(shopId, dto.email);
@@ -53,6 +56,7 @@ export class PasswordResetController {
   // supplying which shop it's for.
   @Public()
   @NoShopScope()
+  @RateLimit(10, 600)
   @Post('confirm')
   confirm(@Body() dto: ConfirmResetDto) {
     return this.passwordResetService.confirm(dto.token, dto.newPassword);

@@ -1,11 +1,19 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
 import { json, urlencoded } from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // The API sits behind nginx, which appends the real client address to
+  // X-Forwarded-For. Without this Express reports the proxy's own address as
+  // every request's IP, so per-IP rate limits (see common/rate-limit.decorator)
+  // would put all users in one bucket and lock everyone out together. One
+  // hop: only the last proxy is trusted, so a client can't spoof its way
+  // out of a limit by sending its own X-Forwarded-For.
+  app.set('trust proxy', 1);
   // Paystack's webhook signature (PaystackService.verifySignature) is an
   // HMAC over the exact raw request bytes -- by the time a controller sees
   // `@Body()`, Nest/Express have already parsed and re-serialized it, which

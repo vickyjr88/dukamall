@@ -5,6 +5,7 @@ import type { Response } from 'express';
 import { PortalProductService } from './portal-product.service';
 import { CreateProductDto, SyncVariantsDto, UpdateProductDto, UpdateVariantDto } from './portal-product.dto';
 import { ShopId } from '../common/shop-context';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { parseCsv, toCsv } from '../common/csv';
 
 const CSV_COLUMNS = ['sku', 'productName', 'variantName', 'size', 'priceKes', 'wasPriceKes', 'stockOnHand', 'isActive'];
@@ -45,6 +46,8 @@ export class PortalProductController {
   // included for a human reading the file, but only sku is actually used
   // as the match key on re-import (see importCsv below); editing those
   // three columns has no effect.
+  // Owner-only: bulk export of the whole catalogue.
+  @Roles('OWNER')
   @Get('export-csv')
   @Header('Content-Type', 'text/csv')
   async exportCsv(@ShopId() shopId: string, @Res() res: Response) {
@@ -59,6 +62,8 @@ export class PortalProductController {
   // for why this never creates a product. Every row not matching a known
   // SKU is reported back (not silently dropped) so a merchant can fix and
   // re-upload rather than wonder why half their edits didn't apply.
+  // Owner-only: bulk price and stock changes.
+  @Roles('OWNER')
   @Post('import-csv')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file'))
@@ -110,6 +115,8 @@ export class PortalProductController {
     return this.portalProductService.syncVariants(shopId, id, dto.variants);
   }
 
+  // Owner-only: deleting a product.
+  @Roles('OWNER')
   @Delete(':id')
   remove(@ShopId() shopId: string, @Param('id') id: string) {
     return this.portalProductService.remove(shopId, id);

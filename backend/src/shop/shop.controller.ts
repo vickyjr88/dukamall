@@ -6,6 +6,7 @@ import { DomainVerificationService } from './domain-verification.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
 import { ShopId } from '../common/shop-context';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { UpdateShopSettingsDto } from './shop-settings.dto';
 
 class RequestDomainDto {
@@ -50,6 +51,7 @@ export class ShopController {
     return this.shopService.getTheme(shopId);
   }
 
+  @Roles('OWNER')
   @Put('portal/theme')
   updateTheme(@ShopId() shopId: string, @Body() body: Record<string, string>) {
     return this.shopService.updateTheme(shopId, body);
@@ -74,6 +76,7 @@ export class ShopController {
   // row -- ShopService.updateSettings itself returns the full Shop
   // (Paystack keys included, since Prisma's update() always echoes the
   // written row), which must never reach the response body here.
+  @Roles('OWNER')
   @Put('portal/settings')
   async updateSettings(@ShopId() shopId: string, @Body() dto: UpdateShopSettingsDto) {
     await this.shopService.updateSettings(shopId, dto);
@@ -89,16 +92,19 @@ export class ShopController {
     return this.domainVerification.getDomainStatus(shopId);
   }
 
+  @Roles('OWNER')
   @Post('portal/domain')
   requestDomain(@ShopId() shopId: string, @Body() dto: RequestDomainDto) {
     return this.domainVerification.requestDomain(shopId, dto.domain);
   }
 
+  @Roles('OWNER')
   @Post('portal/domain/verify')
   verifyDomain(@ShopId() shopId: string) {
     return this.domainVerification.verifyDomain(shopId);
   }
 
+  @Roles('OWNER')
   @Delete('portal/domain')
   disconnectDomain(@ShopId() shopId: string) {
     return this.domainVerification.disconnectDomain(shopId);

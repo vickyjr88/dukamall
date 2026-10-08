@@ -5,6 +5,7 @@ import { CheckoutDto } from './checkout.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { ShopId } from '../common/shop-context';
 import { OptionalCustomer } from '../customer-auth/optional-customer.decorator';
+import { RateLimit } from '../common/rate-limit.decorator';
 
 @ApiTags('checkout')
 @Controller('checkout')
@@ -12,6 +13,7 @@ export class CheckoutController {
   constructor(private checkoutService: CheckoutService) {}
 
   @Public()
+  @RateLimit(20, 60)
   @Post()
   start(@ShopId() shopId: string, @Body() dto: CheckoutDto, @OptionalCustomer() customerId: string | null) {
     return this.checkoutService.start(shopId, dto, customerId);

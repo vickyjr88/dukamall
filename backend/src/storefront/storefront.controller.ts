@@ -4,6 +4,7 @@ import { StorefrontService } from './storefront.service';
 import { Public } from '../auth/decorators/public.decorator';
 import { ShopId } from '../common/shop-context';
 import { PortalDiscountService } from '../portal-discount/portal-discount.service';
+import { RateLimit } from '../common/rate-limit.decorator';
 
 @ApiTags('storefront')
 @Controller('shop')
@@ -59,6 +60,7 @@ export class StorefrontController {
   // checkout, so a shopper who previews a code and then abandons their cart
   // hasn't spent one of its limited uses.
   @Public()
+  @RateLimit(20, 60)
   @Get('discounts/validate')
   async validateDiscount(@ShopId() shopId: string, @Query('code') code: string, @Query('subtotalKes') subtotalKes: string) {
     const resolved = await this.discounts.resolveForCheckout(shopId, code || '', Number(subtotalKes) || 0);

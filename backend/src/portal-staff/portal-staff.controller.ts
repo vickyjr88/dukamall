@@ -5,6 +5,7 @@ import { ShopRole } from '@prisma/client';
 import { PortalStaffService } from './portal-staff.service';
 import { ShopId } from '../common/shop-context';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
 
 class InviteStaffDto {
   @IsEmail() email!: string;
@@ -24,11 +25,13 @@ export class PortalStaffController {
     return this.portalStaffService.list(shopId);
   }
 
+  @Roles('OWNER')
   @Post()
   invite(@ShopId() shopId: string, @CurrentUser() user: { role: string }, @Body() dto: InviteStaffDto) {
     return this.portalStaffService.invite(shopId, user.role, dto);
   }
 
+  @Roles('OWNER')
   @Delete(':userId')
   remove(@ShopId() shopId: string, @CurrentUser() user: { id: string; role: string }, @Param('userId') userId: string) {
     return this.portalStaffService.remove(shopId, user.role, user.id, userId);

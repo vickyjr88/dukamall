@@ -2,11 +2,14 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Granularity, PortalAnalyticsService } from './portal-analytics.service';
 import { ShopId } from '../common/shop-context';
+import { Roles } from '../auth/decorators/roles.decorator';
 import { parseRangeEnd } from '../common/date-range';
 
 @ApiTags('portal-analytics')
 @ApiBearerAuth()
 @Controller('portal/analytics')
+// Owner-only: revenue and customer figures are the owner business data.
+@Roles('OWNER')
 export class PortalAnalyticsController {
   constructor(private portalAnalyticsService: PortalAnalyticsService) {}
 

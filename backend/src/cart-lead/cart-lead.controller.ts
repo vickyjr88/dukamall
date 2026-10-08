@@ -4,6 +4,7 @@ import { CartLeadService } from './cart-lead.service';
 import { RecordCartLeadDto } from './cart-lead.dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { ShopId } from '../common/shop-context';
+import { RateLimit } from '../common/rate-limit.decorator';
 
 @ApiTags('cart-lead')
 @Controller('cart-leads')
@@ -11,6 +12,7 @@ export class CartLeadController {
   constructor(private cartLeadService: CartLeadService) {}
 
   @Public()
+  @RateLimit(20, 60)
   @Post()
   record(@ShopId() shopId: string, @Body() dto: RecordCartLeadDto) {
     return this.cartLeadService.record(shopId, dto);

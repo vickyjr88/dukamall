@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { CustomerAuthModule } from './customer-auth/customer-auth.module';
 import { CustomerAccountModule } from './customer-account/customer-account.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 import { ShopScopeGuard } from './common/shop-scope.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 import { ShopModule } from './shop/shop.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { ProductFeedModule } from './product-feed/product-feed.module';
@@ -32,6 +34,12 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
 
 @Module({
   imports: [
+    // Provides the counters; limits are applied per route with @RateLimit(),
+    // not globally -- see common/rate-limit.decorator.ts.
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: 60 }],
+      errorMessage: 'Too many attempts. Please wait a moment and try again.',
+    }),
     PrismaModule,
     AuthModule,
     CustomerAuthModule,
@@ -67,6 +75,9 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     // providers in registration order.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: ShopScopeGuard },
+    // Last: needs request.user from JwtAuthGuard. Only acts on routes marked
+    // @Roles(...); everything else passes through untouched.
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
