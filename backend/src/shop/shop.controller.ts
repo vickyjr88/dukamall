@@ -8,6 +8,7 @@ import { NoShopScope } from '../auth/decorators/no-shop-scope.decorator';
 import { ShopId } from '../common/shop-context';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UpdateShopSettingsDto } from './shop-settings.dto';
+import { UpdateStorefrontDto, UpdateThemeDto } from './storefront-content.dto';
 
 class RequestDomainDto {
   @IsString() @IsNotEmpty() domain!: string;
@@ -53,8 +54,21 @@ export class ShopController {
 
   @Roles('OWNER')
   @Put('portal/theme')
-  updateTheme(@ShopId() shopId: string, @Body() body: Record<string, string>) {
-    return this.shopService.updateTheme(shopId, body);
+  updateTheme(@ShopId() shopId: string, @Body() dto: UpdateThemeDto) {
+    return this.shopService.updateTheme(shopId, dto);
+  }
+
+  // Shop name, tagline, contact details, social links, announcement bar and
+  // the home page's search description -- the words around the catalogue.
+  @Get('portal/storefront')
+  getStorefrontContent(@ShopId() shopId: string) {
+    return this.shopService.getStorefrontContent(shopId);
+  }
+
+  @Roles('OWNER')
+  @Put('portal/storefront')
+  updateStorefrontContent(@ShopId() shopId: string, @Body() dto: UpdateStorefrontDto) {
+    return this.shopService.updateStorefrontContent(shopId, dto);
   }
 
   // The curated list a shop picks from -- design doc S:1.4, "not open

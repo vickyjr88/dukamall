@@ -10,7 +10,7 @@ import { StorefrontSearch } from './storefront-search';
 export async function generateMetadata(): Promise<Metadata> {
   const [shopInfo, theme] = await Promise.all([getShopInfo(), getTheme()]);
   const origin = currentOrigin();
-  const description = `Shop ${shopInfo.name} -- new arrivals added regularly.`;
+  const description = shopInfo.seoDescription || `Shop ${shopInfo.name} -- new arrivals added regularly.`;
   return {
     title: shopInfo.name,
     description,
@@ -67,10 +67,10 @@ export default async function HomePage({
           </div>
         ) : null}
         <div className="shop-hero-content">
-          <span className="eyebrow">New arrivals</span>
-          <h1>{shopInfo.name}</h1>
-          <p>Shop the latest drop -- new pieces added regularly, while stock lasts.</p>
-          <a href="#catalog" className="btn btn-primary">Shop now</a>
+          <span className="eyebrow">{theme.heroEyebrow || 'New arrivals'}</span>
+          <h1>{theme.heroHeadline || shopInfo.name}</h1>
+          <p>{theme.heroSubtitle || 'Shop the latest drop -- new pieces added regularly, while stock lasts.'}</p>
+          <a href="#catalog" className="btn btn-primary">{theme.heroButtonLabel || 'Shop now'}</a>
         </div>
       </section>
 

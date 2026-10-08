@@ -47,6 +47,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
   const [slug, setSlug] = useState(product?.slug ?? '');
   const [slugTouched, setSlugTouched] = useState(editing);
   const [description, setDescription] = useState(product?.description ?? '');
+  const [seoTitle, setSeoTitle] = useState(product?.seoTitle ?? '');
+  const [seoDescription, setSeoDescription] = useState(product?.seoDescription ?? '');
   const [brand, setBrand] = useState(product?.brand ?? '');
   const [categoryId, setCategoryId] = useState(product?.categoryId ?? '');
   const [isFeatured, setIsFeatured] = useState(product?.isFeatured ?? false);
@@ -82,8 +84,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
 
   // Unsaved-changes guard.
   const snapshot = useMemo(
-    () => JSON.stringify({ name, slug, description, brand, categoryId, isFeatured, isActive, images, rows: rows.map(({ key, ...r }) => r) }),
-    [name, slug, description, brand, categoryId, isFeatured, isActive, images, rows],
+    () => JSON.stringify({ name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, rows: rows.map(({ key, ...r }) => r) }),
+    [name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, rows],
   );
   const savedSnapshot = useRef<string | null>(null);
   const rebaseNext = useRef(false);
@@ -171,6 +173,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
             name: name.trim(),
             ...(slugTouched && slug.trim() ? { slug: slugify(slug) } : {}),
             description: description.trim() || undefined,
+            seoTitle: seoTitle.trim() || undefined,
+            seoDescription: seoDescription.trim() || undefined,
             brand: brand.trim() || undefined,
             categoryId: categoryId || undefined,
             imageUrls: images,
@@ -193,6 +197,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
           name: name.trim(),
           slug: slugify(slug),
           description,
+          seoTitle,
+          seoDescription,
           brand,
           categoryId: categoryId || null,
           imageUrls: images,
@@ -219,6 +225,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
       setName(saved.name);
       setSlug(saved.slug);
       setDescription(saved.description ?? '');
+      setSeoTitle(saved.seoTitle ?? '');
+      setSeoDescription(saved.seoDescription ?? '');
       setBrand(saved.brand ?? '');
       setCategoryId(saved.categoryId ?? '');
       setIsFeatured(saved.isFeatured);
@@ -369,6 +377,21 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
                 {images.length ? 'Add more images' : 'Add images'}
               </button>
               <span style={{ fontSize: 13, color: 'var(--p-muted)' }}>{images.length} of {MAX_IMAGES}. The first image is the main one shown in the shop and in link previews.</span>
+            </div>
+          </div>
+
+          <div className="portal-card">
+            <h4>Search &amp; sharing</h4>
+            <p className="hint" style={{ marginTop: 0 }}>Optional. How this product reads in Google and in WhatsApp previews. Leave blank to use the name and description.</p>
+            <div className="portal-field">
+              <label htmlFor="pe-seo-title">Page title</label>
+              <input id="pe-seo-title" value={seoTitle} onChange={(e) => setSeoTitle(e.target.value)} maxLength={70} placeholder={name ? `${name} | your shop` : ''} />
+              <span className="hint">{seoTitle.length} / 70</span>
+            </div>
+            <div className="portal-field">
+              <label htmlFor="pe-seo-description">Page description</label>
+              <textarea id="pe-seo-description" rows={3} value={seoDescription} onChange={(e) => setSeoDescription(e.target.value)} maxLength={300} placeholder={description.trim().slice(0, 160)} />
+              <span className="hint">{seoDescription.length} / 300 &mdash; about 160 shows in full.</span>
             </div>
           </div>
 

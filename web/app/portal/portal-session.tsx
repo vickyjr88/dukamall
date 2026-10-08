@@ -15,7 +15,7 @@ const ROLE_KEY = 'shops_platform_role';
  * buttons that would only fail. Keep in step with the @Roles('OWNER') routes
  * in the backend.
  */
-export const OWNER_ONLY_PATHS = ['/portal/analytics', '/portal/discounts', '/portal/theme', '/portal/domain'];
+export const OWNER_ONLY_PATHS = ['/portal/analytics', '/portal/discounts', '/portal/theme', '/portal/storefront', '/portal/pages', '/portal/domain'];
 
 type Session = { me: PortalMe | null; role: PortalRole | null; isOwner: boolean; ready: boolean };
 const SessionContext = createContext<Session>({ me: null, role: null, isOwner: false, ready: false });

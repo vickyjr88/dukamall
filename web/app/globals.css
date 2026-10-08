@@ -1162,3 +1162,16 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 
 .notfound-footnote { margin-top: var(--shop-space-6); text-align: center; font-size: var(--shop-text-sm); color: var(--shop-muted); }
 .notfound-footnote a { font-weight: 700; color: var(--shop-ink); border-bottom: 1px solid var(--shop-ink); }
+
+/* -----------------------------------------------------------------------
+   Content pages (/pages/<slug>) and the rich-text blocks inside them
+   -------------------------------------------------------------------- */
+.shop-page { max-width: 760px; padding-top: var(--shop-space-7); padding-bottom: var(--shop-space-7); }
+.shop-page h1 { margin-bottom: var(--shop-space-5); }
+.shop-prose { font-size: var(--shop-text-base, 1rem); line-height: 1.7; }
+.shop-prose > * + * { margin-top: var(--shop-space-4); }
+.shop-prose h2 { font-size: var(--shop-text-xl, 1.4rem); margin-top: var(--shop-space-6); }
+.shop-prose h3 { font-size: var(--shop-text-lg, 1.15rem); margin-top: var(--shop-space-5); }
+.shop-prose ul, .shop-prose ol { padding-left: 1.25em; display: flex; flex-direction: column; gap: var(--shop-space-2); }
+.shop-prose a { color: var(--shop-primary); text-decoration: underline; text-underline-offset: 2px; }
+.shop-footer-text { color: var(--shop-muted); }

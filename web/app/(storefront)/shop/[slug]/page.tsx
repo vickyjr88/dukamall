@@ -14,11 +14,11 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   // description are all that shows, and "how much" is what people ask.
   const prices = product.variants.map((v) => Number(v.priceKes)).filter((n) => n > 0);
   const priceLine = prices.length ? `${shopInfo.currency} ${Math.min(...prices).toLocaleString('en-US')}` : '';
-  const body = truncate(product.description || `${product.name} at ${shopInfo.name}.`, 160);
+  const body = truncate(product.seoDescription || product.description || `${product.name} at ${shopInfo.name}.`, 160);
   const description = priceLine ? `${priceLine} - ${body}` : body;
 
   return {
-    title: `${product.name} | ${shopInfo.name}`,
+    title: product.seoTitle ? product.seoTitle : `${product.name} | ${shopInfo.name}`,
     description,
     alternates: { canonical: url },
     openGraph: {

@@ -25,6 +25,11 @@ export type ShopTheme = {
   accentColor: string;
   logoUrl: string | null;
   heroImageUrl: string | null;
+  /** Hero copy; null means "use the storefront's default wording". */
+  heroEyebrow?: string | null;
+  heroHeadline?: string | null;
+  heroSubtitle?: string | null;
+  heroButtonLabel?: string | null;
   fontPairing: string;
   layoutPreset: string;
 };
@@ -44,6 +49,9 @@ export type ShopProduct = {
   slug: string;
   name: string;
   description: string | null;
+  /** Optional search/link-preview overrides; fall back to name/description when null. */
+  seoTitle?: string | null;
+  seoDescription?: string | null;
   brand: string | null;
   imageUrls: string[];
   variants: ShopVariant[];
@@ -128,7 +136,29 @@ export type ShopInfo = {
   name: string; whatsappNumber: string | null; currency: string;
   /** Flat delivery charge and the order amount (after any discount) at which it is waived. Display only -- checkout recomputes. */
   deliveryFeeKes?: number; freeDeliveryOverKes?: number | null;
+  // Storefront copy the merchant controls; null/absent means "don't render it".
+  tagline?: string | null; announcement?: string | null; seoDescription?: string | null;
+  contactEmail?: string | null; contactPhone?: string | null; address?: string | null; openingHours?: string | null;
+  instagramUrl?: string | null; facebookUrl?: string | null; tiktokUrl?: string | null;
 };
+
+export type ShopPageLink = { slug: string; title: string; showInFooter: boolean; updatedAt: string };
+export type ShopPageContent = { slug: string; title: string; body: string; updatedAt: string };
+
+/** Published content pages (About, Delivery & returns, ...). Empty on any failure: a footer without them beats a broken page. */
+export async function getPages(shopId?: string): Promise<ShopPageLink[]> {
+  try {
+    const res = await shopFetch('/shop/pages', forShop(shopId));
+    return res.ok ? res.json() : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function getPage(slug: string): Promise<ShopPageContent | null> {
+  const res = await shopFetch(`/shop/pages/${encodeURIComponent(slug)}`);
+  return res.ok ? res.json() : null;
+}
 
 export async function getShopInfo(shopId?: string): Promise<ShopInfo> {
   const res = await shopFetch('/shop/info', forShop(shopId));

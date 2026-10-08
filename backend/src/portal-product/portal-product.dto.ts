@@ -29,6 +29,8 @@ export class CreateProductDto {
   /** Generated from the name (and made unique) when left out. */
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(120) slug?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(5000) description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(300) seoDescription?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) brand?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() categoryId?: string;
   @ApiPropertyOptional({ type: [String] })
@@ -47,6 +49,8 @@ export class UpdateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @IsNotEmpty() @MaxLength(200) name?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @IsNotEmpty() @MaxLength(120) slug?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(5000) description?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(70) seoTitle?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(300) seoDescription?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(80) brand?: string;
   /** null clears the category; leaving it out leaves it as is. */
   @ApiPropertyOptional() @IsOptional() @IsString() categoryId?: string | null;

@@ -77,7 +77,22 @@ model Shop {
   deliveryFeeKes      Decimal  @default(0) @db.Decimal(12, 2)
   freeDeliveryOverKes Decimal? @db.Decimal(12, 2)
 
+  // Storefront copy the merchant controls (portal "Store info"). All optional:
+  // the storefront falls back to sensible defaults, and anything left empty is
+  // simply not rendered.
+  tagline        String? // footer blurb under the shop name
+  announcement   String? // slim bar above the header ("Free delivery over KES 5,000")
+  seoDescription String? // home page meta description / link-preview text
+  contactEmail   String?
+  contactPhone   String?
+  address        String?
+  openingHours   String?
+  instagramUrl   String?
+  facebookUrl    String?
+  tiktokUrl      String?
+
   theme         ShopTheme?
+  pages         ShopPage[]
   staff         UserShop[]
   products      Product[]
   categories    ProductCategory[]
@@ -109,6 +124,12 @@ model ShopTheme {
   /// surface color when unset (see globals.css's .shop-hero-content, which
   /// has no .has-media modifier in that case).
   heroImageUrl String?
+  /// Home hero copy. Null falls back to the defaults the storefront shipped
+  /// with ("New arrivals" / shop name / "Shop the latest drop..." / "Shop now").
+  heroEyebrow     String?
+  heroHeadline    String?
+  heroSubtitle    String?
+  heroButtonLabel String?
   fontPairing  String @default("fraunces-manrope")
   layoutPreset String @default("sharp")
 
@@ -214,6 +235,11 @@ model Product {
   imageUrls   Json     @default("[]")
   isActive    Boolean  @default(true)
   isFeatured  Boolean  @default(false)
+
+  // Optional overrides for how the product appears in Google and link
+  // previews; empty falls back to the product name / description.
+  seoTitle       String?
+  seoDescription String?
 
   // Set only for a product created by scripts/sync-drip-emporium-feed.ts,
   // holding that feed's item_group_id -- the sync's find-key for "have I
@@ -588,6 +614,27 @@ model PageContent {
   updatedAt DateTime @updatedAt
 
   @@unique([shopId, key])
+}
+
+/// A merchant-written content page (About, Delivery & returns, Contact, ...)
+/// served at /pages/<slug>. body is plain text with a tiny markdown subset
+/// (headings, bullets, **bold**, links) rendered by the storefront itself --
+/// never raw HTML, so a page can't inject script into the shop.
+model ShopPage {
+  id           String  @id @default(cuid())
+  shopId       String
+  shop         Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  slug         String
+  title        String
+  body         String  @default("")
+  published    Boolean @default(true)
+  showInFooter Boolean @default(true)
+  position     Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, slug])
 }
 
 // ---------------------------------------------------------------------------

@@ -13,6 +13,8 @@ const LINKS = [
   { href: '/portal/customers', label: 'Customers' },
   { href: '/portal/leads', label: 'Leads' },
   { href: '/portal/theme', label: 'Theme' },
+  { href: '/portal/storefront', label: 'Store info' },
+  { href: '/portal/pages', label: 'Pages' },
   { href: '/portal/domain', label: 'Domain' },
   { href: '/portal/settings', label: 'Settings' },
 ];

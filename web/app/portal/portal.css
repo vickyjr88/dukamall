@@ -376,3 +376,10 @@
 .po-result .sizes button { padding: 4px 9px; font-size: 0.78rem; border: 1px solid var(--p-line-strong); border-radius: 4px; background: #fff; cursor: pointer; }
 .po-result .sizes button:hover { border-color: var(--p-primary); color: var(--p-primary); }
 .po-result .sizes button.is-out { color: var(--p-muted); border-style: dashed; }
+
+/* Preview of a content page's rich text inside the portal */
+.portal-prose { line-height: 1.65; font-size: 0.95rem; }
+.portal-prose > * + * { margin-top: 12px; }
+.portal-prose h2 { font-size: 1.25rem; margin-top: 20px; }
+.portal-prose h3 { font-size: 1.05rem; margin-top: 16px; }
+.portal-prose ul, .portal-prose ol { padding-left: 1.25em; display: flex; flex-direction: column; gap: 4px; }

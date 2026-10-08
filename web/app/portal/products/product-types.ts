@@ -9,7 +9,7 @@ export type ApiVariant = {
 };
 
 export type ApiProduct = {
-  id: string; name: string; slug: string; description: string | null; brand: string | null;
+  id: string; name: string; slug: string; description: string | null; seoTitle?: string | null; seoDescription?: string | null; brand: string | null;
   categoryId: string | null; imageUrls: string[]; isActive: boolean; isFeatured: boolean;
   variants: ApiVariant[];
 };

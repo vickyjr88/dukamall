@@ -1,5 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateStorefrontDto, UpdateThemeDto } from './storefront-content.dto';
+
+/** Blank/whitespace-only input means "clear it" -- the column stays null rather than holding an empty string. */
+const textOrNull = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim() || null);
+
 
 @Injectable()
 export class ShopService {
@@ -50,7 +55,56 @@ export class ShopService {
       // recomputes it (see deliveryFeeFor), so these are for display only.
       deliveryFeeKes: Number(shop.deliveryFeeKes),
       freeDeliveryOverKes: shop.freeDeliveryOverKes === null ? null : Number(shop.freeDeliveryOverKes),
+      tagline: shop.tagline,
+      announcement: shop.announcement,
+      seoDescription: shop.seoDescription,
+      contactEmail: shop.contactEmail,
+      contactPhone: shop.contactPhone,
+      address: shop.address,
+      openingHours: shop.openingHours,
+      instagramUrl: shop.instagramUrl,
+      facebookUrl: shop.facebookUrl,
+      tiktokUrl: shop.tiktokUrl,
     };
+  }
+
+  /** The portal's "Store info" form: exactly the editable storefront copy, nothing else off the Shop row. */
+  async getStorefrontContent(shopId: string) {
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+    return {
+      name: shop.name,
+      tagline: shop.tagline,
+      announcement: shop.announcement,
+      seoDescription: shop.seoDescription,
+      contactEmail: shop.contactEmail,
+      contactPhone: shop.contactPhone,
+      address: shop.address,
+      openingHours: shop.openingHours,
+      instagramUrl: shop.instagramUrl,
+      facebookUrl: shop.facebookUrl,
+      tiktokUrl: shop.tiktokUrl,
+    };
+  }
+
+  async updateStorefrontContent(shopId: string, dto: UpdateStorefrontDto) {
+    // Picked field by field (not spread) so nothing but these columns can be written.
+    await this.prisma.shop.update({
+      where: { id: shopId },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+        tagline: textOrNull(dto.tagline),
+        announcement: textOrNull(dto.announcement),
+        seoDescription: textOrNull(dto.seoDescription),
+        contactEmail: textOrNull(dto.contactEmail),
+        contactPhone: textOrNull(dto.contactPhone),
+        address: textOrNull(dto.address),
+        openingHours: textOrNull(dto.openingHours),
+        instagramUrl: textOrNull(dto.instagramUrl),
+        facebookUrl: textOrNull(dto.facebookUrl),
+        tiktokUrl: textOrNull(dto.tiktokUrl),
+      },
+    });
+    return this.getStorefrontContent(shopId);
   }
 
   // The portal's own settings read -- separate from getPublicInfo above
@@ -83,6 +137,10 @@ export class ShopService {
       accentColor: '#0f7a40',
       logoUrl: null,
       heroImageUrl: null,
+      heroEyebrow: null,
+      heroHeadline: null,
+      heroSubtitle: null,
+      heroButtonLabel: null,
       fontPairing: 'fraunces-manrope',
       layoutPreset: 'sharp',
     };
@@ -127,15 +185,21 @@ export class ShopService {
     };
   }
 
-  async updateTheme(shopId: string, data: Partial<{ primaryColor: string; accentColor: string; logoUrl: string; heroImageUrl: string; fontPairing: string; layoutPreset: string }>) {
-    // Hex-only: this is injected as raw CSS by the storefront's theme
-    // injector (design doc S:2.5) -- anything else is a CSS-injection vector.
-    for (const key of ['primaryColor', 'accentColor'] as const) {
-      const value = data[key];
-      if (value && !/^#[0-9a-fA-F]{6}$/.test(value)) {
-        throw new Error(`${key} must be a 6-digit hex color`);
-      }
-    }
+  async updateTheme(shopId: string, dto: UpdateThemeDto) {
+    // Whitelisted key by key: the row's id/shopId must never come from a request body.
+    const data = {
+      ...(dto.primaryColor ? { primaryColor: dto.primaryColor } : {}),
+      ...(dto.accentColor ? { accentColor: dto.accentColor } : {}),
+      ...(dto.fontPairing ? { fontPairing: dto.fontPairing } : {}),
+      ...(dto.layoutPreset ? { layoutPreset: dto.layoutPreset } : {}),
+      logoUrl: textOrNull(dto.logoUrl),
+      heroImageUrl: textOrNull(dto.heroImageUrl),
+      heroEyebrow: textOrNull(dto.heroEyebrow),
+      heroHeadline: textOrNull(dto.heroHeadline),
+      heroSubtitle: textOrNull(dto.heroSubtitle),
+      heroButtonLabel: textOrNull(dto.heroButtonLabel),
+    };
+    // textOrNull yields undefined for an omitted key, which Prisma leaves untouched.
     return this.prisma.shopTheme.upsert({
       where: { shopId },
       create: { shopId, ...data },
