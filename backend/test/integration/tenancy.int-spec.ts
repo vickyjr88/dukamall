@@ -107,7 +107,10 @@ describe('signup against the real database', () => {
 });
 
 describe('admin sign-in', () => {
-  it('requires the second factor when it is on, and logs failures only for real admins', async () => {
+  afterEach(() => { delete process.env.ADMIN_2FA_ENABLED; });
+
+  it('requires the second factor when the feature is on, and logs failures only for real admins', async () => {
+    process.env.ADMIN_2FA_ENABLED = 'true';
     const { generateTotpSecret, totpCode } = await import('../../src/common/totp');
     const { encryptSecret } = await import('../../src/common/secrets');
     const secret = generateTotpSecret();

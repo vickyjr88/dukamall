@@ -7,5 +7,6 @@ import { EmailModule } from '../email/email.module';
   imports: [EmailModule],
   controllers: [PasswordResetController],
   providers: [PasswordResetService],
+  exports: [PasswordResetService],
 })
 export class PasswordResetModule {}

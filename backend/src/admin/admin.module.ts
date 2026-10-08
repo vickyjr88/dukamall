@@ -6,6 +6,7 @@ import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { ShopModule } from '../shop/shop.module';
 import { EmailModule } from '../email/email.module';
 import { MediaModule } from '../media/media.module';
+import { PasswordResetModule } from '../password-reset/password-reset.module';
 import { PlatformHealthService } from './platform-health.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { PlatformHealthService } from './platform-health.service';
     ShopModule,
     EmailModule,
     MediaModule,
+    PasswordResetModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminJwtGuard, PlatformHealthService],

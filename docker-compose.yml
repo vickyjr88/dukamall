@@ -41,7 +41,10 @@ x-backend-environment: &backend-environment
   SECRETS_ENCRYPTION_KEY: ${SECRETS_ENCRYPTION_KEY:-}
   # Set to true to serve the Swagger UI at /api-docs (off by default).
   ENABLE_API_DOCS: ${ENABLE_API_DOCS:-false}
-  # Require every platform admin to enrol in two-factor sign-in before using the console.
+  # Two-factor sign-in for platform admins. OFF by default: with this false the feature is
+  # hidden and nothing asks for a code. Turn on with true, then restart the backend.
+  ADMIN_2FA_ENABLED: ${ADMIN_2FA_ENABLED:-false}
+  # Only when the above is true: make every admin enrol before they can use the console.
   ADMIN_REQUIRE_2FA: ${ADMIN_REQUIRE_2FA:-false}
   PLATFORM_DOMAIN: ${PLATFORM_DOMAIN:-dukamall.app}
   MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, MaxLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
 import { BillingPlan, ShopRole, ShopStatus } from '@prisma/client';
 import type { Response } from 'express';
 import { AdminService, AdminShopListQuery, SHOP_SORTS } from './admin.service';
@@ -50,6 +50,19 @@ class UpdateBillingDto {
   // the database as an Invalid Date and come back as a 500.
   @ValidateIf((_, v) => v !== null) @IsOptional() @IsISO8601() trialEndsAt?: string | null;
   @IsOptional() @IsString() @MaxLength(2000) billingNotes?: string;
+}
+
+class ChangeStaffRoleDto {
+  @IsIn(['OWNER', 'STAFF']) role!: ShopRole;
+}
+
+class UpdateShopDetailsDto {
+  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(80) name?: string;
+  @IsOptional() @IsIn(['KES', 'UGX', 'TZS', 'USD']) currency?: string;
+  // Digits with an optional leading +; empty clears it.
+  @ValidateIf((_, v) => v !== '' && v !== null) @IsOptional() @Matches(/^\+?[0-9 ()-]{7,20}$/, { message: 'whatsappNumber must be a phone number' }) whatsappNumber?: string | null;
+  @IsOptional() @IsString() @Matches(/^[A-Z0-9]{2,8}$/, { message: 'orderPrefix must be 2-8 uppercase letters/numbers' }) orderPrefix?: string;
+  @ValidateIf((_, v) => v !== '' && v !== null) @IsOptional() @IsEmail() notificationEmail?: string | null;
 }
 
 class SetSuperAdminDto {
@@ -149,6 +162,16 @@ export class AdminController {
     return this.adminService.inviteStaff(id, req.adminId, dto);
   }
 
+  @Patch('shops/:id/staff/:userId')
+  changeStaffRole(@Req() req: any, @Param('id') id: string, @Param('userId') userId: string, @Body() dto: ChangeStaffRoleDto) {
+    return this.adminService.changeStaffRole(id, req.adminId, userId, dto.role);
+  }
+
+  @Patch('shops/:id/details')
+  updateDetails(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateShopDetailsDto) {
+    return this.adminService.updateShopDetails(id, req.adminId, dto);
+  }
+
   @Delete('shops/:id/staff/:userId')
   removeStaff(@Req() req: any, @Param('id') id: string, @Param('userId') userId: string) {
     return this.adminService.removeStaff(id, req.adminId, userId);
@@ -231,6 +254,12 @@ export class AdminController {
     @Query('pageSize') pageSize?: string,
   ) {
     return this.adminService.listEmailLog({ status, kind, search, page: toInt(page), pageSize: toInt(pageSize) });
+  }
+
+  // Emails the person a password-reset link (to their own address only).
+  @Post('users/:id/send-reset')
+  sendReset(@Req() req: any, @Param('id') id: string) {
+    return this.adminService.sendPasswordReset(req.adminId, id);
   }
 
   @Patch('users/:id/super-admin')

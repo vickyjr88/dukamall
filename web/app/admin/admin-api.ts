@@ -23,5 +23,11 @@ export async function adminFetch(path: string, init: RequestInit = {}) {
     window.localStorage.removeItem('shops_platform_admin_token');
     window.location.replace('/admin/login');
   }
+  // The platform requires two-factor sign-in and this admin hasn't set it up: the
+  // API refuses everything except the setup routes, so go there.
+  if (res.status === 403 && !window.location.pathname.startsWith('/admin/security')) {
+    const body = await res.clone().json().catch(() => null);
+    if (body?.code === 'two_factor_required') window.location.replace('/admin/security');
+  }
   return res;
 }

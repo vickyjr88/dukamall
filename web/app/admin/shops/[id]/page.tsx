@@ -15,7 +15,7 @@ type AuditEntry = { id: string; action: string; reason: string | null; metadata:
 type BillingPlan = 'TRIAL' | 'BASIC' | 'PRO';
 type ShopDetail = {
   id: string; slug: string; name: string; customDomain: string | null;
-  status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED'; currency: string; whatsappNumber: string | null;
+  status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED'; currency: string; whatsappNumber: string | null; orderPrefix: string; notificationEmail: string | null;
   pendingDomain: string | null; domainVerifiedAt: string | null; createdAt: string;
   paymentReady: boolean;
   billingPlan: BillingPlan; trialEndsAt: string | null; billingNotes: string | null; trialExpiringSoon: boolean;
@@ -65,6 +65,10 @@ export default function ShopDetailPage() {
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingSaved, setBillingSaved] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [detailsForm, setDetailsForm] = useState({ name: '', currency: 'KES', whatsappNumber: '', orderPrefix: '', notificationEmail: '' });
+  const [detailsBusy, setDetailsBusy] = useState(false);
 
   async function load() {
     const res = await adminFetch(`/admin/shops/${params.id}`);
@@ -180,6 +184,62 @@ export default function ShopDetailPage() {
     await load();
   }
 
+  async function onChangeRole(userId: string, role: 'OWNER' | 'STAFF') {
+    if (!shop) return;
+    setNotice(null);
+    const res = await adminFetch(`/admin/shops/${shop.id}/staff/${userId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setNotice({ ok: false, text: data?.message || 'Could not change the role' });
+    } else {
+      setNotice({ ok: true, text: 'Role updated.' });
+    }
+    await load(); // re-reads, so a refused change snaps the dropdown back
+  }
+
+  async function onSendReset(userId: string, email: string) {
+    if (!window.confirm(`Email a password-reset link to ${email}? The link goes to their inbox only; you won't see it.`)) return;
+    setNotice(null);
+    const res = await adminFetch(`/admin/users/${userId}/send-reset`, { method: 'POST' });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) setNotice({ ok: false, text: data?.message || 'Could not send the reset link' });
+    else setNotice({ ok: data.sent, text: data.message });
+    await load();
+  }
+
+  function startEditing() {
+    if (!shop) return;
+    setDetailsForm({
+      name: shop.name, currency: shop.currency, whatsappNumber: shop.whatsappNumber ?? '',
+      orderPrefix: shop.orderPrefix, notificationEmail: shop.notificationEmail ?? '',
+    });
+    setNotice(null);
+    setEditing(true);
+  }
+
+  async function onSaveDetails(e: React.FormEvent) {
+    e.preventDefault();
+    if (!shop) return;
+    setDetailsBusy(true);
+    setNotice(null);
+    const res = await adminFetch(`/admin/shops/${shop.id}/details`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...detailsForm, orderPrefix: detailsForm.orderPrefix.toUpperCase() }),
+    });
+    setDetailsBusy(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setNotice({ ok: false, text: Array.isArray(data?.message) ? data.message.join(', ') : data?.message || 'Could not save the details' });
+      return;
+    }
+    setEditing(false);
+    setNotice({ ok: true, text: 'Shop details updated.' });
+    await load();
+  }
+
   async function onSaveBilling(e: React.FormEvent) {
     e.preventDefault();
     if (!shop) return;
@@ -255,15 +315,59 @@ export default function ShopDetailPage() {
         <Stat label="Revenue" value={`KES ${shop.orderSummary.totalRevenueKes.toLocaleString()}`} />
       </div>
 
+      {notice ? <div className={`admin-alert ${notice.ok ? 'is-success' : 'is-error'}`}>{notice.text}</div> : null}
+
       <div className="admin-card" style={{ marginBottom: 12 }}>
-        <h4>Shop info</h4>
-        <table className="admin-table">
-          <tbody>
-            <tr><td style={{ fontWeight: 600, width: 160 }}>WhatsApp number</td><td>{shop.whatsappNumber ?? <span style={{ color: 'var(--a-muted)' }}>Not set</span>}</td></tr>
-            <tr><td style={{ fontWeight: 600 }}>Currency</td><td>{shop.currency}</td></tr>
-            <tr><td style={{ fontWeight: 600 }}>Created</td><td>{new Date(shop.createdAt).toLocaleString()}</td></tr>
-          </tbody>
-        </table>
+        <h4 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          Shop info
+          {!editing ? <button type="button" className="admin-btn-outline admin-btn admin-btn-sm" onClick={startEditing}>Edit</button> : null}
+        </h4>
+        {editing ? (
+          <form onSubmit={onSaveDetails}>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div className="admin-field" style={{ flex: '2 1 240px' }}>
+                <label htmlFor="sd-name">Shop name</label>
+                <input id="sd-name" required maxLength={80} value={detailsForm.name} onChange={(e) => setDetailsForm((f) => ({ ...f, name: e.target.value }))} />
+              </div>
+              <div className="admin-field" style={{ flex: '1 1 120px' }}>
+                <label htmlFor="sd-currency">Currency</label>
+                <select id="sd-currency" value={detailsForm.currency} onChange={(e) => setDetailsForm((f) => ({ ...f, currency: e.target.value }))}>
+                  {['KES', 'UGX', 'TZS', 'USD'].map((c) => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="admin-field" style={{ flex: '1 1 120px' }}>
+                <label htmlFor="sd-prefix">Order prefix</label>
+                <input id="sd-prefix" maxLength={8} value={detailsForm.orderPrefix} onChange={(e) => setDetailsForm((f) => ({ ...f, orderPrefix: e.target.value.toUpperCase() }))} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <div className="admin-field" style={{ flex: '1 1 220px' }}>
+                <label htmlFor="sd-wa">WhatsApp number</label>
+                <input id="sd-wa" value={detailsForm.whatsappNumber} placeholder="254712345678" onChange={(e) => setDetailsForm((f) => ({ ...f, whatsappNumber: e.target.value }))} />
+              </div>
+              <div className="admin-field" style={{ flex: '1 1 220px' }}>
+                <label htmlFor="sd-email">Order alerts go to</label>
+                <input id="sd-email" type="email" value={detailsForm.notificationEmail} placeholder="(every owner)" onChange={(e) => setDetailsForm((f) => ({ ...f, notificationEmail: e.target.value }))} />
+              </div>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--a-muted)', margin: '0 0 12px' }}>The shop&apos;s web address ({shop.slug}) can&apos;t be changed here: it is in every link the shop has shared.</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="submit" className="admin-btn" disabled={detailsBusy}>{detailsBusy ? 'Saving...' : 'Save'}</button>
+              <button type="button" className="admin-btn-ghost" onClick={() => setEditing(false)}>Cancel</button>
+            </div>
+          </form>
+        ) : (
+          <table className="admin-table">
+            <tbody>
+              <tr><td style={{ fontWeight: 600, width: 160 }}>Name</td><td>{shop.name}</td></tr>
+              <tr><td style={{ fontWeight: 600 }}>WhatsApp number</td><td>{shop.whatsappNumber ?? <span style={{ color: 'var(--a-muted)' }}>Not set</span>}</td></tr>
+              <tr><td style={{ fontWeight: 600 }}>Order alerts to</td><td>{shop.notificationEmail ?? <span style={{ color: 'var(--a-muted)' }}>Every owner</span>}</td></tr>
+              <tr><td style={{ fontWeight: 600 }}>Currency</td><td>{shop.currency}</td></tr>
+              <tr><td style={{ fontWeight: 600 }}>Order prefix</td><td>{shop.orderPrefix}</td></tr>
+              <tr><td style={{ fontWeight: 600 }}>Created</td><td>{new Date(shop.createdAt).toLocaleString()}</td></tr>
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="admin-card" style={{ marginBottom: 12 }}>
@@ -384,8 +488,14 @@ export default function ShopDetailPage() {
                 <tr key={s.userId}>
                   <td>{s.user.firstName} {s.user.lastName}</td>
                   <td>{s.user.email}</td>
-                  <td>{s.role}</td>
                   <td>
+                    <select value={s.role} aria-label={`Role of ${s.user.email}`} disabled={s.role === 'OWNER' && ownerCount <= 1} title={s.role === 'OWNER' && ownerCount <= 1 ? 'The only owner can\'t be demoted' : undefined} onChange={(e) => onChangeRole(s.userId, e.target.value as 'OWNER' | 'STAFF')}>
+                      <option value="OWNER">Owner</option>
+                      <option value="STAFF">Staff</option>
+                    </select>
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="admin-btn-ghost" onClick={() => onSendReset(s.userId, s.user.email)}>Send reset link</button>
                     {s.role === 'OWNER' && ownerCount <= 1 ? (
                       <span style={{ fontSize: 12, color: 'var(--a-muted)' }}>Only owner</span>
                     ) : (

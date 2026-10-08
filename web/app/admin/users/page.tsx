@@ -27,6 +27,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function load() {
     const query = new URLSearchParams({ page: String(page) });
@@ -60,6 +61,16 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function onSendReset(user: UserRow) {
+    if (!window.confirm(`Email a password-reset link to ${user.email}? The link goes to their inbox only; you won't see it.`)) return;
+    setNotice(null);
+    setBusyId(user.id);
+    const res = await adminFetch(`/admin/users/${user.id}/send-reset`, { method: 'POST' });
+    const data = await res.json().catch(() => null);
+    setBusyId(null);
+    setNotice(res.ok ? { ok: data.sent, text: data.message } : { ok: false, text: data?.message || 'Could not send the reset link' });
+  }
+
   return (
     <div>
       <div className="admin-page-head"><h3>Users</h3></div>
@@ -80,6 +91,7 @@ export default function AdminUsersPage() {
       </div>
 
       {error ? <div className="admin-alert is-error">{error}</div> : null}
+      {notice ? <div className={`admin-alert ${notice.ok ? 'is-success' : 'is-error'}`}>{notice.text}</div> : null}
 
       {!users ? <p>Loading...</p> : users.length === 0 ? (
         <div className="admin-empty">{search || onlyAdmins ? 'No users match that.' : 'No users yet.'}</div>
@@ -103,7 +115,8 @@ export default function AdminUsersPage() {
                   </td>
                   <td style={user.lastLoginAt ? undefined : muted} title={user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : undefined}>{ago(user.lastLoginAt)}</td>
                   <td><span className={`admin-badge ${user.isSuperAdmin ? 'is-active' : 'is-trial'}`}>{user.isSuperAdmin ? 'Admin' : 'No'}</span></td>
-                  <td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="admin-btn-ghost" onClick={() => onSendReset(user)} disabled={busyId === user.id}>Send reset link</button>
                     <button
                       className={user.isSuperAdmin ? 'admin-btn-ghost' : 'admin-btn-outline admin-btn admin-btn-sm'}
                       onClick={() => onToggleAdmin(user)}

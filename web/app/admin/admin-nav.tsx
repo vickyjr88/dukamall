@@ -19,7 +19,7 @@ const LINKS = [
 // do nothing) makes sense here, mirroring portal/portal-nav.tsx.
 const NO_NAV_PATHS = ['/admin/login', '/admin/forgot-password', '/admin/reset-password'];
 
-export function AdminNav() {
+export function AdminNav({ showSecurity = false }: { showSecurity?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -32,7 +32,7 @@ export function AdminNav() {
 
   return (
     <nav className="admin-nav">
-      {LINKS.map((link) => (
+      {[...LINKS, ...(showSecurity ? [{ href: '/admin/security', label: 'Security' }] : [])].map((link) => (
         <Link key={link.href} href={link.href} className={pathname.startsWith(link.href) ? 'is-active' : ''}>
           {link.label}
         </Link>

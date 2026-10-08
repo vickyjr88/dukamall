@@ -62,7 +62,19 @@ export class PasswordResetService {
     // matched -- a different response here would let anyone enumerate
     // which email addresses have an account on the platform.
     if (!user) return { success: true };
-    if (await this.resetQuotaExceeded(PasswordResetAccountKind.STAFF, user.id)) return { success: true };
+    await this.sendStaffResetLink(user);
+    return { success: true };
+  }
+
+  /**
+   * Creates a reset token for a staff/admin account and emails the link. Used by
+   * the public "forgot password" form (which hides the outcome) and by an
+   * operator helping a merchant (which reports it). The link is only ever emailed
+   * to the account's own address -- the operator never sees it, so a support
+   * action can't be used to take over an account.
+   */
+  async sendStaffResetLink(user: { id: string; email: string }): Promise<'sent' | 'rate_limited' | 'email_failed'> {
+    if (await this.resetQuotaExceeded(PasswordResetAccountKind.STAFF, user.id)) return 'rate_limited';
 
     const token = randomBytes(32).toString('hex');
     await this.prisma.passwordResetToken.create({
@@ -76,8 +88,8 @@ export class PasswordResetService {
 
     const resetUrl = `${await this.staffOriginFor(user.id)}/portal/reset-password?token=${token}`;
     const { subject, html } = passwordResetEmail({ shopName: 'Shops Platform', resetUrl });
-    await this.email.send(user.email, subject, html, undefined, { kind: 'reset' });
-    return { success: true };
+    const sent = await this.email.send(user.email, subject, html, undefined, { kind: 'reset' });
+    return sent ? 'sent' : 'email_failed';
   }
 
   /**

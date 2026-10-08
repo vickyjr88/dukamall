@@ -1,10 +1,11 @@
-import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { findUserByEmail } from '../common/user-email';
 import { decryptSecret, encryptSecret } from '../common/secrets';
+import { adminTwoFactorEnabled, adminTwoFactorRequired } from '../common/feature-flags';
 import {
   currentStep, generateTotpSecret, hashRecoveryCode, newRecoveryCodes, otpauthUrl, verifyTotp,
 } from '../common/totp';
@@ -44,7 +45,7 @@ export class AdminAuthService {
 
     // Password right, but this account uses a second factor: no session yet,
     // only a short-lived ticket that is good for nothing except the code check.
-    if (user.totpEnabledAt) {
+    if (adminTwoFactorEnabled() && user.totpEnabledAt) {
       return { requiresTwoFactor: true as const, challengeToken: this.jwtService.sign({ kind: 'admin-2fa', sub: user.id }, { expiresIn: CHALLENGE_TTL }) };
     }
     return this.complete(user);
@@ -52,6 +53,8 @@ export class AdminAuthService {
 
   /** Second step of login: the authenticator code (or a recovery code) plus the ticket from login(). */
   async verifyTwoFactor(challengeToken: string, code?: string, recoveryCode?: string) {
+    // A ticket issued before the feature was switched off is no longer honoured.
+    if (!adminTwoFactorEnabled()) throw new UnauthorizedException('Please log in again.');
     let payload: { kind?: string; sub?: string };
     try {
       payload = this.jwtService.verify(challengeToken);
@@ -127,18 +130,28 @@ export class AdminAuthService {
 
   // ---- managing your own two-factor setup ---------------------------------
 
+  /** Throws unless the feature is switched on, so a disabled platform exposes no setup routes at all. */
+  private assertAvailable() {
+    if (!adminTwoFactorEnabled()) throw new NotFoundException('Two-factor sign-in is not available.');
+  }
+
   async twoFactorStatus(adminId: string) {
+    // The one route that still answers when the feature is off, so the console
+    // knows to hide the Security page and the reminders.
+    if (!adminTwoFactorEnabled()) return { available: false, enabled: false, enabledAt: null, recoveryCodesLeft: 0, required: false };
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: adminId } });
     return {
+      available: true,
       enabled: Boolean(user.totpEnabledAt),
       enabledAt: user.totpEnabledAt,
       recoveryCodesLeft: ((user.totpRecoveryHashes as string[] | null) ?? []).length,
-      required: process.env.ADMIN_REQUIRE_2FA === 'true',
+      required: adminTwoFactorRequired(),
     };
   }
 
   /** Starts enrolment: a fresh secret to put in an authenticator app. Not active until confirmed with a code. */
   async beginSetup(adminId: string) {
+    this.assertAvailable();
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: adminId } });
     if (user.totpEnabledAt) throw new BadRequestException('Two-factor sign-in is already on. Turn it off first to set it up again.');
     const secret = generateTotpSecret();
@@ -148,6 +161,7 @@ export class AdminAuthService {
 
   /** Confirms enrolment with a first code, switches it on, and returns the one-time recovery codes. */
   async enable(adminId: string, code: string) {
+    this.assertAvailable();
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: adminId } });
     if (user.totpEnabledAt) throw new BadRequestException('Two-factor sign-in is already on.');
     const secret = decryptSecret(user.totpSecret);
@@ -165,7 +179,8 @@ export class AdminAuthService {
   }
 
   async disable(adminId: string, password: string, code?: string, recoveryCode?: string) {
-    if (process.env.ADMIN_REQUIRE_2FA === 'true') {
+    this.assertAvailable();
+    if (adminTwoFactorRequired()) {
       throw new ForbiddenException('Two-factor sign-in is required for all platform admins and can\'t be turned off.');
     }
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: adminId } });
@@ -186,6 +201,7 @@ export class AdminAuthService {
 
   /** A fresh set of recovery codes (the old ones stop working); needs a current authenticator code. */
   async regenerateRecoveryCodes(adminId: string, code: string) {
+    this.assertAvailable();
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: adminId } });
     if (!user.totpEnabledAt) throw new BadRequestException('Two-factor sign-in is not on.');
     this.assertNotLocked(adminId);

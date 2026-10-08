@@ -10,6 +10,7 @@ import { shopStatusEmail, staffInviteEmail } from '../email/email-templates';
 import { storefrontOriginForShop } from '../common/storefront-origin';
 import { IMPERSONATION_TTL_SECONDS } from '../common/impersonation';
 import { findUserByEmail, normaliseEmail } from '../common/user-email';
+import { PasswordResetService } from '../password-reset/password-reset.service';
 
 const TRIAL_EXPIRING_SOON_DAYS = 7;
 
@@ -47,6 +48,7 @@ export class AdminService {
     private jwtService: JwtService,
     private domainVerification: DomainVerificationService,
     private email: EmailService,
+    private passwordReset?: PasswordResetService,
   ) {}
 
   /**
@@ -707,5 +709,76 @@ export class AdminService {
       totalPages: Math.max(1, Math.ceil(total / pageSize)),
       last7Days: { sent: count('SENT'), failed: count('FAILED'), skipped: count('SKIPPED') },
     };
+  }
+
+  // ---- support tools ------------------------------------------------------
+
+  /**
+   * Emails a staff member (or admin) a password-reset link, for when they can't
+   * get in. The link goes only to the account's own address; nothing here shows
+   * it to the operator. Counts toward the same 3-per-hour limit as the public form.
+   */
+  async sendPasswordReset(adminId: string, userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+    if (!user) throw new NotFoundException('User not found');
+    const outcome = await this.passwordReset!.sendStaffResetLink(user);
+    if (outcome === 'rate_limited') {
+      throw new BadRequestException('A reset link was already sent to this person 3 times in the last hour. Ask them to check their inbox and spam folder, or try again later.');
+    }
+    await this.logAction(adminId, null, 'user.reset_sent', undefined, { userId, email: user.email, delivered: outcome === 'sent' });
+    return {
+      email: user.email,
+      sent: outcome === 'sent',
+      message: outcome === 'sent'
+        ? `A reset link was emailed to ${user.email}. It expires in 1 hour.`
+        : 'The link was created but the email could not be sent. Check the email log and the email settings.',
+    };
+  }
+
+  /**
+   * Changes someone's role in a shop (owner <-> staff). Refuses to demote a
+   * shop's only owner -- nobody could then manage it -- the same rule removeStaff
+   * applies.
+   */
+  async changeStaffRole(shopId: string, adminId: string, userId: string, role: ShopRole) {
+    const membership = await this.prisma.userShop.findUnique({
+      where: { userId_shopId: { userId, shopId } },
+      include: { user: { select: { email: true } } },
+    });
+    if (!membership) throw new NotFoundException('This person does not have access to this shop');
+    if (membership.role === role) return { userId, role };
+
+    if (membership.role === 'OWNER' && role !== 'OWNER') {
+      const ownerCount = await this.prisma.userShop.count({ where: { shopId, role: 'OWNER' } });
+      if (ownerCount <= 1) throw new BadRequestException('Cannot demote the only owner of a shop. Make someone else an owner first.');
+    }
+    await this.prisma.userShop.update({ where: { userId_shopId: { userId, shopId } }, data: { role } });
+    await this.logAction(adminId, shopId, 'staff.role_changed', undefined, { userId, email: membership.user.email, from: membership.role, to: role });
+    return { userId, role };
+  }
+
+  /**
+   * Corrects a shop's basic details on a merchant's behalf (a misspelt name, the
+   * wrong WhatsApp number). The address (slug) is deliberately not editable here:
+   * it is in every link the shop has shared.
+   */
+  async updateShopDetails(shopId: string, adminId: string, data: { name?: string; currency?: string; whatsappNumber?: string | null; orderPrefix?: string; notificationEmail?: string | null }) {
+    const shop = await this.prisma.shop.findUnique({ where: { id: shopId } });
+    if (!shop) throw new NotFoundException('Shop not found');
+
+    const clean = (v?: string | null) => (v === undefined ? undefined : v?.trim() || null);
+    const next = {
+      ...(data.name !== undefined ? { name: data.name.trim() } : {}),
+      ...(data.currency !== undefined ? { currency: data.currency } : {}),
+      ...(data.orderPrefix !== undefined ? { orderPrefix: data.orderPrefix } : {}),
+      ...(data.whatsappNumber !== undefined ? { whatsappNumber: clean(data.whatsappNumber) } : {}),
+      ...(data.notificationEmail !== undefined ? { notificationEmail: clean(data.notificationEmail) } : {}),
+    };
+    const changed = (Object.keys(next) as (keyof typeof next)[]).filter((k) => (next as Record<string, unknown>)[k] !== (shop as Record<string, unknown>)[k]);
+    if (changed.length === 0) return this.getShop(shopId);
+
+    await this.prisma.shop.update({ where: { id: shopId }, data: next });
+    await this.logAction(adminId, shopId, 'shop.details_updated', undefined, { fields: changed });
+    return this.getShop(shopId);
   }
 }

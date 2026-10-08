@@ -9,6 +9,39 @@ export default function AdminLoginPage() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Set when the password was right but this account also needs an authenticator code.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [useRecovery, setUseRecovery] = useState(false);
+
+  function finish(token: string) {
+    window.localStorage.setItem('shops_platform_admin_token', token);
+    router.push('/admin/shops');
+  }
+
+  async function onVerify(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${ADMIN_API_BASE}/admin-auth/verify-2fa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeToken: challenge, ...(useRecovery ? { recoveryCode: code.trim() } : { code: code.trim() }) }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // An expired ticket or a locked account sends them back to the start.
+        if (res.status === 429 || /log in again|expired/i.test(String(data?.message))) { setChallenge(null); setCode(''); }
+        throw new Error(Array.isArray(data?.message) ? data.message.join(', ') : data?.message || 'That did not work');
+      }
+      finish(data.access_token);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,8 +55,8 @@ export default function AdminLoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Login failed');
-      window.localStorage.setItem('shops_platform_admin_token', data.access_token);
-      router.push('/admin/shops');
+      if (data.requiresTwoFactor) { setChallenge(data.challengeToken); return; }
+      finish(data.access_token);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -36,7 +69,32 @@ export default function AdminLoginPage() {
       <div className="admin-auth-card">
         <span className="tag">Platform operator</span>
         <div className="brand">Shops Platform -- Admin</div>
-        <p className="subtitle">Log in to manage every shop on the platform.</p>
+        <p className="subtitle">{challenge ? 'Enter the code from your authenticator app.' : 'Log in to manage every shop on the platform.'}</p>
+        {challenge ? (
+          <form onSubmit={onVerify}>
+            <div className="admin-field">
+              <label htmlFor="admin-2fa-code">{useRecovery ? 'Recovery code' : '6-digit code'}</label>
+              <input
+                id="admin-2fa-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                inputMode={useRecovery ? 'text' : 'numeric'}
+                autoComplete="one-time-code"
+                autoFocus
+                required
+                placeholder={useRecovery ? 'xxxx-xxxx-xxxx' : '123456'}
+              />
+            </div>
+            {error ? <div className="admin-alert is-error">{error}</div> : null}
+            <button type="submit" className="admin-btn admin-btn-block" disabled={submitting}>{submitting ? 'Checking...' : 'Verify'}</button>
+            <p className="switch-link">
+              <a href="#" onClick={(e) => { e.preventDefault(); setUseRecovery(!useRecovery); setCode(''); setError(null); }}>
+                {useRecovery ? 'Use my authenticator app instead' : "I can't use my authenticator app"}
+              </a>
+            </p>
+            <p className="switch-link"><a href="#" onClick={(e) => { e.preventDefault(); setChallenge(null); setCode(''); setError(null); }}>Start again</a></p>
+          </form>
+        ) : (
         <form onSubmit={onSubmit}>
           <div className="admin-field">
             <label htmlFor="admin-login-email">Email</label>
@@ -51,6 +109,7 @@ export default function AdminLoginPage() {
             {submitting ? 'Logging in...' : 'Log in'}
           </button>
         </form>
+        )}
         <p className="switch-link"><a href="/admin/forgot-password">Forgot your password?</a></p>
         <p className="switch-link">Running a shop instead? <a href="/portal/login">Go to the merchant portal</a></p>
       </div>

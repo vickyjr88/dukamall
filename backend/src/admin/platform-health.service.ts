@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MediaService } from '../media/media.service';
 import { EmailService } from '../email/email.service';
 import { isEncrypted, secretsKeyConfigured } from '../common/secrets';
+import { adminTwoFactorEnabled, adminTwoFactorRequired } from '../common/feature-flags';
 
 export type HealthStatus = 'ok' | 'warn' | 'fail';
 export type HealthCheck = { key: string; label: string; status: HealthStatus; summary: string; details?: Record<string, string | number | boolean | null> };
@@ -117,11 +118,14 @@ export class PlatformHealthService {
   private async adminSecurity(): Promise<HealthCheck> {
     const admins = await this.prisma.user.findMany({ where: { isSuperAdmin: true }, select: { totpEnabledAt: true } });
     const withTwoFactor = admins.filter((a) => a.totpEnabledAt).length;
-    const required = process.env.ADMIN_REQUIRE_2FA === 'true';
+    const enabled = adminTwoFactorEnabled();
+    const required = adminTwoFactorRequired();
     const apiDocs = process.env.ENABLE_API_DOCS === 'true';
-    const details = { admins: admins.length, adminsWithTwoFactor: withTwoFactor, twoFactorRequired: required, apiDocsPublic: apiDocs };
+    const details = { admins: admins.length, twoFactorFeatureOn: enabled, adminsWithTwoFactor: withTwoFactor, twoFactorRequired: required, apiDocsPublic: apiDocs };
     const without = admins.length - withTwoFactor;
     if (apiDocs) return { key: 'security', label: 'Admin security', status: 'warn', summary: 'The API documentation page (/api-docs) is publicly enabled', details };
+    // Switched off on purpose (ADMIN_2FA_ENABLED): say so, rather than nag about it.
+    if (!enabled) return { key: 'security', label: 'Admin security', status: 'ok', summary: 'Two-factor sign-in is switched off (ADMIN_2FA_ENABLED); admins sign in with a password only', details };
     if (without > 0) return { key: 'security', label: 'Admin security', status: 'warn', summary: `${without} of ${admins.length} platform admin(s) do not use two-factor sign-in${required ? ' (required, so they are locked to setup)' : ''}`, details };
     return { key: 'security', label: 'Admin security', status: 'ok', summary: `All ${admins.length} platform admin(s) use two-factor sign-in`, details };
   }
