@@ -178,6 +178,17 @@
   cursor: pointer;
 }
 
+/* A link styled as a button (<a className="portal-btn">). The plain
+   `.portal-root a` rule above is more specific than `.portal-btn`, so without
+   these a link-button took the link colour -- blue text on a blue button. Keyed
+   to the .portal-btn* class names, so a new variant needs adding here too;
+   outline comes after the solid rule so a button using both classes wins. */
+
+.portal-root a.portal-btn, .portal-root a.portal-btn-danger { color: #fff; }
+.portal-root a.portal-btn-outline { color: var(--p-ink); }
+.portal-root a.portal-btn-ghost { color: var(--p-muted); text-decoration: underline; }
+.portal-root a.portal-btn:hover, .portal-root a.portal-btn-outline:hover, .portal-root a.portal-btn-danger:hover { text-decoration: none; }
+
 /* -----------------------------------------------------------------------
    Cards, tables, stat tiles
    -------------------------------------------------------------------- */

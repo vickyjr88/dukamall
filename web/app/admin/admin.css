@@ -193,6 +193,14 @@
   cursor: pointer;
 }
 
+/* A link styled as a button (<a className="admin-btn">): `.admin-root a` above
+   is more specific than `.admin-btn`, so without these it took the link
+   colour -- the same bug the portal had. Keyed to the class names above. */
+.admin-root a.admin-btn { color: #fff; }
+.admin-root a.admin-btn-outline { color: var(--a-ink); }
+.admin-root a.admin-btn-ghost { color: var(--a-muted); text-decoration: underline; }
+.admin-root a.admin-btn:hover, .admin-root a.admin-btn-outline:hover { text-decoration: none; }
+
 /* -----------------------------------------------------------------------
    Cards, tables, stat tiles
    -------------------------------------------------------------------- */
