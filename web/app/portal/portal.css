@@ -349,3 +349,30 @@
 .pe-uploads li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--p-line); }
 .pe-uploads li.is-done span:last-child { color: var(--p-success); }
 .pe-uploads li.is-error span:last-child { color: var(--p-danger); }
+
+/* Order / lead status badges beyond the payment trio above */
+.portal-badge.is-info { background: #e8edff; color: var(--p-primary); }
+.portal-badge.is-muted { background: var(--p-paper); color: var(--p-muted); border: 1px solid var(--p-line); }
+
+/* Order detail / new order */
+.po-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .po-grid { grid-template-columns: 1fr; } }
+.po-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.po-col .portal-card + .portal-card { margin-top: 0; }
+.po-totals { margin-left: auto; width: min(320px, 100%); font-size: 0.9rem; }
+.po-totals div { display: flex; justify-content: space-between; padding: 4px 0; }
+.po-totals .is-total { border-top: 1px solid var(--p-line); margin-top: 6px; padding-top: 8px; font-weight: 700; font-size: 1rem; }
+.po-kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 0.88rem; margin: 0; }
+.po-kv dt { color: var(--p-muted); }
+.po-kv dd { margin: 0; word-break: break-word; }
+.po-notes { list-style: none; margin: 0 0 12px; padding: 0; }
+.po-notes li { padding: 10px 0; border-bottom: 1px solid var(--p-line); font-size: 0.88rem; }
+.po-notes li:last-child { border-bottom: 0; }
+.po-notes .meta { color: var(--p-muted); font-size: 0.76rem; margin-bottom: 2px; }
+.po-results { border: 1px solid var(--p-line); border-radius: var(--p-radius-sm); max-height: 280px; overflow-y: auto; margin-top: 6px; }
+.po-result { padding: 10px 12px; border-bottom: 1px solid var(--p-line); }
+.po-result:last-child { border-bottom: 0; }
+.po-result .sizes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.po-result .sizes button { padding: 4px 9px; font-size: 0.78rem; border: 1px solid var(--p-line-strong); border-radius: 4px; background: #fff; cursor: pointer; }
+.po-result .sizes button:hover { border-color: var(--p-primary); color: var(--p-primary); }
+.po-result .sizes button.is-out { color: var(--p-muted); border-style: dashed; }

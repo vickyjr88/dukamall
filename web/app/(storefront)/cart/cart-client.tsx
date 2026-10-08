@@ -61,6 +61,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
     }
     lines.push('');
     lines.push(`Subtotal: ${shopInfo.currency} ${cart.subtotal.toLocaleString()}`);
+    if (deliveryFee > 0) lines.push(`Delivery: ${deliveryWaived ? 'Free' : `${shopInfo.currency} ${deliveryFee.toLocaleString()}`}`);
     lines.push('');
     const name = `${form.firstName} ${form.lastName}`.trim();
     if (name) lines.push(`Name: ${name}`);
@@ -124,7 +125,18 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
     }
   }
 
-  const total = Math.max(0, cart.subtotal - (appliedDiscount?.discountKes ?? 0));
+  // Mirrors the server's rule (deliveryFeeFor in the backend): a flat fee,
+  // waived once the amount after any discount reaches the free-delivery
+  // threshold. Shown so the total matches what checkout will charge; checkout
+  // recomputes it, so this can never change what is actually paid.
+  const afterDiscount = Math.max(0, cart.subtotal - (appliedDiscount?.discountKes ?? 0));
+  // Nothing payable (e.g. only a typed custom size) means nothing to deliver yet.
+  const deliveryFee = cart.payableLines.length > 0 ? Number(shopInfo.deliveryFeeKes ?? 0) : 0;
+  const freeOver = shopInfo.freeDeliveryOverKes ?? 0;
+  const deliveryWaived = deliveryFee > 0 && freeOver > 0 && afterDiscount >= freeOver;
+  const delivery = deliveryFee > 0 && !deliveryWaived ? deliveryFee : 0;
+  const total = afterDiscount + delivery;
+  const untilFree = deliveryFee > 0 && freeOver > 0 && !deliveryWaived ? freeOver - afterDiscount : 0;
 
   async function onCheckout() {
     setSubmitting(true);
@@ -212,6 +224,14 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
             <div className="summary-row" style={{ color: 'var(--shop-success, #0f7a40)' }}>
               <span>Discount ({appliedDiscount.code})</span><span>-KES {appliedDiscount.discountKes.toLocaleString()}</span>
             </div>
+          ) : null}
+          {deliveryFee > 0 ? (
+            <div className="summary-row"><span>Delivery</span><span>{deliveryWaived ? 'Free' : `KES ${deliveryFee.toLocaleString()}`}</span></div>
+          ) : null}
+          {untilFree > 0 ? (
+            <p style={{ fontSize: 'var(--shop-text-xs)', color: 'var(--shop-muted)', margin: '0 0 var(--shop-space-2)' }}>
+              Add KES {untilFree.toLocaleString()} more for free delivery.
+            </p>
           ) : null}
           <div className="summary-row is-total"><span>Total</span><span>KES {total.toLocaleString()}</span></div>
 

@@ -124,7 +124,11 @@ export async function getProduct(slug: string): Promise<ShopProduct | null> {
   return res.json();
 }
 
-export type ShopInfo = { name: string; whatsappNumber: string | null; currency: string };
+export type ShopInfo = {
+  name: string; whatsappNumber: string | null; currency: string;
+  /** Flat delivery charge and the order amount (after any discount) at which it is waived. Display only -- checkout recomputes. */
+  deliveryFeeKes?: number; freeDeliveryOverKes?: number | null;
+};
 
 export async function getShopInfo(shopId?: string): Promise<ShopInfo> {
   const res = await shopFetch('/shop/info', forShop(shopId));

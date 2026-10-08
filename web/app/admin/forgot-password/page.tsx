@@ -18,7 +18,7 @@ export default function AdminForgotPasswordPage() {
       await fetch(`${ADMIN_API_BASE}/password-reset/staff/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, originBaseUrl: window.location.origin }),
+        body: JSON.stringify({ email }),
       });
       setSent(true);
     } finally {

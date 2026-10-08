@@ -1,37 +1,41 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { portalFetch } from '../portal-api';
 
-type LeadLine = { id: string; name: string; size: string; quantity: number; priceKes: string; isCustomSize: boolean };
+type LeadLine = { id: string; variantId: string | null; name: string; size: string; quantity: number; priceKes: string; isCustomSize: boolean };
+type LeadStatus = 'NEW' | 'CONTACTED' | 'CONVERTED' | 'LOST';
 type CartLead = {
-  id: string; source: 'WHATSAPP_ORDER' | 'ABANDONED_CART';
+  id: string; source: 'WHATSAPP_ORDER' | 'ABANDONED_CART'; status: LeadStatus; convertedOrderId: string | null;
   customerName: string | null; customerPhone: string | null; customerEmail: string | null;
   shippingAddress: string | null; message: string | null; createdAt: string; lines: LeadLine[];
 };
 
-const SOURCE_LABEL: Record<CartLead['source'], string> = {
-  WHATSAPP_ORDER: 'WhatsApp order',
-  ABANDONED_CART: 'Abandoned cart',
-};
+const SOURCE_LABEL: Record<CartLead['source'], string> = { WHATSAPP_ORDER: 'WhatsApp order', ABANDONED_CART: 'Abandoned cart' };
+const STATUS_LABEL: Record<LeadStatus, string> = { NEW: 'New', CONTACTED: 'Contacted', CONVERTED: 'Order created', LOST: 'Lost' };
+const STATUS_CLASS: Record<LeadStatus, string> = { NEW: 'is-pending', CONTACTED: 'is-info', CONVERTED: 'is-paid', LOST: 'is-muted' };
+const TABS: { value: '' | LeadStatus; label: string }[] = [
+  { value: '', label: 'All' }, { value: 'NEW', label: 'New' }, { value: 'CONTACTED', label: 'Contacted' }, { value: 'CONVERTED', label: 'Order created' }, { value: 'LOST', label: 'Lost' },
+];
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
-// The other half of the storefront's WhatsApp-order and abandoned-cart
-// capture (CartLeadController.record) -- until this page existed, those
-// rows were only visible cross-shop from the admin console, never to the
-// merchant they actually belong to. This is the "who almost bought and
-// didn't" follow-up list: enough contact info and cart contents to call or
-// WhatsApp someone back, read-only (recording happens storefront-side).
+// People who started a WhatsApp order or left items in their cart. This is the
+// follow-up list: contact them, mark where it stands, and turn a real enquiry
+// into an order (which also counts it toward stock, revenue and conversion).
 export default function LeadsPage() {
   const [leads, setLeads] = useState<CartLead[] | null>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [status, setStatus] = useState<'' | LeadStatus>('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function load() {
     const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (status) query.set('status', status);
     const res = await portalFetch(`/portal/cart-leads?${query.toString()}`);
     if (res.ok) {
       const data = await res.json();
@@ -40,8 +44,20 @@ export default function LeadsPage() {
       setTotalPages(data.totalPages);
     }
   }
+  useEffect(() => { load(); }, [page, pageSize, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { load(); }, [page, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
+  async function setLeadStatus(id: string, next: Exclude<LeadStatus, 'CONVERTED'>) {
+    setError(null);
+    const res = await portalFetch(`/portal/cart-leads/${id}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.message || 'Could not update this lead');
+      return;
+    }
+    await load();
+  }
 
   function contactHref(lead: CartLead): string | null {
     if (!lead.customerPhone) return null;
@@ -63,49 +79,51 @@ export default function LeadsPage() {
         </label>
       </div>
 
-      <p style={{ fontSize: 13, color: 'var(--p-muted)', marginBottom: 16 }}>
-        People who started a WhatsApp order or left items in their cart without checking out -- {total} total.
+      <div className="portal-tabs">
+        {TABS.map((t) => (
+          <button key={t.value} className={status === t.value ? 'is-active' : ''} onClick={() => { setStatus(t.value); setPage(1); }}>{t.label}</button>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 13, color: 'var(--p-muted)', margin: '12px 0 16px' }}>
+        People who started a WhatsApp order or left items in their cart &mdash; {total} {status ? STATUS_LABEL[status].toLowerCase() : 'in total'}.
       </p>
+      {error ? <div className="portal-alert is-error">{error}</div> : null}
 
       {!leads ? <p>Loading...</p> : leads.length === 0 ? (
-        <div className="portal-empty">No leads yet. These show up when a shopper orders via WhatsApp or leaves items in their cart.</div>
+        <div className="portal-empty">{status ? 'No leads with that status.' : 'No leads yet. These show up when a shopper orders via WhatsApp or leaves items in their cart.'}</div>
       ) : (
-        <div className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="portal-card" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="portal-table">
-            <thead>
-              <tr><th>When</th><th>Source</th><th>Customer</th><th>Items</th><th></th></tr>
-            </thead>
+            <thead><tr><th>When</th><th>Source</th><th>Customer</th><th>Items</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {leads.map((lead) => {
                 const href = contactHref(lead);
+                const converted = lead.status === 'CONVERTED';
                 return (
                   <>
                     <tr key={lead.id}>
                       <td style={{ whiteSpace: 'nowrap' }}>{new Date(lead.createdAt).toLocaleString()}</td>
-                      <td>
-                        <span className={`portal-badge ${lead.source === 'WHATSAPP_ORDER' ? 'is-paid' : 'is-pending'}`}>
-                          {SOURCE_LABEL[lead.source]}
-                        </span>
-                      </td>
+                      <td><span className={`portal-badge ${lead.source === 'WHATSAPP_ORDER' ? 'is-paid' : 'is-pending'}`}>{SOURCE_LABEL[lead.source]}</span></td>
                       <td>
                         {lead.customerName || <span style={{ color: 'var(--p-muted)' }}>Not given</span>}
                         {lead.customerPhone ? <div style={{ fontSize: 12, color: 'var(--p-muted)' }}>{lead.customerPhone}</div> : null}
                       </td>
                       <td>{lead.lines.length} item{lead.lines.length === 1 ? '' : 's'}</td>
-                      <td style={{ display: 'flex', gap: 8 }}>
-                        <button className="portal-btn-ghost" onClick={() => setExpanded(expanded === lead.id ? null : lead.id)}>
-                          {expanded === lead.id ? 'Hide' : 'Details'}
-                        </button>
-                        {href ? (
-                          <a href={href} target="_blank" rel="noopener noreferrer" className="portal-btn portal-btn-sm">
-                            WhatsApp
-                          </a>
-                        ) : null}
+                      <td><span className={`portal-badge ${STATUS_CLASS[lead.status]}`}>{STATUS_LABEL[lead.status]}</span></td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button className="portal-btn-ghost" onClick={() => setExpanded(expanded === lead.id ? null : lead.id)}>{expanded === lead.id ? 'Hide' : 'Details'}</button>
+                        {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => lead.status === 'NEW' && void setLeadStatus(lead.id, 'CONTACTED')}>WhatsApp</a> : null}{' '}
+                        {converted && lead.convertedOrderId ? (
+                          <Link href={`/portal/orders/${lead.convertedOrderId}`} className="portal-btn portal-btn-sm">View order</Link>
+                        ) : (
+                          <Link href={`/portal/orders/new?lead=${lead.id}`} className="portal-btn portal-btn-sm">Create order</Link>
+                        )}
                       </td>
                     </tr>
                     {expanded === lead.id ? (
                       <tr key={`${lead.id}-detail`}>
-                        <td colSpan={5} style={{ background: 'var(--p-paper)' }}>
+                        <td colSpan={6} style={{ background: 'var(--p-paper)' }}>
                           <ul style={{ margin: 0, paddingLeft: 18 }}>
                             {lead.lines.map((line) => (
                               <li key={line.id}>
@@ -118,6 +136,13 @@ export default function LeadsPage() {
                             {lead.shippingAddress ? <p style={{ margin: 0 }}>Shipping address: {lead.shippingAddress}</p> : null}
                             {lead.message ? <p style={{ margin: 0 }}>Message: {lead.message}</p> : null}
                           </div>
+                          {!converted ? (
+                            <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                              {lead.status !== 'CONTACTED' ? <button className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => void setLeadStatus(lead.id, 'CONTACTED')}>Mark contacted</button> : null}
+                              {lead.status !== 'LOST' ? <button className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => void setLeadStatus(lead.id, 'LOST')}>Mark lost</button> : null}
+                              {lead.status !== 'NEW' ? <button className="portal-btn-ghost" onClick={() => void setLeadStatus(lead.id, 'NEW')}>Reset to new</button> : null}
+                            </div>
+                          ) : null}
                         </td>
                       </tr>
                     ) : null}
@@ -129,46 +154,13 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {totalPages > 1 ? <Pagination page={page} totalPages={totalPages} onChange={setPage} /> : null}
-    </div>
-  );
-}
-
-function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
-  const pages = new Set<number>([1, totalPages]);
-  for (let p = page - 2; p <= page + 2; p++) if (p >= 1 && p <= totalPages) pages.add(p);
-  const sorted = Array.from(pages).sort((a, b) => a - b);
-
-  const items: (number | 'ellipsis')[] = [];
-  let prev = 0;
-  for (const p of sorted) {
-    if (p - prev > 1) items.push('ellipsis');
-    items.push(p);
-    prev = p;
-  }
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 20 }}>
-      <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-        Previous
-      </button>
-      {items.map((item, i) =>
-        item === 'ellipsis' ? (
-          <span key={`e${i}`} style={{ padding: '0 4px', color: 'var(--p-muted)' }}>&hellip;</span>
-        ) : (
-          <button
-            key={item}
-            className={item === page ? 'portal-btn portal-btn-sm' : 'portal-btn-outline portal-btn portal-btn-sm'}
-            onClick={() => onChange(item)}
-            aria-current={item === page ? 'page' : undefined}
-          >
-            {item}
-          </button>
-        ),
-      )}
-      <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>
-        Next
-      </button>
+      {totalPages > 1 ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginTop: 20 }}>
+          <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
+          <span style={{ fontSize: 13, color: 'var(--p-muted)' }}>Page {page} of {totalPages}</span>
+          <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
+        </div>
+      ) : null}
     </div>
   );
 }

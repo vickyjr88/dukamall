@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { portalFetch } from '../portal-api';
+import {
+  FulfilmentBadge, FulfilmentStatus, OrderDetail, OrderSource, PaymentBadge, PaymentStatus, SOURCE_LABEL, money, whatsappLink,
+} from '../order-ui';
 
-type OrderLine = { id: string; quantity: number; priceKes: string; variant: { name: string; product: { name: string } } };
-type Order = {
-  id: string; orderNumber: string; status: 'PENDING' | 'PAID' | 'CANCELLED';
-  firstName: string; lastName: string; email: string | null; phone: string | null; shippingAddress: string | null;
-  totalKes: string; createdAt: string; lines: OrderLine[];
-};
+type Order = Pick<OrderDetail, 'id' | 'orderNumber' | 'status' | 'fulfilmentStatus' | 'source' | 'firstName' | 'lastName' | 'phone' | 'totalKes' | 'createdAt'>;
 
-const STATUS_FILTERS = ['ALL', 'PENDING', 'PAID', 'CANCELLED'] as const;
-const BADGE_CLASS: Record<Order['status'], string> = { PENDING: 'is-pending', PAID: 'is-paid', CANCELLED: 'is-cancelled' };
+const PAYMENT_TABS: { value: 'ALL' | PaymentStatus; label: string }[] = [
+  { value: 'ALL', label: 'All' }, { value: 'PENDING', label: 'Unpaid' }, { value: 'PAID', label: 'Paid' }, { value: 'CANCELLED', label: 'Cancelled' },
+];
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const label = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--p-muted)', textTransform: 'uppercase' } as const;
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -20,7 +21,9 @@ export default function OrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
 
-  const [filter, setFilter] = useState<typeof STATUS_FILTERS[number]>('ALL');
+  const [payment, setPayment] = useState<'ALL' | PaymentStatus>('ALL');
+  const [fulfilment, setFulfilment] = useState<'' | FulfilmentStatus>('');
+  const [source, setSource] = useState<'' | OrderSource>('');
   const [searchDraft, setSearchDraft] = useState('');
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
@@ -28,12 +31,12 @@ export default function OrdersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const [expanded, setExpanded] = useState<string | null>(null);
-
   async function load() {
     setLoading(true);
     const query = new URLSearchParams();
-    if (filter !== 'ALL') query.set('status', filter);
+    if (payment !== 'ALL') query.set('status', payment);
+    if (fulfilment) query.set('fulfilment', fulfilment);
+    if (source) query.set('source', source);
     if (search) query.set('search', search);
     if (from) query.set('from', from);
     if (to) query.set('to', to);
@@ -49,161 +52,92 @@ export default function OrdersPage() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [filter, search, from, to, page, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [payment, fulfilment, source, search, from, to, page, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function updateFilter(next: { search?: string; from?: string; to?: string }) {
-    if (next.search !== undefined) setSearch(next.search);
-    if (next.from !== undefined) setFrom(next.from);
-    if (next.to !== undefined) setTo(next.to);
-    setPage(1);
-  }
-
-  const hasFilters = Boolean(search || from || to);
-
-  async function onSetStatus(orderId: string, status: Order['status']) {
-    await portalFetch(`/portal/orders/${orderId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status }),
-    });
-    load();
-  }
-
-  // Manual send, not automatic -- see the batch's own scoping note: this
-  // just opens wa.me with a prefilled message for the merchant to review
-  // and send themselves, the same "open wa.me, don't auto-send" pattern
-  // the storefront's own WhatsApp buttons already use. No message content
-  // or send status is stored server-side.
-  const STATUS_MESSAGE: Record<Order['status'], string> = {
-    PENDING: 'we\'ve received your order and it\'s pending confirmation',
-    PAID: 'your payment has been confirmed and your order is being prepared',
-    CANCELLED: 'your order has been cancelled',
-  };
-
-  function notifyHref(order: Order): string | null {
-    if (!order.phone) return null;
-    const digits = order.phone.replace(/[^0-9]/g, '');
-    const text = `Hi ${order.firstName}, update on order ${order.orderNumber}: ${STATUS_MESSAGE[order.status]}.`;
-    return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
-  }
+  // Any filter change goes back to page 1 -- staying on page 6 of a now-3-page result shows nothing.
+  function filtered(change: () => void) { change(); setPage(1); }
+  const hasFilters = Boolean(search || from || to || fulfilment || source);
 
   return (
     <div>
-      <div className="portal-page-head"><h3>Orders</h3></div>
+      <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <h3>Orders</h3>
+        <Link href="/portal/orders/new" className="portal-btn">New order</Link>
+      </div>
 
       <div className="portal-tabs">
-        {STATUS_FILTERS.map((s) => (
-          <button key={s} className={filter === s ? 'is-active' : ''} onClick={() => { setFilter(s); setPage(1); }}>{s}</button>
+        {PAYMENT_TABS.map((t) => (
+          <button key={t.value} className={payment === t.value ? 'is-active' : ''} onClick={() => filtered(() => setPayment(t.value))}>{t.label}</button>
         ))}
       </div>
 
       <div className="portal-card" style={{ marginBottom: 16, marginTop: 12 }}>
-        <form
-          style={{ display: 'flex', gap: 8, marginBottom: 14 }}
-          onSubmit={(e) => { e.preventDefault(); updateFilter({ search: searchDraft.trim() }); }}
-        >
-          <input
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            placeholder="Search by order #, name, phone or email..."
-            aria-label="Search orders"
-            style={{ flex: 1 }}
-          />
+        <form style={{ display: 'flex', gap: 8, marginBottom: 14 }} onSubmit={(e) => { e.preventDefault(); filtered(() => setSearch(searchDraft.trim())); }}>
+          <input value={searchDraft} onChange={(e) => setSearchDraft(e.target.value)} placeholder="Search by order #, name, phone or email..." aria-label="Search orders" style={{ flex: 1 }} />
           <button type="submit" className="portal-btn">Search</button>
         </form>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-end' }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--p-muted)', textTransform: 'uppercase' }}>
-            From
-            <input type="date" value={from} onChange={(e) => updateFilter({ from: e.target.value })} />
+          <label style={label}>
+            Delivery
+            <select value={fulfilment} onChange={(e) => filtered(() => setFulfilment(e.target.value as '' | FulfilmentStatus))} style={{ minWidth: 130 }}>
+              <option value="">Any</option><option value="UNFULFILLED">To ship</option><option value="SHIPPED">Shipped</option><option value="DELIVERED">Delivered</option>
+            </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--p-muted)', textTransform: 'uppercase' }}>
-            To
-            <input type="date" value={to} onChange={(e) => updateFilter({ to: e.target.value })} />
+          <label style={label}>
+            Source
+            <select value={source} onChange={(e) => filtered(() => setSource(e.target.value as '' | OrderSource))} style={{ minWidth: 130 }}>
+              <option value="">Any</option>
+              {(Object.keys(SOURCE_LABEL) as OrderSource[]).map((s) => <option key={s} value={s}>{SOURCE_LABEL[s]}</option>)}
+            </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--p-muted)', textTransform: 'uppercase' }}>
+          <label style={label}>From<input type="date" value={from} onChange={(e) => filtered(() => setFrom(e.target.value))} /></label>
+          <label style={label}>To<input type="date" value={to} onChange={(e) => filtered(() => setTo(e.target.value))} /></label>
+          <label style={label}>
             Per page
             <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} style={{ minWidth: 90 }}>
               {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
           </label>
           {hasFilters ? (
-            <button
-              type="button"
-              className="portal-btn-ghost"
-              onClick={() => { setSearchDraft(''); setSearch(''); setFrom(''); setTo(''); setPage(1); }}
-            >
+            <button type="button" className="portal-btn-ghost" onClick={() => { setSearchDraft(''); setSearch(''); setFrom(''); setTo(''); setFulfilment(''); setSource(''); setPage(1); }}>
               Clear filters
             </button>
           ) : null}
-          <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--p-muted)' }}>
-            {loading ? 'Loading...' : `${total} order${total === 1 ? '' : 's'}`}
-          </span>
+          <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--p-muted)' }}>{loading ? 'Loading...' : `${total} order${total === 1 ? '' : 's'}`}</span>
         </div>
       </div>
 
       {!orders ? <p>Loading...</p> : orders.length === 0 ? (
-        <div className="portal-empty">No orders{filter !== 'ALL' ? ` with status ${filter}` : ''}{hasFilters ? ' match those filters' : ''} yet.</div>
+        <div className="portal-empty">{hasFilters || payment !== 'ALL' ? 'No orders match those filters.' : <>No orders yet. <Link href="/portal/orders/new">Record one</Link> or wait for the first from your shop.</>}</div>
       ) : (
-        <div className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="portal-card" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="portal-table">
             <thead>
-              <tr>
-                <th>Order</th><th>Customer</th><th>Date</th><th>Total</th><th>Status</th><th></th>
-              </tr>
+              <tr><th>Order</th><th>Customer</th><th>Date</th><th>Total</th><th>Payment</th><th>Delivery</th><th>Source</th><th></th></tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
-                <>
+              {orders.map((order) => {
+                const notify = whatsappLink(order.phone, `Hi ${order.firstName}, an update on order ${order.orderNumber}.`);
+                return (
                   <tr key={order.id}>
-                    <td>{order.orderNumber}</td>
+                    <td><Link href={`/portal/orders/${order.id}`}><strong>{order.orderNumber}</strong></Link></td>
                     <td>
                       {order.firstName} {order.lastName}
                       {order.phone ? <div style={{ fontSize: 12, color: 'var(--p-muted)' }}>{order.phone}</div> : null}
                     </td>
                     <td>{new Date(order.createdAt).toLocaleDateString()}</td>
-                    <td>KES {Number(order.totalKes).toLocaleString()}</td>
-                    <td>
-                      <span className={`portal-badge ${BADGE_CLASS[order.status]}`} style={{ marginRight: 8 }}>{order.status}</span>
-                      <select value={order.status} onChange={(e) => onSetStatus(order.id, e.target.value as Order['status'])}>
-                        <option value="PENDING">PENDING</option>
-                        <option value="PAID">PAID</option>
-                        <option value="CANCELLED">CANCELLED</option>
-                      </select>
-                    </td>
-                    <td style={{ display: 'flex', gap: 8 }}>
-                      <button className="portal-btn-ghost" onClick={() => setExpanded(expanded === order.id ? null : order.id)}>
-                        {expanded === order.id ? 'Hide' : 'Details'}
-                      </button>
-                      {notifyHref(order) ? (
-                        <a href={notifyHref(order)!} target="_blank" rel="noopener noreferrer" className="portal-btn portal-btn-sm">
-                          Notify
-                        </a>
-                      ) : null}
+                    <td>{money(order.totalKes)}</td>
+                    <td><PaymentBadge status={order.status} /></td>
+                    <td><FulfilmentBadge status={order.fulfilmentStatus} cancelled={order.status === 'CANCELLED'} /></td>
+                    <td style={{ fontSize: 13 }}>{SOURCE_LABEL[order.source]}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <Link href={`/portal/orders/${order.id}`} className="portal-btn-outline portal-btn portal-btn-sm">Open</Link>{' '}
+                      {notify ? <a href={notify} target="_blank" rel="noopener noreferrer" className="portal-btn portal-btn-sm">Notify</a> : null}
                     </td>
                   </tr>
-                  {expanded === order.id ? (
-                    <tr key={`${order.id}-detail`}>
-                      <td colSpan={6} style={{ background: 'var(--p-paper)' }}>
-                        <ul style={{ margin: 0, paddingLeft: 18 }}>
-                          {order.lines.map((line) => (
-                            <li key={line.id}>
-                              {line.quantity} x {line.variant.product.name} ({line.variant.name}) -- KES {Number(line.priceKes).toLocaleString()} each
-                            </li>
-                          ))}
-                        </ul>
-                        <div style={{ marginTop: 10, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                          {order.email ? <p style={{ margin: 0 }}>Email: {order.email}</p> : null}
-                          {order.phone ? <p style={{ margin: 0 }}>Phone: {order.phone}</p> : null}
-                          <p style={{ margin: 0 }}>
-                            Shipping address: {order.shippingAddress ?? <span style={{ color: 'var(--p-muted)' }}>Not provided</span>}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : null}
-                </>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -218,37 +152,19 @@ function Pagination({ page, totalPages, onChange }: { page: number; totalPages: 
   const pages = new Set<number>([1, totalPages]);
   for (let p = page - 2; p <= page + 2; p++) if (p >= 1 && p <= totalPages) pages.add(p);
   const sorted = Array.from(pages).sort((a, b) => a - b);
-
   const items: (number | 'ellipsis')[] = [];
   let prev = 0;
-  for (const p of sorted) {
-    if (p - prev > 1) items.push('ellipsis');
-    items.push(p);
-    prev = p;
-  }
+  for (const p of sorted) { if (p - prev > 1) items.push('ellipsis'); items.push(p); prev = p; }
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 20 }}>
-      <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
-        Previous
-      </button>
+      <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button>
       {items.map((item, i) =>
-        item === 'ellipsis' ? (
-          <span key={`e${i}`} style={{ padding: '0 4px', color: 'var(--p-muted)' }}>&hellip;</span>
-        ) : (
-          <button
-            key={item}
-            className={item === page ? 'portal-btn portal-btn-sm' : 'portal-btn-outline portal-btn portal-btn-sm'}
-            onClick={() => onChange(item)}
-            aria-current={item === page ? 'page' : undefined}
-          >
-            {item}
-          </button>
+        item === 'ellipsis' ? <span key={`e${i}`} style={{ padding: '0 4px', color: 'var(--p-muted)' }}>&hellip;</span> : (
+          <button key={item} className={item === page ? 'portal-btn portal-btn-sm' : 'portal-btn-outline portal-btn portal-btn-sm'} onClick={() => onChange(item)} aria-current={item === page ? 'page' : undefined}>{item}</button>
         ),
       )}
-      <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>
-        Next
-      </button>
+      <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next</button>
     </div>
   );
 }

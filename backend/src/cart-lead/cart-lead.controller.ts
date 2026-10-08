@@ -41,6 +41,11 @@ export class PortalCartLeadController {
     return this.cartLeadService.list(shopId, page ? Number(page) : undefined, pageSize ? Number(pageSize) : undefined, status);
   }
 
+  @Get(':id')
+  get(@ShopId() shopId: string, @Param('id') id: string) {
+    return this.cartLeadService.get(shopId, id);
+  }
+
   @Patch(':id/status')
   setStatus(@ShopId() shopId: string, @Param('id') id: string, @Body() dto: SetLeadStatusDto) {
     return this.cartLeadService.setStatus(shopId, id, dto.status);

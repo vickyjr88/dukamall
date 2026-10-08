@@ -81,11 +81,83 @@ export default function SettingsPage() {
         </form>
       </div>
 
+      <DeliveryCard />
       <PaystackCard />
       </>
       )}
       <StaffCard />
       <ChangePasswordCard />
+    </div>
+  );
+}
+
+function DeliveryCard() {
+  const [fee, setFee] = useState('0');
+  const [freeOver, setFreeOver] = useState('');
+  const [notifyEmail, setNotifyEmail] = useState('');
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    portalFetch('/portal/settings').then((r) => r.json()).then((d) => {
+      setFee(String(d.deliveryFeeKes ?? 0));
+      setFreeOver(d.freeDeliveryOverKes ? String(d.freeDeliveryOverKes) : '');
+      setNotifyEmail(d.notificationEmail ?? '');
+    });
+  }, []);
+
+  async function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    setSaved(false); setError(null); setSaving(true);
+    try {
+      const res = await portalFetch('/portal/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deliveryFeeKes: Number(fee) || 0,
+          freeDeliveryOverKes: freeOver.trim() === '' ? null : Number(freeOver),
+          notificationEmail: notifyEmail.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(Array.isArray(data?.message) ? data.message.join(' ') : data?.message || 'Could not save');
+      }
+      setSaved(true);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="portal-card" style={{ maxWidth: 480, marginBottom: 20 }}>
+      <h4>Delivery &amp; alerts</h4>
+      <form onSubmit={onSave}>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div className="portal-field" style={{ flex: 1 }}>
+            <label htmlFor="dl-fee">Delivery fee (KES)</label>
+            <input id="dl-fee" type="number" min={0} step="0.01" value={fee} onChange={(e) => setFee(e.target.value)} />
+          </div>
+          <div className="portal-field" style={{ flex: 1 }}>
+            <label htmlFor="dl-free">Free delivery over (KES)</label>
+            <input id="dl-free" type="number" min={0} step="0.01" value={freeOver} onChange={(e) => setFreeOver(e.target.value)} placeholder="Never" />
+          </div>
+        </div>
+        <span className="hint" style={{ display: 'block', marginTop: -6, marginBottom: 14 }}>
+          One flat fee added at checkout, waived once the order (after any discount) reaches the amount on the right. Set 0 for free delivery on everything.
+        </span>
+        <div className="portal-field">
+          <label htmlFor="dl-email">Send order alerts to</label>
+          <input id="dl-email" type="email" value={notifyEmail} onChange={(e) => setNotifyEmail(e.target.value)} placeholder="Every owner's email" />
+          <span className="hint">You&apos;re emailed when an order needs attention and when someone starts a WhatsApp order. Leave empty to alert every owner.</span>
+        </div>
+        {saved ? <div className="portal-alert is-success">Saved.</div> : null}
+        {error ? <div className="portal-alert is-error">{error}</div> : null}
+        <button type="submit" className="portal-btn" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+      </form>
     </div>
   );
 }

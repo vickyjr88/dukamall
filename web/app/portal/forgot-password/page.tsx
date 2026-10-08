@@ -12,14 +12,12 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      // originBaseUrl: this browser's own origin, so the emailed link points
-      // back at whichever host (platform subdomain or a shop's own custom
-      // domain) the request actually came from -- see
-      // PasswordResetService.requestStaffReset's own comment.
+      // The reset link's host is chosen by the server (a client-supplied origin
+      // would let anyone aim a victim's reset link at their own site).
       await fetch(`${PORTAL_API_BASE}/password-reset/staff/request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, originBaseUrl: window.location.origin }),
+        body: JSON.stringify({ email }),
       });
       // Always shows the same success message regardless of whether the
       // email matched an account -- matches the backend's own

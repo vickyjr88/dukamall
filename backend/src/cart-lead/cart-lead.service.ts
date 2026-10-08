@@ -29,6 +29,12 @@ export class CartLeadService {
     return { leads, total, page: safePage, pageSize: safePageSize, totalPages: Math.max(1, Math.ceil(total / safePageSize)) };
   }
 
+  async get(shopId: string, leadId: string) {
+    const lead = await this.prisma.cartLead.findFirst({ where: { id: leadId, shopId }, include: { lines: true } });
+    if (!lead) throw new NotFoundException('Lead not found');
+    return lead;
+  }
+
   async record(shopId: string, dto: RecordCartLeadDto) {
     const lead = await this.prisma.cartLead.create({
       data: {
