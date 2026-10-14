@@ -49,6 +49,87 @@ async function downloadExport(shopId: string, slug: string) {
   URL.revokeObjectURL(url);
 }
 
+type CopyPreview = {
+  source: string; target: string; dryRun: boolean; copyStock: boolean; sourceProducts: number; productsToCopy: number;
+  productsSkippedAlreadyThere: number; variantsToCopy: number; categoriesToCreate: number;
+};
+
+/** Copies another shop's catalogue into this one: preview first, then copy. Safe to run again. */
+function CopyProductsCard({ shopId, shopName, onDone }: { shopId: string; shopName: string; onDone: () => void }) {
+  const [shops, setShops] = useState<{ id: string; name: string; slug: string; productCount: number }[]>([]);
+  const [sourceId, setSourceId] = useState('');
+  const [copyStock, setCopyStock] = useState(false);
+  const [preview, setPreview] = useState<CopyPreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  useEffect(() => {
+    adminFetch('/admin/shops?pageSize=100&sort=name&dir=asc').then(async (res) => {
+      if (res.ok) setShops((await res.json()).shops.filter((s: { id: string }) => s.id !== shopId));
+    });
+  }, [shopId]);
+
+  async function run(dryRun: boolean) {
+    setBusy(true);
+    setResult(null);
+    const res = await adminFetch(`/admin/shops/${shopId}/copy-products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceShopId: sourceId, copyStock, dryRun }),
+    });
+    const data = await res.json().catch(() => null);
+    setBusy(false);
+    if (!res.ok) { setResult({ ok: false, text: Array.isArray(data?.message) ? data.message.join(', ') : data?.message || 'That did not work' }); return; }
+    if (dryRun) { setPreview(data); return; }
+    setPreview(null);
+    setResult({ ok: true, text: `Copied ${data.productsToCopy} product${data.productsToCopy === 1 ? '' : 's'} (${data.variantsToCopy} sizes) from ${data.source}.` });
+    onDone();
+  }
+
+  return (
+    <div className="admin-card" style={{ marginBottom: 12 }}>
+      <h4>Copy products from another shop</h4>
+      <p style={{ fontSize: 13, color: 'var(--a-muted)', marginTop: 0 }}>
+        Adds another shop&apos;s catalogue to <strong>{shopName}</strong>: products, sizes and prices, photos, descriptions and categories.
+        Nothing here is changed or deleted, and anything already present (same address) is skipped, so it&apos;s safe to run again later.
+      </p>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="admin-field" style={{ flex: '1 1 260px', marginBottom: 0 }}>
+          <label htmlFor="copy-source">Copy from</label>
+          <select id="copy-source" value={sourceId} onChange={(e) => { setSourceId(e.target.value); setPreview(null); setResult(null); }}>
+            <option value="">Choose a shop...</option>
+            {shops.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.productCount} products)</option>)}
+          </select>
+        </div>
+        <button type="button" className="admin-btn-outline admin-btn" disabled={!sourceId || busy} onClick={() => run(true)}>{busy && !preview ? 'Checking...' : 'Preview'}</button>
+      </div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, margin: '12px 0 0' }}>
+        <input type="checkbox" checked={copyStock} onChange={(e) => { setCopyStock(e.target.checked); setPreview(null); }} style={{ width: 'auto', marginTop: 3 }} />
+        <span>Also copy stock counts<br /><span style={{ color: 'var(--a-muted)' }}>Leave off if both shops sell the same physical stock: each size starts at 0 here, so you can set what this shop may sell and avoid selling the same pair twice.</span></span>
+      </label>
+
+      {preview ? (
+        <div className="admin-alert is-warning" style={{ marginTop: 14 }}>
+          {preview.productsToCopy === 0 ? (
+            <>Nothing to copy: all {preview.sourceProducts} of {preview.source}&apos;s products are already in {preview.target}.</>
+          ) : (
+            <>
+              This will add <strong>{preview.productsToCopy} products</strong> ({preview.variantsToCopy} sizes)
+              {preview.categoriesToCreate ? <> and {preview.categoriesToCreate} categor{preview.categoriesToCreate === 1 ? 'y' : 'ies'}</> : null} from <strong>{preview.source}</strong>
+              {preview.productsSkippedAlreadyThere ? <>; {preview.productsSkippedAlreadyThere} already here will be skipped</> : null}.
+              {preview.copyStock ? ' Stock counts will be copied.' : ' Every size will start with 0 in stock.'}
+              <div style={{ marginTop: 10 }}>
+                <button type="button" className="admin-btn" disabled={busy} onClick={() => run(false)}>{busy ? 'Copying...' : `Copy ${preview.productsToCopy} products now`}</button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : null}
+      {result ? <div className={`admin-alert ${result.ok ? 'is-success' : 'is-error'}`} style={{ marginTop: 14 }}>{result.text}</div> : null}
+    </div>
+  );
+}
+
 export default function ShopDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -369,6 +450,8 @@ export default function ShopDetailPage() {
           </table>
         )}
       </div>
+
+      <CopyProductsCard shopId={shop.id} shopName={shop.name} onDone={load} />
 
       <div className="admin-card" style={{ marginBottom: 12 }}>
         <h4>Domain</h4>

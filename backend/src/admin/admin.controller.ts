@@ -65,6 +65,14 @@ class UpdateShopDetailsDto {
   @ValidateIf((_, v) => v !== '' && v !== null) @IsOptional() @IsEmail() notificationEmail?: string | null;
 }
 
+class CopyProductsDto {
+  @IsString() @IsNotEmpty() sourceShopId!: string;
+  // Copy each size's stock count as well (default: start every size at 0).
+  @IsOptional() @IsBoolean() copyStock?: boolean;
+  // Report what would be copied without writing anything.
+  @IsOptional() @IsBoolean() dryRun?: boolean;
+}
+
 class SetSuperAdminDto {
   @IsBoolean() isSuperAdmin!: boolean;
 }
@@ -165,6 +173,12 @@ export class AdminController {
   @Patch('shops/:id/staff/:userId')
   changeStaffRole(@Req() req: any, @Param('id') id: string, @Param('userId') userId: string, @Body() dto: ChangeStaffRoleDto) {
     return this.adminService.changeStaffRole(id, req.adminId, userId, dto.role);
+  }
+
+  // Copies another shop's whole catalogue into this one (preview with dryRun).
+  @Post('shops/:id/copy-products')
+  copyProducts(@Req() req: any, @Param('id') id: string, @Body() dto: CopyProductsDto) {
+    return this.adminService.copyProducts(id, req.adminId, { sourceShopId: dto.sourceShopId, copyStock: dto.copyStock ?? false, dryRun: dto.dryRun ?? false });
   }
 
   @Patch('shops/:id/details')

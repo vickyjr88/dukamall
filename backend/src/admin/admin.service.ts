@@ -781,4 +781,104 @@ export class AdminService {
     await this.logAction(adminId, shopId, 'shop.details_updated', undefined, { fields: changed });
     return this.getShop(shopId);
   }
+
+  /**
+   * Copies one shop's catalogue into another: categories, products (names,
+   * descriptions, brands, photos, search text, active/featured flags) and every
+   * size/variant with its prices -- for opening a second storefront (e.g. on a
+   * new domain) with the same range.
+   *
+   * - Additive and re-runnable: a product whose address (slug) already exists in
+   *   the target is skipped, never overwritten, and nothing in the target is
+   *   deleted. Run it again later to pick up products added to the source since.
+   * - Photos are copied as links to the same image files, not re-uploaded.
+   * - Stock levels are copied only if asked (`copyStock`); otherwise every size
+   *   starts at 0. Two storefronts selling the same physical stock will oversell
+   *   if both show the same counts, so that choice is the operator's.
+   * - `dryRun` reports what would happen and writes nothing.
+   */
+  async copyProducts(targetShopId: string, adminId: string, opts: { sourceShopId: string; copyStock: boolean; dryRun: boolean }) {
+    if (opts.sourceShopId === targetShopId) throw new BadRequestException('Choose a different shop to copy from.');
+    const [source, target] = await Promise.all([
+      this.prisma.shop.findUnique({ where: { id: opts.sourceShopId }, select: { id: true, name: true } }),
+      this.prisma.shop.findUnique({ where: { id: targetShopId }, select: { id: true, name: true } }),
+    ]);
+    if (!source) throw new NotFoundException('The shop to copy from was not found');
+    if (!target) throw new NotFoundException('Shop not found');
+
+    const [products, sourceCategories, existingProducts, existingCategories] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { shopId: source.id },
+        include: { variants: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }, category: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.productCategory.findMany({ where: { shopId: source.id } }),
+      this.prisma.product.findMany({ where: { shopId: target.id }, select: { slug: true } }),
+      this.prisma.productCategory.findMany({ where: { shopId: target.id } }),
+    ]);
+
+    const takenSlugs = new Set(existingProducts.map((p) => p.slug));
+    const toCopy = products.filter((p) => !takenSlugs.has(p.slug));
+    const skipped = products.length - toCopy.length;
+    const targetCategoryBySlug = new Map(existingCategories.map((c) => [c.slug, c.id]));
+    // Only categories that a copied product actually uses are created.
+    const neededCategories = sourceCategories.filter((c) => toCopy.some((p) => p.categoryId === c.id) && !targetCategoryBySlug.has(c.slug));
+
+    const summary = {
+      source: source.name,
+      target: target.name,
+      dryRun: opts.dryRun,
+      copyStock: opts.copyStock,
+      sourceProducts: products.length,
+      productsToCopy: toCopy.length,
+      productsSkippedAlreadyThere: skipped,
+      variantsToCopy: toCopy.reduce((n, p) => n + p.variants.length, 0),
+      categoriesToCreate: neededCategories.length,
+    };
+    if (opts.dryRun || toCopy.length === 0) return summary;
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const c of neededCategories) {
+        const created = await tx.productCategory.create({ data: { shopId: target.id, name: c.name, slug: c.slug, isActive: c.isActive } });
+        targetCategoryBySlug.set(c.slug, created.id);
+      }
+      for (const p of toCopy) {
+        await tx.product.create({
+          data: {
+            shopId: target.id,
+            categoryId: p.category ? targetCategoryBySlug.get(p.category.slug) ?? null : null,
+            name: p.name,
+            slug: p.slug,
+            description: p.description,
+            brand: p.brand,
+            imageUrls: p.imageUrls as Prisma.InputJsonValue,
+            isActive: p.isActive,
+            isFeatured: p.isFeatured,
+            seoTitle: p.seoTitle,
+            seoDescription: p.seoDescription,
+            // syncSourceId is deliberately not copied: it marks products the feed
+            // sync owns in the SOURCE shop, and must never be matched in this one.
+            variants: {
+              create: p.variants.map((v) => ({
+                sku: v.sku,
+                name: v.name,
+                size: v.size,
+                attributes: (v.attributes ?? {}) as Prisma.InputJsonValue,
+                priceKes: v.priceKes,
+                wasPriceKes: v.wasPriceKes,
+                stockOnHand: opts.copyStock ? v.stockOnHand : 0,
+                isActive: v.isActive,
+                position: v.position,
+              })),
+            },
+          },
+        });
+      }
+    }, { timeout: 120_000, maxWait: 20_000 });
+
+    await this.logAction(adminId, target.id, 'shop.products_copied', undefined, {
+      sourceShopId: source.id, sourceName: source.name, products: toCopy.length, variants: summary.variantsToCopy, copyStock: opts.copyStock,
+    });
+    return summary;
+  }
 }
