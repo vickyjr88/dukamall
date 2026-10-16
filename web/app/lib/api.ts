@@ -140,6 +140,8 @@ export type ShopInfo = {
   tagline?: string | null; announcement?: string | null; seoDescription?: string | null;
   contactEmail?: string | null; contactPhone?: string | null; address?: string | null; openingHours?: string | null;
   instagramUrl?: string | null; facebookUrl?: string | null; tiktokUrl?: string | null;
+  // Google tracking this shop has set up (both optional).
+  ga4MeasurementId?: string | null; searchConsoleVerification?: string | null;
 };
 
 export type ShopPageLink = { slug: string; title: string; showInFooter: boolean; updatedAt: string };

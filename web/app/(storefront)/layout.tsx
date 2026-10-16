@@ -6,6 +6,7 @@ import { ShopIdProvider } from '@/app/lib/shop-id-context';
 import { ShopInfoProvider } from '@/app/lib/shop-info-context';
 import { CustomerAuthProvider } from '@/app/lib/customer-auth';
 import { WhatsAppFloat } from '@/app/whatsapp-float';
+import { GoogleAnalytics } from '@/app/lib/google-analytics';
 import { StorefrontHeader } from './storefront-header';
 import { StorefrontFooter } from './storefront-footer';
 
@@ -16,6 +17,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
   return (
     <div data-layout={theme.layoutPreset} style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <ThemeInjector theme={theme} />
+      <GoogleAnalytics measurementId={shopInfo.ga4MeasurementId} />
       <ShopIdProvider shopId={shopId}>
         <ShopInfoProvider shopInfo={shopInfo}>
           <CustomerAuthProvider>

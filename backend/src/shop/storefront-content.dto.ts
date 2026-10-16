@@ -1,5 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsIn, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { cleanGa4Id, cleanSearchConsoleCode, GA4_ID_PATTERN, SEARCH_CONSOLE_PATTERN } from '../common/tracking-ids';
 
 // "" and null both mean "clear this field"; undefined means "leave it alone".
 // Everything optional below uses this so an emptied input in the portal form
@@ -27,6 +29,20 @@ export class UpdateStorefrontDto {
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) instagramUrl?: string | null;
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) facebookUrl?: string | null;
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) tiktokUrl?: string | null;
+
+  // Google Analytics 4 Measurement ID (G-XXXXXXXXXX). Cleaned (trim, upper-case) before it is checked.
+  @ApiPropertyOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? cleanGa4Id(value) : value))
+  @ValidateIf(present) @IsOptional()
+  @Matches(GA4_ID_PATTERN, { message: 'ga4MeasurementId must look like G-XXXXXXXXXX (from Google Analytics > Admin > Data streams)' })
+  ga4MeasurementId?: string | null;
+
+  // Search Console verification: the code, or the whole <meta> tag Google shows (the code is pulled out).
+  @ApiPropertyOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? cleanSearchConsoleCode(value) : value))
+  @ValidateIf(present) @IsOptional()
+  @Matches(SEARCH_CONSOLE_PATTERN, { message: 'searchConsoleVerification must be the code from the Search Console HTML tag method' })
+  searchConsoleVerification?: string | null;
 }
 
 const HEX = { regex: /^#[0-9a-fA-F]{6}$/, message: 'must be a 6-digit hex color like #2438a8' };

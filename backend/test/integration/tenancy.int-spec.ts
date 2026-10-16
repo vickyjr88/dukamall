@@ -185,3 +185,22 @@ describe('one domain per shop, www included', () => {
     await expect(domains.requestDomain(b.id, `other-${domain}`)).resolves.toBeDefined();
   });
 });
+
+describe('per-shop Google tracking settings', () => {
+  it('saves, exposes publicly, keeps shops separate, and clears', async () => {
+    const { ShopService } = await import('../../src/shop/shop.service');
+    const shops = new ShopService(prisma);
+    const a = await makeShop(); const b = await makeShop();
+    await shops.updateStorefrontContent(a.id, { ga4MeasurementId: 'G-AAAAAAAAAA', searchConsoleVerification: 'aBcD1234_efGH5678-ijKL9012mnOP3456' } as any);
+    await shops.updateStorefrontContent(b.id, { ga4MeasurementId: 'G-BBBBBBBBBB' } as any);
+
+    expect(await shops.getPublicInfo(a.id)).toMatchObject({ ga4MeasurementId: 'G-AAAAAAAAAA', searchConsoleVerification: 'aBcD1234_efGH5678-ijKL9012mnOP3456' });
+    expect(await shops.getPublicInfo(b.id)).toMatchObject({ ga4MeasurementId: 'G-BBBBBBBBBB', searchConsoleVerification: null });
+
+    // Saving other fields leaves them; an empty string clears.
+    await shops.updateStorefrontContent(a.id, { tagline: 'Hi' } as any);
+    expect((await shops.getPublicInfo(a.id)).ga4MeasurementId).toBe('G-AAAAAAAAAA');
+    await shops.updateStorefrontContent(a.id, { ga4MeasurementId: '' } as any);
+    expect((await shops.getPublicInfo(a.id)).ga4MeasurementId).toBeNull();
+  });
+});

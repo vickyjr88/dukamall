@@ -7,6 +7,7 @@ type Content = {
   name: string; tagline: string | null; announcement: string | null; seoDescription: string | null;
   contactEmail: string | null; contactPhone: string | null; address: string | null; openingHours: string | null;
   instagramUrl: string | null; facebookUrl: string | null; tiktokUrl: string | null;
+  ga4MeasurementId: string | null; searchConsoleVerification: string | null;
 };
 
 const SEO_TARGET = 160;
@@ -109,6 +110,25 @@ export default function StoreInfoPage() {
           <div className="portal-field">
             <label htmlFor="si-tt">TikTok</label>
             <input id="si-tt" type="url" maxLength={300} value={text('tiktokUrl')} placeholder="https://tiktok.com/@yourshop" onChange={(e) => set({ tiktokUrl: e.target.value })} />
+          </div>
+        </div>
+
+        <div className="portal-card">
+          <h4>Analytics &amp; Google</h4>
+          <p className="hint" style={{ marginTop: 0 }}>Each shop has its own, so every site reports separately. Leave blank to turn it off.</p>
+          <div className="portal-field">
+            <label htmlFor="si-ga4">Google Analytics 4 Measurement ID</label>
+            <input id="si-ga4" maxLength={20} value={text('ga4MeasurementId')} placeholder="G-XXXXXXXXXX" autoComplete="off" onChange={(e) => set({ ga4MeasurementId: e.target.value })} />
+            <span className="hint">
+              In Google Analytics: Admin &rarr; Data streams &rarr; your web stream &rarr; <em>Measurement ID</em>. Page views are recorded automatically on your shop&apos;s pages (not the merchant portal).
+            </span>
+          </div>
+          <div className="portal-field">
+            <label htmlFor="si-gsc">Google Search Console verification</label>
+            <input id="si-gsc" maxLength={300} value={text('searchConsoleVerification')} placeholder="Paste the code, or the whole <meta> tag" autoComplete="off" onChange={(e) => set({ searchConsoleVerification: e.target.value })} />
+            <span className="hint">
+              In Search Console choose <em>Add property &rarr; URL prefix</em> with your shop address, pick the <em>HTML tag</em> method, paste what it shows here, save, then press <em>Verify</em> in Google.
+            </span>
           </div>
         </div>
 

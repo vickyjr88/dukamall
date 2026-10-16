@@ -83,6 +83,18 @@ WhatsApp number, currency, delivery fee and free-delivery amount, logo and theme
 Store info, Pages (delivery & returns, about, contact), Paystack keys if taking online
 payments, order-alert email, and a trial/plan in the admin console.
 
+## 5. Google Analytics and Search Console (per shop)
+Portal -> **Store info** -> **Analytics & Google**, on each shop separately.
+- **GA4:** create one GA4 property per site with a Web data stream for its domain, paste
+  that stream's `G-XXXXXXXXXX` Measurement ID. Page views are recorded automatically on the
+  shop's pages (not the merchant portal). Check Realtime in Google Analytics.
+- **Search Console:** add the shop as a *URL prefix* property using its primary address
+  (e.g. `https://nairobigents.com/`), choose the *HTML tag* method, paste the code (or the
+  whole tag) into the field, save, then press Verify in Google. Use the primary address, not
+  `www`, since `www` redirects to it.
+- Not included: purchase/cart events and a cookie-consent banner. Add a consent notice if
+  your visitors are covered by data-protection rules that require one.
+
 ## Things to know
 - Photos are shared links. They keep working as long as the original files do.
 - SKUs are identical in both shops. That is fine (each shop has its own feed and

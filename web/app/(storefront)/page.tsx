@@ -15,6 +15,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: shopInfo.name,
     description,
     alternates: { canonical: origin },
+    // Search Console's "HTML tag" verification: <meta name="google-site-verification">, on the home page.
+    ...(shopInfo.searchConsoleVerification ? { verification: { google: shopInfo.searchConsoleVerification } } : {}),
     openGraph: {
       type: 'website',
       siteName: shopInfo.name,
