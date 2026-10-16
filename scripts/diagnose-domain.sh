@@ -43,6 +43,17 @@ echo "  extension dir: $VHOST_DIR/extension/$SITE/"
 ls -la "$VHOST_DIR/extension/$SITE/" 2>&1 | sed 's/^/    /'
 for e in "$VHOST_DIR/extension/$SITE"/*.conf; do [ -f "$e" ] && { echo "    --- $e"; sed 's/^/    /' "$e"; }; done
 
+# aaPanel keeps a site's reverse-proxy settings (proxy_pass, the Host header sent to
+# the app) in their own file, outside the site file above.
+hr "3b. Reverse-proxy settings for $DOMAIN (aaPanel proxy/ dir)"
+for d in "$VHOST_DIR/proxy/$SITE" "$VHOST_DIR/proxy/$DOMAIN"; do
+  [ -d "$d" ] || continue
+  for f in "$d"/*.conf; do [ -f "$f" ] && { echo "  --- $f"; sed 's/^/    /' "$f"; }; done
+done
+echo
+echo "  Test: what the app answers if nginx sent the WRONG Host header (404 here would explain a 502):"
+printf '    Host=shops_web -> %s\n' "$(curl -s -m 10 -o /dev/null -w '%{http_code}' -H 'Host: shops_web' http://127.0.0.1:3204/ 2>/dev/null)"
+
 hr "4. Upstream definitions"
 grep -rn -A4 "upstream shops_web" "$VHOST_DIR" /www/server/nginx/conf 2>/dev/null | sed 's/^/  /' | head -12
 
@@ -55,4 +66,4 @@ for l in "$LOG_DIR/$DOMAIN.error.log" "$LOG_DIR/$SITE.error.log"; do
 done
 
 hr "7. Containers"
-docker ps --format '  {{.Names}}  {{.Status}}  {{.Ports}}' 2>/dev/null | grep -iE "shops|web|backend" | head -8
+docker ps --format '  {{.Names}}  {{.Status}}  {{.Ports}}' 2>/dev/null | grep -i "shops-platform" | head -12
