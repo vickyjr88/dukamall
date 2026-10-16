@@ -26,8 +26,14 @@ export class ShopController {
   @Public()
   @NoShopScope()
   @Get('resolve-shop/:host')
-  resolveShop(@Param('host') host: string) {
-    return this.shopService.resolveByHost(host);
+  async resolveShop(@Param('host') host: string) {
+    // This route is public (the storefront calls it before any session exists), so
+    // it answers with the three things the web app needs -- which shop, and its
+    // primary domain for the www/apex redirect -- and nothing else. It used to return
+    // the whole shop row, which includes payment keys, billing notes and the
+    // domain-verification token, to anyone who asked for a hostname.
+    const shop = await this.shopService.resolveByHost(host);
+    return { id: shop.id, slug: shop.slug, name: shop.name, customDomain: shop.customDomain };
   }
 
   @Public()
