@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { storefrontOriginForShop } from '../common/storefront-origin';
+import { domainVariants } from '../common/domain-variants';
 import { UpdateStorefrontDto, UpdateThemeDto } from './storefront-content.dto';
 import { encryptSecret } from '../common/secrets';
 
@@ -25,15 +26,19 @@ export class ShopService {
     // domain: matching the first label of ANY host would let anyone point
     // "msa.their-site.com" at this server and have it serve msa's shop.
     const slugFromPlatformHost = this.slugOnPlatformDomain(bareHost);
-    const shop = await this.prisma.shop.findFirst({
+    // The www/apex twin of a custom domain resolves to the same shop (the web
+    // app then redirects it to the primary form), so a shop needs only one domain.
+    const candidates = await this.prisma.shop.findMany({
       where: {
         OR: [
-          { customDomain: bareHost },
+          { customDomain: { in: domainVariants(bareHost) } },
           ...(slugFromPlatformHost ? [{ slug: slugFromPlatformHost }] : []),
         ],
       },
       include: { theme: true },
     });
+    // An exact match always wins over a twin.
+    const shop = candidates.find((s) => s.customDomain === bareHost) ?? candidates[0];
     if (!shop) throw new NotFoundException('No shop matches this domain');
     // SUSPENDED is the admin center's enforcement point (design intent: a
     // suspension has to actually take the storefront down, not just flip a

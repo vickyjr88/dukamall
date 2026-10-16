@@ -79,7 +79,12 @@ export default function DomainPage() {
       <div className="portal-card" style={{ maxWidth: 520 }}>
         {status.customDomain ? (
           <div>
-            <p style={{ marginBottom: 16 }}>Your storefront is live at <strong>{status.customDomain}</strong>.</p>
+            <p style={{ marginBottom: 12 }}>Your storefront is live at <strong>{status.customDomain}</strong>.</p>
+            <p style={{ marginBottom: 16, fontSize: 13, color: 'var(--p-muted)' }}>
+              <strong>{status.customDomain.startsWith('www.') ? status.customDomain.slice(4) : `www.${status.customDomain}`}</strong> also reaches your shop and is
+              sent to {status.customDomain} automatically, so you don&apos;t connect a second domain. Your hosting must be set up for both
+              names (DNS records and an SSL certificate that covers both).
+            </p>
             <button className="portal-btn-outline portal-btn" onClick={onDisconnect} disabled={busy}>Disconnect this domain</button>
           </div>
         ) : status.pendingDomain ? (

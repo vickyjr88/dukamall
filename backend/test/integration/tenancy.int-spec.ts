@@ -166,3 +166,22 @@ describe('trial sweep against the real database', () => {
     await prisma.userShop.deleteMany({ where: { shopId: shop.id } });
   });
 });
+
+describe('one domain per shop, www included', () => {
+  it('lets a shop reach its own www twin, and stops another shop claiming a twin of a taken domain', async () => {
+    const { DomainVerificationService } = await import('../../src/shop/domain-verification.service');
+    const { ShopService } = await import('../../src/shop/shop.service');
+    const domain = `it-${rand()}.test`;
+    const a = await makeShop({ customDomain: domain });
+    const b = await makeShop();
+
+    const shops = new ShopService(prisma);
+    expect((await shops.resolveByHost(domain)).id).toBe(a.id);
+    expect((await shops.resolveByHost(`www.${domain}`)).id).toBe(a.id);
+
+    const domains = new DomainVerificationService(prisma);
+    await expect(domains.requestDomain(b.id, domain)).rejects.toThrow(/already connected/);
+    await expect(domains.requestDomain(b.id, `www.${domain}`)).rejects.toThrow(/already connected/);
+    await expect(domains.requestDomain(b.id, `other-${domain}`)).resolves.toBeDefined();
+  });
+});

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { resolveTxt } from 'dns/promises';
 import { PrismaService } from '../prisma/prisma.service';
+import { domainVariants } from '../common/domain-variants';
 
 /**
  * Custom-domain connection, design doc Phase 3 ("DNS instructions + a
@@ -40,7 +41,8 @@ export class DomainVerificationService {
     const domain = this.normalizeDomain(rawDomain);
 
     const existing = await this.prisma.shop.findFirst({
-      where: { OR: [{ customDomain: domain }, { pendingDomain: domain }], NOT: { id: shopId } },
+      // The www/apex twin counts as the same domain: it would resolve to this shop too.
+      where: { OR: [{ customDomain: { in: domainVariants(domain) } }, { pendingDomain: { in: domainVariants(domain) } }], NOT: { id: shopId } },
     });
     if (existing) {
       throw new BadRequestException('This domain is already connected to another shop');

@@ -34,6 +34,17 @@ export async function middleware(request: NextRequest) {
     }
     const shop = await response.json();
 
+    // The shop's primary domain is the one it stores. Its other form (www <->
+    // apex) reaches the same shop, and is sent to the primary one so the site has
+    // a single address for visitors, search engines and the portal login.
+    const primary: string | null = shop.customDomain;
+    const requested = host.split(':')[0].toLowerCase();
+    if (primary && requested !== primary && requested.replace(/^www\./, '') === primary.replace(/^www\./, '')) {
+      const local = /(^|\.)localhost$|^127\./.test(primary);
+      const target = new URL(`${local ? 'http' : 'https'}://${primary}${request.nextUrl.pathname}${request.nextUrl.search}`);
+      return NextResponse.redirect(target, 308);
+    }
+
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set('x-shop-id', shop.id);
     return NextResponse.next({ request: { headers: requestHeaders } });
