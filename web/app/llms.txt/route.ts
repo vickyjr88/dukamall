@@ -28,7 +28,8 @@ export async function GET() {
   const facts = [
     shop.address ? `- Location: ${shop.address}` : null,
     shop.openingHours ? `- Opening hours: ${shop.openingHours}` : null,
-    shop.contactPhone ? `- Phone / WhatsApp: ${shop.contactPhone}` : null,
+    shop.contactPhone ? `- Phone: ${shop.contactPhone}` : null,
+    shop.whatsappNumber ? `- WhatsApp: ${shop.whatsappNumber}` : null,
     shop.contactEmail ? `- Email: ${shop.contactEmail}` : null,
     `- Currency: ${shop.currency}`,
     prices.length ? `- Prices: ${shop.currency} ${Math.min(...prices).toLocaleString('en-US')} to ${Math.max(...prices).toLocaleString('en-US')}` : null,
