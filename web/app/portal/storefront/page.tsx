@@ -6,7 +6,7 @@ import { portalFetch } from '../portal-api';
 type Content = {
   name: string; tagline: string | null; announcement: string | null; seoDescription: string | null;
   contactEmail: string | null; contactPhone: string | null; address: string | null; openingHours: string | null;
-  instagramUrl: string | null; facebookUrl: string | null; tiktokUrl: string | null;
+  instagramUrl: string | null; facebookUrl: string | null; tiktokUrl: string | null; xUrl: string | null;
   ga4MeasurementId: string | null; searchConsoleVerification: string | null;
 };
 
@@ -110,6 +110,10 @@ export default function StoreInfoPage() {
           <div className="portal-field">
             <label htmlFor="si-tt">TikTok</label>
             <input id="si-tt" type="url" maxLength={300} value={text('tiktokUrl')} placeholder="https://tiktok.com/@yourshop" onChange={(e) => set({ tiktokUrl: e.target.value })} />
+          </div>
+          <div className="portal-field">
+            <label htmlFor="si-x">X (Twitter)</label>
+            <input id="si-x" type="url" maxLength={300} value={text('xUrl')} placeholder="https://x.com/yourshop" onChange={(e) => set({ xUrl: e.target.value })} />
           </div>
         </div>
 

@@ -35,7 +35,7 @@ export async function GET() {
     prices.length ? `- Prices: ${shop.currency} ${Math.min(...prices).toLocaleString('en-US')} to ${Math.max(...prices).toLocaleString('en-US')}` : null,
     brands.length ? `- Brands: ${brands.join(', ')}` : null,
     shop.freeDeliveryOverKes ? `- Free delivery on orders over ${shop.currency} ${shop.freeDeliveryOverKes.toLocaleString('en-US')}` : null,
-    ...[['Instagram', shop.instagramUrl], ['Facebook', shop.facebookUrl], ['TikTok', shop.tiktokUrl]]
+    ...[['Instagram', shop.instagramUrl], ['Facebook', shop.facebookUrl], ['TikTok', shop.tiktokUrl], ['X', shop.xUrl]]
       .filter(([, url]) => url)
       .map(([label, url]) => `- ${label}: ${url}`),
   ].filter(Boolean);

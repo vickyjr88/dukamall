@@ -90,6 +90,7 @@ model Shop {
   instagramUrl   String?
   facebookUrl    String?
   tiktokUrl      String?
+  xUrl           String?
   // Per-shop Google tracking: a GA4 Measurement ID (G-XXXXXXXXXX) and the Search
   // Console HTML-tag verification code. Public by nature (they appear in the page).
   ga4MeasurementId           String?

@@ -1,15 +1,17 @@
 import Link from 'next/link';
 import { ShopInfo, ShopPageLink } from '@/app/lib/api';
 import { WhatsAppIcon } from '@/app/whatsapp-icon';
+import { FacebookIcon, InstagramIcon, TikTokIcon, XIcon } from '@/app/social-icons';
 
 export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; pages: ShopPageLink[] }) {
   const year = new Date().getFullYear();
   const footerPages = pages.filter((p) => p.showInFooter);
   const socials = [
-    { label: 'Instagram', href: shopInfo.instagramUrl },
-    { label: 'Facebook', href: shopInfo.facebookUrl },
-    { label: 'TikTok', href: shopInfo.tiktokUrl },
-  ].filter((s): s is { label: string; href: string } => Boolean(s.href));
+    { label: 'Instagram', href: shopInfo.instagramUrl, Icon: InstagramIcon },
+    { label: 'Facebook', href: shopInfo.facebookUrl, Icon: FacebookIcon },
+    { label: 'TikTok', href: shopInfo.tiktokUrl, Icon: TikTokIcon },
+    { label: 'X', href: shopInfo.xUrl, Icon: XIcon },
+  ].filter((s): s is { label: string; href: string; Icon: typeof XIcon } => Boolean(s.href));
   const blurb = shopInfo.tagline
     || (shopInfo.whatsappNumber ? 'Questions about an order or a size? Message us any time.' : 'Thank you for shopping with us.');
 
@@ -20,6 +22,17 @@ export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; page
           <div>
             <div className="logo">{shopInfo.name}</div>
             <p style={{ color: 'var(--shop-muted)', fontSize: 'var(--shop-text-sm)', maxWidth: '32ch' }}>{blurb}</p>
+            {socials.length > 0 ? (
+              <ul className="shop-footer-socials" aria-label="Follow us">
+                {socials.map(({ label, href, Icon }) => (
+                  <li key={label}>
+                    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`${shopInfo.name} on ${label}`} title={label}>
+                      <Icon />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
           <div className="shop-footer-col">
             <h4>Shop</h4>
@@ -27,6 +40,9 @@ export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; page
               <li><Link href="/">All products</Link></li>
               <li><Link href="/cart">Cart</Link></li>
               <li><Link href="/account">My account</Link></li>
+              {/* Plain links: the portal and the admin console are separate apps with their own layouts and sign-in. */}
+              <li><a href="/portal/login">Merchant portal</a></li>
+              <li><a href="/admin/login">Admin login</a></li>
             </ul>
           </div>
           {footerPages.length > 0 ? (
@@ -56,9 +72,6 @@ export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; page
               {shopInfo.contactEmail ? <li><a href={`mailto:${shopInfo.contactEmail}`}>{shopInfo.contactEmail}</a></li> : null}
               {shopInfo.address ? <li className="shop-footer-text">{shopInfo.address}</li> : null}
               {shopInfo.openingHours ? <li className="shop-footer-text">{shopInfo.openingHours}</li> : null}
-              {socials.map((s) => (
-                <li key={s.label}><a href={s.href} target="_blank" rel="noopener noreferrer">{s.label}</a></li>
-              ))}
             </ul>
           </div>
         </div>

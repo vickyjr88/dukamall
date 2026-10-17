@@ -25,7 +25,7 @@ function compact<T extends JsonLdObject>(value: T): T {
 
 /** The shop itself. A shop with a street address is a physical Store; otherwise a plain Organization. */
 export function organizationJsonLd(shop: ShopInfo, theme: Pick<ShopTheme, 'logoUrl'>, origin: string): JsonLdObject {
-  const sameAs = [shop.instagramUrl, shop.facebookUrl, shop.tiktokUrl].filter(Boolean);
+  const sameAs = [shop.instagramUrl, shop.facebookUrl, shop.tiktokUrl, shop.xUrl].filter(Boolean);
   return compact({
     '@context': 'https://schema.org',
     '@type': shop.address ? 'Store' : 'Organization',

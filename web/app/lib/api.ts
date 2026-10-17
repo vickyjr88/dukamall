@@ -141,7 +141,7 @@ export type ShopInfo = {
   // Storefront copy the merchant controls; null/absent means "don't render it".
   tagline?: string | null; announcement?: string | null; seoDescription?: string | null;
   contactEmail?: string | null; contactPhone?: string | null; address?: string | null; openingHours?: string | null;
-  instagramUrl?: string | null; facebookUrl?: string | null; tiktokUrl?: string | null;
+  instagramUrl?: string | null; facebookUrl?: string | null; tiktokUrl?: string | null; xUrl?: string | null;
   // Google tracking this shop has set up (both optional).
   ga4MeasurementId?: string | null; searchConsoleVerification?: string | null;
 };

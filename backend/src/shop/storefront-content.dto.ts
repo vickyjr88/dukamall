@@ -29,6 +29,7 @@ export class UpdateStorefrontDto {
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) instagramUrl?: string | null;
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) facebookUrl?: string | null;
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) tiktokUrl?: string | null;
+  @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) xUrl?: string | null;
 
   // Google Analytics 4 Measurement ID (G-XXXXXXXXXX). Cleaned (trim, upper-case) before it is checked.
   @ApiPropertyOptional()

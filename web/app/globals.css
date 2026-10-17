@@ -1071,6 +1071,16 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .shop-footer-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--shop-space-3); font-size: var(--shop-text-sm); }
 .shop-footer-col a:hover { color: var(--shop-primary); }
 .shop-footer-col a svg { width: 15px; height: 15px; flex-shrink: 0; }
+/* Social icons: a row of round buttons under the shop description. */
+.shop-footer-socials { list-style: none; margin: var(--shop-space-4) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--shop-space-3); }
+.shop-footer-socials a {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 1px solid var(--shop-line); color: var(--shop-ink);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.shop-footer-socials a:hover, .shop-footer-socials a:focus-visible { color: var(--shop-primary); border-color: var(--shop-primary); }
+.shop-footer-socials svg { width: 18px; height: 18px; }
 .shop-footer-bottom {
   display: flex;
   justify-content: space-between;
