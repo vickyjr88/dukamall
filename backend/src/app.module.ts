@@ -28,6 +28,7 @@ import { HealthController } from './health/health.controller';
 import { PortalStaffModule } from './portal-staff/portal-staff.module';
 import { PortalCustomerModule } from './portal-customer/portal-customer.module';
 import { PortalCategoryModule } from './portal-category/portal-category.module';
+import { PortalCatalogHealthModule } from './portal-catalog-health/portal-catalog-health.module';
 import { PortalAnalyticsModule } from './portal-analytics/portal-analytics.module';
 import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
 import { EmailModule } from './email/email.module';
@@ -66,6 +67,7 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     PortalStaffModule,
     PortalCustomerModule,
     PortalCategoryModule,
+    PortalCatalogHealthModule,
     PortalAnalyticsModule,
     AdminAnalyticsModule,
     EmailModule,

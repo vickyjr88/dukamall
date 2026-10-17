@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateShopPageDto, UpdateShopPageDto } from './shop-page.dto';
+import { buildStarterPages, hasPlaceholders } from './starter-pages';
+import { storefrontOriginForShop } from '../common/storefront-origin';
 
 const ORDER = [{ position: 'asc' as const }, { createdAt: 'asc' as const }];
 
@@ -14,75 +16,18 @@ function slugify(text: string): string {
     .slice(0, 60);
 }
 
-// Starting points for the pages shoppers most often look for. Created as
-// DRAFTS: they hold placeholder wording (a returns or privacy policy is a
-// commitment the merchant has to make, not something we can write for them),
-// so none goes live until the owner has read and published it.
-const STARTERS: { slug: string; title: string; body: string }[] = [
-  {
-    slug: 'delivery-and-returns',
-    title: 'Delivery & returns',
-    body: `## Delivery
-
-We deliver across Kenya. Tell us your town at checkout and we will confirm the courier and timing on WhatsApp.
-
-- Nairobi: [add your delivery time, e.g. same day or next day]
-- Other towns: [add your delivery time]
-
-## Returns & exchanges
-
-[Add your policy: how many days they have, the condition items must be in, and who pays for the return.]
-
-Questions? Message us on WhatsApp and we will help.`,
-  },
-  {
-    slug: 'about-us',
-    title: 'About us',
-    body: `## Who we are
-
-[Tell shoppers who you are, what you sell and why they can trust you.]
-
-## Visit us
-
-[Add your shop address and opening hours, or say that you sell online only.]`,
-  },
-  {
-    slug: 'contact',
-    title: 'Contact us',
-    body: `## Get in touch
-
-The fastest way to reach us is WhatsApp. We usually reply within [add your usual reply time].
-
-- WhatsApp: [add number]
-- Email: [add email]`,
-  },
-  {
-    slug: 'privacy-policy',
-    title: 'Privacy policy',
-    body: `## What we collect
-
-When you order we collect your name, phone number, email and delivery address so we can fulfil your order.
-
-## How we use it
-
-[Explain what you use it for and who you share it with, e.g. couriers and your payment provider.]
-
-## Your choices
-
-[Explain how a shopper can ask you to correct or delete their details.]`,
-  },
-];
-
 @Injectable()
 export class ShopPageService {
   constructor(private prisma: PrismaService) {}
 
-  list(shopId: string) {
-    return this.prisma.shopPage.findMany({
+  async list(shopId: string) {
+    const pages = await this.prisma.shopPage.findMany({
       where: { shopId },
       orderBy: ORDER,
-      select: { id: true, slug: true, title: true, published: true, showInFooter: true, position: true, updatedAt: true },
+      select: { id: true, slug: true, title: true, body: true, published: true, showInFooter: true, position: true, updatedAt: true },
     });
+    // The body is only read to flag pages that still hold an "[add ...]" marker from a starter page.
+    return pages.map(({ body, ...page }) => ({ ...page, needsInput: hasPlaceholders(body) }));
   }
 
   async get(shopId: string, id: string) {
@@ -171,12 +116,24 @@ export class ShopPageService {
     return this.list(shopId);
   }
 
-  /** Adds whichever starter pages the shop doesn't have yet, unpublished. */
+  /**
+   * Adds whichever starter pages the shop doesn't have yet, unpublished, filled in from the
+   * shop's Store info (see starter-pages.ts). Existing pages are never touched.
+   */
   async addStarters(shopId: string) {
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
     const existing = new Set((await this.prisma.shopPage.findMany({ where: { shopId }, select: { slug: true } })).map((p) => p.slug));
     const last = await this.prisma.shopPage.aggregate({ where: { shopId }, _max: { position: true } });
     let position = (last._max.position ?? -1) + 1;
-    const missing = STARTERS.filter((s) => !existing.has(s.slug));
+    const missing = buildStarterPages({
+      name: shop.name,
+      website: storefrontOriginForShop(shop),
+      address: shop.address,
+      openingHours: shop.openingHours,
+      contactPhone: shop.contactPhone,
+      whatsappNumber: shop.whatsappNumber,
+      contactEmail: shop.contactEmail,
+    }).filter((s) => !existing.has(s.slug));
     for (const starter of missing) {
       await this.prisma.shopPage.create({
         data: { shopId, slug: starter.slug, title: starter.title, body: starter.body, published: false, showInFooter: true, position: position++ },

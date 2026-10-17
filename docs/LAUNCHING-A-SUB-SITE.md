@@ -99,10 +99,53 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "Host: nairobigents.com" http://127.
 After adding the extension file (step 4), a still-unknown domain shows the app's own
 "No shop found for this domain" 404 instead of a 502, which makes the cause obvious.
 
-## 4. Set the shop up
-WhatsApp number, currency, delivery fee and free-delivery amount, logo and theme,
-Store info, Pages (delivery & returns, about, contact), Paystack keys if taking online
-payments, order-alert email, and a trial/plan in the admin console.
+## 4. Set the shop up (content, in this order)
+
+A copied shop starts with another shop's products, wording and numbers. Work through these
+in order; each step uses a screen in the shop's portal.
+
+1. **Store info** (Portal -> Store info, and Settings). Fill in everything a shopper or search
+   engine will quote, and make it consistent: name, tagline, a one-sentence *search
+   description*, address, opening hours, phone, email, social links, WhatsApp number
+   (international format, e.g. `+254712345678` -- the chat link is built from it, and a
+   truncated number silently breaks it), the order-alert email, delivery fee and
+   free-delivery amount. Use clean profile links for social accounts (no `?xtok=`/`?mibextid=`
+   share tracking). Do this **before** the pages: the starter pages read these fields.
+2. **Pages** (Portal -> Pages -> *Add starter pages*). Creates drafts for About us, Delivery &
+   returns, FAQs, Contact us, Terms of service and Privacy policy, filled in from Store info.
+   Anything that is the owner's own decision or claim (delivery times, returns window, which
+   payments are accepted, what the shop sells) is an `[add ...]` note. Replace every note,
+   then publish; "Needs your input" disappears once none is left, and publishing a page
+   that still has one asks for confirmation. Terms and privacy are drafts of standard wording
+   -- have the owner (ideally a lawyer) read them. Do not write claims the shop cannot back
+   ("genuine", "same-day delivery", "free delivery over ...") unless the owner confirmed them;
+   delivery pricing must match what checkout actually does.
+3. **Categories** (Portal -> Categories). Create the few shoppers browse by (e.g. Sneakers,
+   Casuals, Officials) and assign every product. The storefront lists every *active*
+   category, so a category for products you are hiding (Watches, ...) should be set to
+   inactive, or it shows as an empty chip. Only categories that have products go in the
+   sitemap, and each category page gets its own title and description for search.
+4. **Hide, never delete.** To retire a range for now, switch the products off (Products ->
+   status). Hidden products disappear from the storefront, sitemap and feeds, keep their
+   history, and come back with one click.
+5. **Descriptions.** Rewrite them per product (see "Things to know": copied text is duplicate
+   content). A good one is 3-4 sentences: what it looks like (colour, material, detail), how
+   it wears or fits, how to style or care for it. Describe only what the photo and facts show;
+   no authenticity, stock or price claims. Brand, size and colour belong in their own fields,
+   not the name.
+6. **Catalog check** (Portal -> Catalog check). Run it last and fix what it finds. It flags
+   the mistakes that otherwise slip through a copy: a mistyped price (KES 10 among KES 3,700),
+   a size typed into the product name, products sharing one photo, a brand that is the shop's
+   own name or blank, missing descriptions or photos, products outside every category, a web
+   address that is just the shop's name, and products with no stock at all. The last one
+   matters: a product with every size at stock 0 is shown to shoppers and in the product feed
+   as out of stock. Set real stock, or switch stock off for made-to-order lines.
+7. **Plan and alerts** in the admin console (trial/plan, order-alert email), and **Paystack
+   keys** if taking online payments. Until Paystack is connected, say on the Delivery page that
+   payment is arranged when the order is confirmed.
+
+If the source shop keeps changing a price or typo, fix it **at the source** and (for a synced
+shop) wait for the next sync; a one-time copy never updates and must be fixed in the copy.
 
 ## 5. Google Analytics and Search Console (per shop)
 Portal -> **Store info** -> **Analytics & Google**, on each shop separately.
@@ -113,6 +156,18 @@ Portal -> **Store info** -> **Analytics & Google**, on each shop separately.
   (e.g. `https://nairobigents.com/`), choose the *HTML tag* method, paste the code (or the
   whole tag) into the field, save, then press Verify in Google. Use the primary address, not
   `www`, since `www` redirects to it.
+- **Bing Webmaster Tools:** add the site (you can import it from Search Console) and submit
+  `https://<domain>/sitemap.xml`. Bing also feeds several AI assistants.
+- **Google Business Profile:** if the shop has a physical address, claim a profile with the
+  same name, address, phone and hours as Store info; keep them identical everywhere. This is
+  what "shoes near me" results and AI answers draw on. Ask real customers for reviews.
+- **Google Merchant Center:** upload the shop's product feed (`/product-feed.xml`, shown in
+  Portal -> Dashboard) to appear in free Google Shopping listings.
+- **What the platform does for you automatically:** per-shop sitemap and robots.txt, titles
+  and descriptions, canonical addresses, Product / breadcrumb / Store / FAQ structured data
+  (a page written as bold questions followed by answers becomes FAQ markup), a favicon, and
+  `/llms.txt` (a plain-text briefing about the shop for AI assistants). Filtered and search
+  views are kept out of the index.
 - Not included: purchase/cart events and a cookie-consent banner. Add a consent notice if
   your visitors are covered by data-protection rules that require one.
 

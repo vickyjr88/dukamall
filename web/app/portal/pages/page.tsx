@@ -4,11 +4,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { portalFetch } from '../portal-api';
 
-type PageRow = { id: string; slug: string; title: string; published: boolean; showInFooter: boolean; position: number };
+type PageRow = { id: string; slug: string; title: string; published: boolean; showInFooter: boolean; position: number; needsInput: boolean };
 
-const STARTER_SLUGS = ['delivery-and-returns', 'about-us', 'contact', 'privacy-policy'];
+const STARTER_SLUGS = ['about-us', 'delivery-and-returns', 'faq', 'contact', 'terms-of-service', 'privacy-policy'];
 
-// Shopper-facing content pages: delivery & returns, about, contact, privacy.
+// Shopper-facing content pages: about, delivery & returns, FAQs, contact, terms, privacy.
 // They're linked from the storefront footer and listed in the sitemap.
 export default function PagesList() {
   const [pages, setPages] = useState<PageRow[] | null>(null);
@@ -55,8 +55,8 @@ export default function PagesList() {
         </div>
       </div>
       <p style={{ color: 'var(--p-muted)', fontSize: 13, margin: '0 0 16px', maxWidth: 640 }}>
-        Pages like delivery &amp; returns, about us and your privacy policy. Published pages appear in your storefront footer.
-        {missingStarters ? ' "Add starter pages" creates drafts with placeholder wording for you to edit -- nothing goes live until you publish it.' : ''}
+        Pages like about us, delivery &amp; returns, FAQs and your terms and privacy policy. Published pages appear in your storefront footer.
+        {missingStarters ? ' "Add starter pages" creates drafts filled in with your store info. Replace every [add ...] note with your own wording -- nothing goes live until you publish it.' : ''}
       </p>
       {error ? <div className="portal-alert is-error">{error}</div> : null}
 
@@ -73,7 +73,10 @@ export default function PagesList() {
                     <Link href={`/portal/pages/${page.id}`}><strong>{page.title}</strong></Link>
                     <div style={{ fontSize: 12, color: 'var(--p-muted)' }}>/pages/{page.slug}</div>
                   </td>
-                  <td><span className={`portal-badge ${page.published ? 'is-paid' : 'is-muted'}`}>{page.published ? 'Published' : 'Draft'}</span></td>
+                  <td>
+                    <span className={`portal-badge ${page.published ? 'is-paid' : 'is-muted'}`}>{page.published ? 'Published' : 'Draft'}</span>
+                    {page.needsInput ? <span className="portal-badge is-pending" style={{ marginLeft: 6 }} title="Still has [add ...] notes to replace">Needs your input</span> : null}
+                  </td>
                   <td>{page.showInFooter ? 'Yes' : 'No'}</td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <button type="button" className="portal-btn-ghost" disabled={busy || index === 0} aria-label={`Move ${page.title} up`} onClick={() => call(`/portal/pages/${page.id}/move/up`, 'POST')}>&uarr;</button>

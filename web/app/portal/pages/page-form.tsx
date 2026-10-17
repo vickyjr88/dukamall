@@ -43,6 +43,9 @@ export function PageForm({ page }: { page?: ApiPage }) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) { setError('Give the page a title.'); return; }
+    // Starter pages hold "[add ...]" notes for the owner to replace; shoppers must not see them.
+    if (published && /\[add [^\]]*\]/i.test(body)
+      && !window.confirm('This page still has [add ...] notes that shoppers would see. Publish it anyway?')) return;
     setSaving(true);
     setError(null);
     setSavedAt(false);
