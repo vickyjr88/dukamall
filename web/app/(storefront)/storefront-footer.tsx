@@ -77,7 +77,10 @@ export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; page
         </div>
         <div className="shop-footer-bottom">
           <span>&copy; {year} {shopInfo.name}. All rights reserved.</span>
-          <span>Powered by Shops Platform</span>
+          <span>
+            Powered by{' '}
+            <a href="https://vitaldigitalmedia.net/infinity-digital-works/" target="_blank" rel="noopener noreferrer">Infinity Digital Works</a>
+          </span>
         </div>
       </div>
     </footer>

@@ -369,6 +369,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .pf-search .btn {
   flex-shrink: 0;
   padding: 0 24px;
+  /* Matches the search input's height: with no vertical padding the button was only as tall as
+     its label once it wrapped onto its own row on a phone. */
+  min-height: 44px;
 }
 @media (max-width: 640px) {
   .pf-search { flex-wrap: wrap; }
@@ -677,12 +680,14 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   justify-content: center;
   gap: 6px;
   margin-top: var(--shop-space-2);
-  padding: 7px 0;
+  padding: 0 8px;
+  line-height: 1.2;
   text-align: center;
   font-size: var(--shop-text-xs);
   font-weight: 700;
   color: #fff;
   background: var(--shop-accent);
+  border: 1px solid var(--shop-accent);
   border-radius: var(--shop-radius-sm);
   text-decoration: none;
 }
@@ -690,7 +695,9 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .product-card-whatsapp:hover { filter: brightness(1.1); text-decoration: none; }
 
 .product-card-quickadd { position: relative; z-index: 1; margin-top: var(--shop-space-2); }
-.product-card-add-btn { width: 100%; }
+/* The two buttons stacked under every card share one height (see .product-card-whatsapp). */
+.product-card-add-btn, .product-card-whatsapp { box-sizing: border-box; min-height: 40px; }
+.product-card-add-btn { width: 100%; padding-top: 0; padding-bottom: 0; }
 .product-card-size-picker {
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
@@ -1091,6 +1098,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   flex-wrap: wrap;
   gap: var(--shop-space-3);
 }
+.shop-footer-bottom a { text-decoration: underline; text-underline-offset: 2px; }
+.shop-footer-bottom a:hover { color: var(--shop-primary); }
 
 /* -----------------------------------------------------------------------
    Floating WhatsApp inquiry button -- fixed bottom-right on every
