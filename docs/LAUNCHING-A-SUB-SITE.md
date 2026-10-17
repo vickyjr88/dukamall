@@ -60,6 +60,27 @@ that is taken.
 5. **SSL:** one Let's Encrypt certificate covering **both** names (tick both in aaPanel's
    SSL panel). If Cloudflare proxies the domain, set SSL/TLS mode to **Full (strict)**.
 
+6. **Shared cache key (one-time, whole server).** aaPanel's global `proxy.conf` turns on a response
+   cache for every site, and nginx's default cache key uses the *upstream name* (`shops_web`),
+   not the visitor's domain. Without a fix, two shops' domains share cache entries: one shop's
+   link-preview image was served for another's. In `/www/server/nginx/conf/proxy.conf`, directly
+   after `proxy_cache cache_one;`, keep this line (already applied on the production server):
+   ```nginx
+   proxy_cache_key "$scheme$host$request_uri";
+   ```
+   Check it is still there after an aaPanel upgrade (`grep proxy_cache_key /www/server/nginx/conf/proxy.conf`).
+   The app also marks its preview images `Vary: Host` as a second line of defence.
+
+### Link previews (WhatsApp, Facebook, X, LinkedIn, Telegram, Slack...)
+Each shop's landing page previews its own hero photo (else its logo, else its first product
+photo) as a 1200x630 JPEG at `/og/home`; product pages use `/og/product/<slug>`. Platforms
+**cache** previews, so after fixing or changing an image ask them to re-fetch:
+- Facebook / Instagram / WhatsApp (Meta): https://developers.facebook.com/tools/debug/ -> paste
+  the URL -> **Scrape Again**.
+- LinkedIn: https://www.linkedin.com/post-inspector/ -> Inspect.
+- X: refreshes on its own within about a week; share the link with `?v=2` on the end to force it.
+- Telegram: send the link to @WebpageBot. Slack/WhatsApp chats: share it with `?v=2`.
+
 ### Troubleshooting a 502 on a new domain
 
 A 502 here almost always means "the app answered 404 and nginx turned it into 502".

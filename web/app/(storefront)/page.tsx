@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getCategories, getFilters, getProducts, getShopInfo, getTheme } from '@/app/lib/api';
 import { currentOrigin, OG_IMAGE_SIZE } from '@/app/lib/seo';
+import { homePreviewImageUrl } from '@/app/lib/home-preview';
 import { StorefrontSearch } from './storefront-search';
 
 // Every shop shared the root layout's generic "Shop" title until now --
@@ -10,6 +11,7 @@ import { StorefrontSearch } from './storefront-search';
 export async function generateMetadata(): Promise<Metadata> {
   const [shopInfo, theme] = await Promise.all([getShopInfo(), getTheme()]);
   const origin = currentOrigin();
+  const previewImage = await homePreviewImageUrl(theme);
   const description = shopInfo.seoDescription || `Shop ${shopInfo.name} -- new arrivals added regularly.`;
   return {
     title: shopInfo.name,
@@ -25,8 +27,9 @@ export async function generateMetadata(): Promise<Metadata> {
       url: origin,
       // /og/home serves the hero (or logo) resized to a small 1200x630 JPEG --
       // the raw upload was often several MB, which WhatsApp and others skip.
-      images: theme.heroImageUrl || theme.logoUrl
-        ? [{ url: `${origin}/og/home`, ...OG_IMAGE_SIZE, alt: shopInfo.name }]
+      locale: 'en_KE',
+      images: previewImage
+        ? [{ url: `${origin}/og/home`, ...OG_IMAGE_SIZE, alt: shopInfo.name, type: 'image/jpeg' }]
         : [],
     },
   };

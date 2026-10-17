@@ -81,6 +81,10 @@ export async function ogImageResponse(sourceUrl: string | null | undefined): Pro
         // Cached a day at the edge: a changed photo shows up within a day,
         // and crawlers re-fetching the same preview don't re-render it.
         'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+        // The picture depends on WHICH SHOP's domain asked. Without this, a shared cache
+        // that keys on the path alone (nginx did: its default key had no domain) serves one
+        // shop's image to every other shop for a day.
+        'Vary': 'Host',
       },
     });
   } catch {

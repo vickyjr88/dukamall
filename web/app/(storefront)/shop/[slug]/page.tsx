@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       // JPEG (see app/lib/og-image.ts) rather than the raw, often portrait,
       // multi-hundred-KB upload.
       images: product.imageUrls?.[0]
-        ? [{ url: `${origin}/og/product/${product.slug}`, ...OG_IMAGE_SIZE, alt: product.name }]
+        ? [{ url: `${origin}/og/product/${product.slug}`, ...OG_IMAGE_SIZE, alt: product.name, type: 'image/jpeg' }]
         : [],
     },
   };
