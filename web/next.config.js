@@ -8,6 +8,10 @@ const nextConfig = {
     // fixed.
     unoptimized: true,
   },
+  // Browsers ask for /favicon.ico by habit, whatever the page's <link rel="icon"> says.
+  async rewrites() {
+    return [{ source: '/favicon.ico', destination: '/icon' }];
+  },
 };
 
 module.exports = nextConfig;

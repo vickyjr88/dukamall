@@ -54,6 +54,8 @@ export type ShopProduct = {
   seoDescription?: string | null;
   brand: string | null;
   imageUrls: string[];
+  /** When the product last changed (the sitemap's lastmod). */
+  updatedAt?: string;
   variants: ShopVariant[];
   category: { id: string; name: string; slug: string } | null;
   /** Only present on the single-product response (getProduct), never on a

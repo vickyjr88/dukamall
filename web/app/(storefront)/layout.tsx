@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import { getTheme, getShopInfo, getPages } from '@/app/lib/api';
 import { ThemeInjector } from '@/app/theme-injector';
@@ -9,6 +10,11 @@ import { WhatsAppFloat } from '@/app/whatsapp-float';
 import { GoogleAnalytics } from '@/app/lib/google-analytics';
 import { StorefrontHeader } from './storefront-header';
 import { StorefrontFooter } from './storefront-footer';
+
+// The shop's own icon (its logo, or a letter tile) -- see app/icon/route.tsx.
+export const metadata: Metadata = {
+  icons: { icon: [{ url: '/icon', type: 'image/png', sizes: '192x192' }], apple: '/icon' },
+};
 
 export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
   const [theme, shopInfo, pages] = await Promise.all([getTheme(), getShopInfo(), getPages()]);

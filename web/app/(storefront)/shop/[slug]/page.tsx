@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getProduct, getShopInfo } from '@/app/lib/api';
 import { currentOrigin, OG_IMAGE_SIZE, truncate } from '@/app/lib/seo';
+import { breadcrumbJsonLd, JsonLd } from '@/app/lib/structured-data';
 import { ProductClient } from './product-client';
 
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
@@ -48,9 +49,12 @@ function productJsonLd(product: NonNullable<Awaited<ReturnType<typeof getProduct
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
+    '@id': `${origin}/shop/${product.slug}#product`,
     name: product.name,
+    sku: cheapestVariant?.sku || undefined,
     description: product.description || undefined,
     image: product.imageUrls,
+    category: product.category?.name || undefined,
     brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
     offers: cheapestVariant ? {
       '@type': 'Offer',
@@ -66,13 +70,17 @@ function productJsonLd(product: NonNullable<Awaited<ReturnType<typeof getProduct
 export default async function ProductPage({ params }: { params: { slug: string } }) {
   const [product, shopInfo] = await Promise.all([getProduct(params.slug), getShopInfo()]);
   if (!product) notFound();
-  const jsonLd = productJsonLd(product, shopInfo, currentOrigin());
+  const origin = currentOrigin();
+  // Home > Category > Product: shown under the title in search results.
+  const trail = [
+    { name: shopInfo.name, url: origin },
+    ...(product.category ? [{ name: product.category.name, url: `${origin}/?category=${product.category.slug}` }] : []),
+    { name: product.name, url: `${origin}/shop/${product.slug}` },
+  ];
   return (
     <>
-      {/* eslint-disable-next-line react/no-danger -- JSON-LD is the one case
-          Next.js itself documents this pattern for; the object above is
-          built entirely from this platform's own data, never user input. */}
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd data={productJsonLd(product, shopInfo, origin)} />
+      <JsonLd data={breadcrumbJsonLd(trail)} />
       <ProductClient product={product} shopInfo={shopInfo} />
     </>
   );

@@ -34,6 +34,26 @@ function allowedHosts(): Set<string> {
   return hosts;
 }
 
+/**
+ * The bytes of an image on an allowed host (see allowedHosts), or null for anything else or
+ * any failure. For callers that resize the picture themselves (the favicon) and have no
+ * "just redirect to the original" fallback of their own.
+ */
+export async function fetchAllowedImageBytes(sourceUrl: string | null | undefined): Promise<Buffer | null> {
+  if (!sourceUrl) return null;
+  try {
+    const url = new URL(sourceUrl);
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || !allowedHosts().has(url.hostname)) return null;
+    const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!res.ok || !(res.headers.get('content-type') || '').startsWith('image/')) return null;
+    if (Number(res.headers.get('content-length') || 0) > MAX_SOURCE_BYTES) return null;
+    const bytes = Buffer.from(await res.arrayBuffer());
+    return bytes.length > MAX_SOURCE_BYTES ? null : bytes;
+  } catch {
+    return null;
+  }
+}
+
 /** Centres the photo on a blurred copy of itself, so portrait and square shots fill the card without being cropped. */
 async function compose(source: Buffer): Promise<Buffer> {
   // Flattened onto white first: a transparent logo PNG would otherwise come
