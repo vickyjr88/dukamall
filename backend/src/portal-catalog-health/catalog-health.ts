@@ -90,6 +90,21 @@ export function analyseCatalog(products: HealthProduct[], ctx: HealthContext): C
       .filter((p) => SIZE_IN_NAME.test(p.name) && p.variants.every((v) => !v.size))
       .map((product) => ({ product, detail: `"${product.name.match(SIZE_IN_NAME)![0].trim()}" at the end of the name` })));
 
+  // Sizes written two ways ("EUR 40" on most products, a bare "40" on a few).
+  const bareSize = /^\d{1,2}(?:\.\d)?$/;
+  const euroSize = /^EUR\s*\d{1,2}(?:\.\d)?$/i;
+  const withBare = products.filter((p) => p.variants.some((v) => bareSize.test((v.size ?? '').trim())));
+  const withEuro = products.filter((p) => p.variants.some((v) => euroSize.test((v.size ?? '').trim())));
+  if (withBare.length > 0 && withEuro.length > 0) {
+    const minorityIsBare = withBare.length <= withEuro.length;
+    add('mixed-size-labels', 'tip', 'Sizes written two ways',
+      'Some products say "EUR 40" and others just "40". Shoppers are shown them together, so use one style everywhere (the storefront filter already treats them as the same size).',
+      (minorityIsBare ? withBare : withEuro).map((product) => ({
+        product,
+        detail: minorityIsBare ? 'sizes are plain numbers; most products say "EUR 40"' : 'sizes say "EUR 40"; most products use plain numbers',
+      })));
+  }
+
   // The same first photo on more than one product.
   const byImage = new Map<string, HealthProduct[]>();
   for (const product of products) {

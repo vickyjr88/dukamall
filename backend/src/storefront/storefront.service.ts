@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { distinctSizes, sizeSpellings } from '../common/size-labels';
 
 export type ProductListQuery = {
   category?: string;
@@ -62,7 +63,8 @@ export class StorefrontService {
       isActive: true,
       ...(category ? { category: { slug: category } } : {}),
       ...(brand ? { brand: { equals: brand, mode: 'insensitive' } } : {}),
-      ...(size ? { variants: { some: { size, isActive: true } } } : {}),
+      // "40" and "EUR 40" are the same size however a product happened to be typed in.
+      ...(size ? { variants: { some: { size: { in: sizeSpellings(size) }, isActive: true } } } : {}),
       ...(words.length
         ? fuzzyIds.length
           ? { id: { in: fuzzyIds } }
@@ -139,7 +141,7 @@ export class StorefrontService {
     ]);
     return {
       brands: brands.map((b) => b.brand!).filter(Boolean),
-      sizes: sizes.map((s) => s.size!).filter(Boolean),
+      sizes: distinctSizes(sizes.map((s) => s.size!).filter(Boolean)),
     };
   }
 

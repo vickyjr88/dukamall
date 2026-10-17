@@ -97,4 +97,14 @@ describe('analyseCatalog', () => {
     expect(severities).toEqual([...severities].sort((x, y) => (x === y ? 0 : x === 'problem' ? -1 : 1)));
     expect(result.clean).toBe(1); // the missing brand is only a tip
   });
+
+  it('notices sizes written two ways and flags the minority style', () => {
+    const sized = (id: string, label: string) => product({ id, name: id, variants: [{ sku: id, size: label, priceKes: 3500, stockOnHand: 1 }] });
+    const list = [sized('a', 'EUR 40'), sized('b', 'EUR 41'), sized('c', 'EUR 42'), sized('d', '40')];
+    const hit = issue(list, 'mixed-size-labels');
+    expect(hit?.severity).toBe('tip');
+    expect(hit?.products.map((p) => p.id)).toEqual(['d']);
+    expect(codes([sized('a', 'EUR 40'), sized('b', 'EUR 41')])).not.toContain('mixed-size-labels');
+    expect(codes([sized('a', '40'), sized('b', '41')])).not.toContain('mixed-size-labels');
+  });
 });
