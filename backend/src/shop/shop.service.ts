@@ -89,6 +89,9 @@ export class ShopService {
       xUrl: shop.xUrl,
       ga4MeasurementId: shop.ga4MeasurementId,
       searchConsoleVerification: shop.searchConsoleVerification,
+      metaPixelId: shop.metaPixelId,
+      tiktokPixelId: shop.tiktokPixelId,
+      xPixelId: shop.xPixelId,
     };
   }
 
@@ -160,6 +163,9 @@ export class ShopService {
       xUrl: shop.xUrl,
       ga4MeasurementId: shop.ga4MeasurementId,
       searchConsoleVerification: shop.searchConsoleVerification,
+      metaPixelId: shop.metaPixelId,
+      tiktokPixelId: shop.tiktokPixelId,
+      xPixelId: shop.xPixelId,
     };
   }
 
@@ -182,6 +188,9 @@ export class ShopService {
         xUrl: textOrNull(dto.xUrl),
         ga4MeasurementId: textOrNull(dto.ga4MeasurementId),
         searchConsoleVerification: textOrNull(dto.searchConsoleVerification),
+        metaPixelId: textOrNull(dto.metaPixelId),
+        tiktokPixelId: textOrNull(dto.tiktokPixelId),
+        xPixelId: textOrNull(dto.xPixelId),
       },
     });
     return this.getStorefrontContent(shopId);

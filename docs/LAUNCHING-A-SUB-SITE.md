@@ -168,6 +168,13 @@ Portal -> **Store info** -> **Analytics & Google**, on each shop separately.
   (a page written as bold questions followed by answers becomes FAQ markup), a favicon, and
   `/llms.txt` (a plain-text briefing about the shop for AI assistants). Filtered and search
   views are kept out of the index.
+- **Ad pixels (Meta, TikTok, X):** Portal -> **Store info** -> **Ad pixels**. Paste each platform's
+  Pixel ID (Meta: the number in Events Manager; TikTok: the letters-and-digits ID in Events -> Web events,
+  not the whole code; X: the short code like `o1abc` from the website tag). Each pixel is per shop, is
+  loaded only on that shop's storefront pages (never the portal or admin), records a page view on load
+  and on every page change, and is skipped when its box is blank. IDs are validated to each platform's
+  format before saving. Product-view, add-to-cart and purchase events are not sent yet. Mention
+  advertising pixels in the shop's privacy policy (the starter policy does).
 - Not included: purchase/cart events and a cookie-consent banner. Add a consent notice if
   your visitors are covered by data-protection rules that require one.
 

@@ -1,7 +1,10 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { cleanGa4Id, cleanSearchConsoleCode, isGa4Id, isSearchConsoleCode } from '../../src/common/tracking-ids';
+import {
+  cleanGa4Id, cleanMetaPixelId, cleanSearchConsoleCode, cleanTikTokPixelId, cleanXPixelId,
+  isGa4Id, isMetaPixelId, isSearchConsoleCode, isTikTokPixelId, isXPixelId,
+} from '../../src/common/tracking-ids';
 import { UpdateStorefrontDto } from '../../src/shop/storefront-content.dto';
 
 const check = async (body: Record<string, unknown>) => {
@@ -50,5 +53,45 @@ describe('storefront settings validation', () => {
   it('lets an empty string through so the field can be cleared', async () => {
     expect((await check({ ga4MeasurementId: '', searchConsoleVerification: '' })).errors).toHaveLength(0);
     expect((await check({ ga4MeasurementId: null })).errors).toHaveLength(0);
+  });
+});
+
+describe('ad pixel IDs', () => {
+  const evil = ["1234567890'); alert(1);//", '123456789012345</script><script>alert(1)', 'javascript:alert(1)', '123 456 789 012 345', '1234567890\nEVIL', '', '   ', '١٢٣٤٥٦٧٨٩٠'];
+
+  it('Meta: accepts a numeric Pixel ID and trims it', () => {
+    expect(isMetaPixelId(cleanMetaPixelId(' 1234567890123456 '))).toBe(true);
+    expect(isMetaPixelId('123456789012345')).toBe(true);
+  });
+  it.each([['abc1234567890'], ['12345'], ['1'.repeat(21)], ['12345678a'], ...evil.map((e) => [e])])('Meta: rejects %s', (bad) => {
+    expect(isMetaPixelId(cleanMetaPixelId(bad))).toBe(false);
+  });
+
+  it('TikTok: accepts the upper-case ID and cleans a lower-case paste', () => {
+    expect(isTikTokPixelId('C1A2B3D4E5F6G7H8I9J0')).toBe(true);
+    expect(cleanTikTokPixelId(' c1a2b3d4e5f6g7h8i9j0 ')).toBe('C1A2B3D4E5F6G7H8I9J0');
+    expect(isTikTokPixelId(cleanTikTokPixelId(' c1a2b3d4e5f6g7h8i9j0 '))).toBe(true);
+  });
+  it.each([['SHORT'], ['C1A2B3D4E5F6-G7H8I9J0'], ['A'.repeat(31)], ...evil.map((e) => [e])])('TikTok: rejects %s', (bad) => {
+    expect(isTikTokPixelId(cleanTikTokPixelId(bad))).toBe(false);
+  });
+
+  it('X: accepts short lower-case IDs and cleans an upper-case paste', () => {
+    for (const id of ['o1abc', 'oh9z2', 'nuxyz12']) expect(isXPixelId(id)).toBe(true);
+    expect(cleanXPixelId(' O1ABC ')).toBe('o1abc');
+  });
+  it.each([['abc'], ['o1-abc'], ['a'.repeat(13)], ...evil.map((e) => [e])])('X: rejects %s', (bad) => {
+    expect(isXPixelId(cleanXPixelId(bad))).toBe(false);
+  });
+
+  it('is cleaned, accepted and clearable through the storefront settings DTO', async () => {
+    const ok = await check({ metaPixelId: ' 1234567890123456 ', tiktokPixelId: ' c1a2b3d4e5f6g7h8i9j0', xPixelId: ' O1ABC ' });
+    expect(ok.errors).toHaveLength(0);
+    expect(ok.dto).toMatchObject({ metaPixelId: '1234567890123456', tiktokPixelId: 'C1A2B3D4E5F6G7H8I9J0', xPixelId: 'o1abc' });
+    expect((await check({ metaPixelId: '', tiktokPixelId: null, xPixelId: '' })).errors).toHaveLength(0);
+  });
+  it('refuses injection attempts in every pixel field', async () => {
+    const { errors } = await check({ metaPixelId: "1');alert(1);//", tiktokPixelId: "X'); alert(1);//", xPixelId: '"><script>' });
+    expect(errors.map((e) => e.property).sort()).toEqual(['metaPixelId', 'tiktokPixelId', 'xPixelId']);
   });
 });

@@ -8,6 +8,7 @@ type Content = {
   contactEmail: string | null; contactPhone: string | null; address: string | null; openingHours: string | null;
   instagramUrl: string | null; facebookUrl: string | null; tiktokUrl: string | null; xUrl: string | null;
   ga4MeasurementId: string | null; searchConsoleVerification: string | null;
+  metaPixelId: string | null; tiktokPixelId: string | null; xPixelId: string | null;
 };
 
 const SEO_TARGET = 160;
@@ -132,6 +133,36 @@ export default function StoreInfoPage() {
             <input id="si-gsc" maxLength={300} value={text('searchConsoleVerification')} placeholder="Paste the code, or the whole <meta> tag" autoComplete="off" onChange={(e) => set({ searchConsoleVerification: e.target.value })} />
             <span className="hint">
               In Search Console choose <em>Add property &rarr; URL prefix</em> with your shop address, pick the <em>HTML tag</em> method, paste what it shows here, save, then press <em>Verify</em> in Google.
+            </span>
+          </div>
+        </div>
+
+        <div className="portal-card">
+          <h4>Ad pixels</h4>
+          <p className="hint" style={{ marginTop: 0 }}>
+            Let Meta, TikTok and X see which visitors came from your ads and build audiences from them. Each shop has its own, and a blank box
+            turns that pixel off. Page views are recorded on your shop&apos;s pages only (not the merchant portal). Your privacy policy should
+            mention advertising pixels.
+          </p>
+          <div className="portal-field">
+            <label htmlFor="si-meta">Meta (Facebook &amp; Instagram) Pixel ID</label>
+            <input id="si-meta" inputMode="numeric" maxLength={20} value={text('metaPixelId')} placeholder="1234567890123456" autoComplete="off" onChange={(e) => set({ metaPixelId: e.target.value })} />
+            <span className="hint">
+              In Meta Events Manager: <em>Data sources</em> &rarr; your pixel &rarr; <em>Settings</em>. The ID is the number shown under the pixel&apos;s name.
+            </span>
+          </div>
+          <div className="portal-field">
+            <label htmlFor="si-tiktok">TikTok Pixel ID</label>
+            <input id="si-tiktok" maxLength={30} value={text('tiktokPixelId')} placeholder="C1A2B3D4E5F6G7H8I9J0" autoComplete="off" onChange={(e) => set({ tiktokPixelId: e.target.value })} />
+            <span className="hint">
+              In TikTok Ads Manager: <em>Tools</em> &rarr; <em>Events</em> &rarr; <em>Web events</em> &rarr; your pixel. Copy the <em>Pixel ID</em> (letters and numbers), not the pixel code.
+            </span>
+          </div>
+          <div className="portal-field">
+            <label htmlFor="si-xpixel">X (Twitter) Pixel ID</label>
+            <input id="si-xpixel" maxLength={12} value={text('xPixelId')} placeholder="o1abc" autoComplete="off" onChange={(e) => set({ xPixelId: e.target.value })} />
+            <span className="hint">
+              In X Ads: <em>Tools</em> &rarr; <em>Events manager</em> &rarr; your website tag. The ID is the short code (like <em>o1abc</em>) shown in the tag&apos;s setup snippet.
             </span>
           </div>
         </div>

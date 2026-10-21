@@ -1,7 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEmail, IsIn, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength, ValidateIf } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { cleanGa4Id, cleanSearchConsoleCode, GA4_ID_PATTERN, SEARCH_CONSOLE_PATTERN } from '../common/tracking-ids';
+import {
+  cleanGa4Id, cleanMetaPixelId, cleanSearchConsoleCode, cleanTikTokPixelId, cleanXPixelId,
+  GA4_ID_PATTERN, META_PIXEL_PATTERN, SEARCH_CONSOLE_PATTERN, TIKTOK_PIXEL_PATTERN, X_PIXEL_PATTERN,
+} from '../common/tracking-ids';
 
 // "" and null both mean "clear this field"; undefined means "leave it alone".
 // Everything optional below uses this so an emptied input in the portal form
@@ -44,6 +47,26 @@ export class UpdateStorefrontDto {
   @ValidateIf(present) @IsOptional()
   @Matches(SEARCH_CONSOLE_PATTERN, { message: 'searchConsoleVerification must be the code from the Search Console HTML tag method' })
   searchConsoleVerification?: string | null;
+
+  // Ad pixels: each is injected into an inline script on the storefront, so only the exact shape
+  // each platform issues is accepted (cleaned first: trimmed, and case-folded where the platform is).
+  @ApiPropertyOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? cleanMetaPixelId(value) : value))
+  @ValidateIf(present) @IsOptional()
+  @Matches(META_PIXEL_PATTERN, { message: 'metaPixelId must be the numeric Pixel ID from Meta Events Manager' })
+  metaPixelId?: string | null;
+
+  @ApiPropertyOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? cleanTikTokPixelId(value) : value))
+  @ValidateIf(present) @IsOptional()
+  @Matches(TIKTOK_PIXEL_PATTERN, { message: 'tiktokPixelId must be the Pixel ID from TikTok Events Manager (letters and digits)' })
+  tiktokPixelId?: string | null;
+
+  @ApiPropertyOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? cleanXPixelId(value) : value))
+  @ValidateIf(present) @IsOptional()
+  @Matches(X_PIXEL_PATTERN, { message: 'xPixelId must be the short Pixel ID from X Ads (letters and digits, e.g. o1abc)' })
+  xPixelId?: string | null;
 }
 
 const HEX = { regex: /^#[0-9a-fA-F]{6}$/, message: 'must be a 6-digit hex color like #2438a8' };

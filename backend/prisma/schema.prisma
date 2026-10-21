@@ -95,6 +95,10 @@ model Shop {
   // Console HTML-tag verification code. Public by nature (they appear in the page).
   ga4MeasurementId           String?
   searchConsoleVerification  String?
+  // Ad pixels (Meta, TikTok, X): public IDs that appear in the storefront's page source.
+  metaPixelId                String?
+  tiktokPixelId              String?
+  xPixelId                   String?
 
   theme         ShopTheme?
   pages         ShopPage[]

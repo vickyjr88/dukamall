@@ -144,6 +144,8 @@ export type ShopInfo = {
   instagramUrl?: string | null; facebookUrl?: string | null; tiktokUrl?: string | null; xUrl?: string | null;
   // Google tracking this shop has set up (both optional).
   ga4MeasurementId?: string | null; searchConsoleVerification?: string | null;
+  // Ad pixels the shop has set up (Meta, TikTok, X); each optional.
+  metaPixelId?: string | null; tiktokPixelId?: string | null; xPixelId?: string | null;
 };
 
 export type ShopPageLink = { slug: string; title: string; showInFooter: boolean; updatedAt: string };
