@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { getCategories, getFilters, getProducts, getShopInfo, getTheme } from '@/app/lib/api';
+import Link from 'next/link';
+import { buildCollections, collectionPath, isIndexable } from '@/app/lib/collections';
 import { currentOrigin, OG_IMAGE_SIZE } from '@/app/lib/seo';
 import { homePreviewImageUrl } from '@/app/lib/home-preview';
 import { JsonLd, organizationJsonLd, websiteJsonLd } from '@/app/lib/structured-data';
@@ -10,6 +12,8 @@ type HomeSearchParams = { category?: string; brand?: string; size?: string; sear
 // Anything beyond a plain category (brand, size, search, sort, price) is a view of the same
 // products, not a new page: kept out of the index so search engines don't crawl endless combinations.
 const FILTER_KEYS = ['brand', 'size', 'search', 'sort', 'minPrice', 'maxPrice'] as const;
+
+const isFilteredView = (sp: HomeSearchParams) => Object.values(sp).some(Boolean);
 
 function joinNames(names: string[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}` : names[0] ?? '';
@@ -83,6 +87,10 @@ export default async function HomePage({ searchParams }: { searchParams: HomeSea
   ]);
 
   const origin = currentOrigin();
+  // The biggest brand and model pages, from the unfiltered catalogue (the query above may be a search or a category).
+  const popular = isFilteredView(searchParams)
+    ? []
+    : buildCollections(products).filter(isIndexable).sort((a, b) => b.products.length - a.products.length).slice(0, 10);
   // On a category view the page's own heading is the category, not the shop-wide hero line.
   const category = searchParams.category ? categories.find((c) => c.slug === searchParams.category) : undefined;
   const headline = category ? category.name : theme.heroHeadline || shopInfo.name;
@@ -114,6 +122,18 @@ export default async function HomePage({ searchParams }: { searchParams: HomeSea
       </section>
 
       <StorefrontSearch initialProducts={products} categories={categories} filters={filters} />
+
+      {/* Plain links to the brand and model pages: how shoppers (and crawlers) find them from the home page. */}
+      {popular.length > 0 ? (
+        <section className="shop-section" aria-label="Shop by brand">
+          <div className="shop-container">
+            <div className="shop-section-head"><div><span className="eyebrow">Shop by brand</span></div></div>
+            <p style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--shop-space-3)' }}>
+              {popular.map((c) => <Link key={`${c.kind}-${c.slug}`} href={collectionPath(c)}>{c.name}</Link>)}
+            </p>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import { getCategories, getPage, getPages, getProducts, getShopInfo } from '@/app/lib/api';
+import { buildCollections, collectionFacts, collectionPath, isIndexable } from '@/app/lib/collections';
 import { currentOrigin, truncate } from '@/app/lib/seo';
 import { plainText } from '@/app/lib/rich-text';
 
@@ -22,8 +23,15 @@ export async function GET() {
   );
 
   const inCategory = (slug: string) => products.filter((p) => p.category?.slug === slug).length;
-  const brands = Array.from(new Set(products.map((p) => p.brand).filter((b): b is string => Boolean(b)))).sort();
+  // Only brands with a real collection (3+ products): a stray or luxury name in the brand field is not listed as a brand the shop stocks.
+  const brands = buildCollections(products).filter((c) => c.kind === 'brand' && isIndexable(c)).map((c) => c.name).sort();
   const prices = products.flatMap((p) => p.variants.map((v) => Number(v.priceKes))).filter((n) => n > 0);
+
+  const collections = buildCollections(products).filter(isIndexable).map((c) => {
+    const f = collectionFacts(c);
+    const range = f.minPrice === null ? '' : f.maxPrice! > f.minPrice ? `, ${shop.currency} ${f.minPrice.toLocaleString('en-US')} to ${f.maxPrice!.toLocaleString('en-US')}` : `, ${shop.currency} ${f.minPrice.toLocaleString('en-US')}`;
+    return `- [${c.name}${c.kind === 'brand' ? ` ${c.noun}` : ''}](${origin}${collectionPath(c)}): ${f.count} styles${range}`;
+  });
 
   const facts = [
     shop.address ? `- Location: ${shop.address}` : null,
@@ -54,6 +62,7 @@ export async function GET() {
       .filter((c) => inCategory(c.slug) > 0)
       .map((c) => `- [${c.name}](${origin}/?category=${c.slug}): ${inCategory(c.slug)} products`),
     '',
+    ...(collections.length ? ['## Brands and models', '', ...collections, ''] : []),
     ...(pageLines.length ? ['## Information', '', ...pageLines, ''] : []),
     '## For machines',
     '',

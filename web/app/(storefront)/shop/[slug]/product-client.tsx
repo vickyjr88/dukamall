@@ -1,6 +1,7 @@
 "use client";
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ShopInfo, ShopProduct } from '@/app/lib/api';
 import { useCart } from '@/app/lib/cart';
@@ -47,7 +48,8 @@ function buildEnquiry(product: ShopProduct, chosen: ShopProduct['variants'][numb
   return lines.join('\n');
 }
 
-export function ProductClient({ product, shopInfo }: { product: ShopProduct; shopInfo: ShopInfo }) {
+/** brandPage: the shop's landing page for this product's brand, when it has one (links shoppers and crawlers there). */
+export function ProductClient({ product, shopInfo, brandPage }: { product: ShopProduct; shopInfo: ShopInfo; brandPage?: { href: string; label: string } }) {
   const cart = useCart();
   const [variantId, setVariantId] = useState(product.variants[0]?.id ?? null);
   const [manualSize, setManualSize] = useState('');
@@ -113,6 +115,10 @@ export function ProductClient({ product, shopInfo }: { product: ShopProduct; sho
               <ShareButton url={shareUrl} title={product.name} text={shareText} compact />
             </div>
           </div>
+
+          {brandPage ? (
+            <p style={{ margin: 0, fontSize: 'var(--shop-text-sm)' }}><Link href={brandPage.href}>{brandPage.label}</Link></p>
+          ) : null}
 
           {chosen ? (
             <div className="pdp-price">

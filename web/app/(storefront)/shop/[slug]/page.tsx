@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getProduct, getShopInfo } from '@/app/lib/api';
+import { getProduct, getProducts, getShopInfo } from '@/app/lib/api';
+import { brandPageFor, buildCollections, collectionPath } from '@/app/lib/collections';
 import { currentOrigin, OG_IMAGE_SIZE, truncate } from '@/app/lib/seo';
 import { breadcrumbJsonLd, JsonLd } from '@/app/lib/structured-data';
 import { ProductClient } from './product-client';
@@ -71,6 +72,7 @@ export default async function ProductPage({ params }: { params: { slug: string }
   const [product, shopInfo] = await Promise.all([getProduct(params.slug), getShopInfo()]);
   if (!product) notFound();
   const origin = currentOrigin();
+  const brandCollection = product.brand ? brandPageFor(product.brand, buildCollections(await getProducts())) : undefined;
   // Home > Category > Product: shown under the title in search results.
   const trail = [
     { name: shopInfo.name, url: origin },
@@ -81,7 +83,11 @@ export default async function ProductPage({ params }: { params: { slug: string }
     <>
       <JsonLd data={productJsonLd(product, shopInfo, origin)} />
       <JsonLd data={breadcrumbJsonLd(trail)} />
-      <ProductClient product={product} shopInfo={shopInfo} />
+      <ProductClient
+        product={product}
+        shopInfo={shopInfo}
+        brandPage={brandCollection ? { href: collectionPath(brandCollection), label: `More ${brandCollection.name} ${brandCollection.noun}` } : undefined}
+      />
     </>
   );
 }

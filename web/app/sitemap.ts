@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getCategories, getPages, getProducts } from '@/app/lib/api';
+import { buildCollections, collectionPath, isIndexable } from '@/app/lib/collections';
 import { currentOrigin } from '@/app/lib/seo';
 
 function dateOrUndefined(value?: string): Date | undefined {
@@ -31,6 +32,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: 'daily' as const,
         priority: 0.6,
       })),
+    // Brand and model landing pages ("Nike sneakers", "Air Force 1 price in Kenya"); thin ones are noindex and left out.
+    ...buildCollections(products).filter(isIndexable).map((c) => ({
+      url: `${origin}${collectionPath(c)}`,
+      lastModified: latestProductChange,
+      changeFrequency: 'daily' as const,
+      priority: 0.7,
+    })),
     ...pages.map((p) => ({
       url: `${origin}/pages/${p.slug}`,
       lastModified: dateOrUndefined(p.updatedAt),
