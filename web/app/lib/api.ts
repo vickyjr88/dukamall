@@ -142,6 +142,8 @@ export type ShopInfo = {
   tagline?: string | null; announcement?: string | null; seoDescription?: string | null;
   contactEmail?: string | null; contactPhone?: string | null; address?: string | null; openingHours?: string | null;
   instagramUrl?: string | null; facebookUrl?: string | null; tiktokUrl?: string | null; xUrl?: string | null;
+  // Customer asks in the footer (each optional): rate us on Google, join the WhatsApp group.
+  googleReviewsUrl?: string | null; googleRating?: string | null; googleReviewCount?: string | null; whatsappGroupUrl?: string | null;
   // Google tracking this shop has set up (both optional).
   ga4MeasurementId?: string | null; searchConsoleVerification?: string | null;
   // Ad pixels the shop has set up (Meta, TikTok, X); each optional.

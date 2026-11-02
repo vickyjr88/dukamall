@@ -91,6 +91,13 @@ model Shop {
   facebookUrl    String?
   tiktokUrl      String?
   xUrl           String?
+  // Customer asks shown in the storefront footer: rate the shop on Google (a profile or review
+  // link, plus the rating and review count as the owner reads them off the profile -- Google has
+  // no free feed of them) and join the shop's WhatsApp group. Each is hidden while empty.
+  googleReviewsUrl   String?
+  googleRating       String? // "4.8"
+  googleReviewCount  String? // "37"
+  whatsappGroupUrl   String?
   // Per-shop Google tracking: a GA4 Measurement ID (G-XXXXXXXXXX) and the Search
   // Console HTML-tag verification code. Public by nature (they appear in the page).
   ga4MeasurementId           String?

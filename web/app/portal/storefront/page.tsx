@@ -7,6 +7,7 @@ type Content = {
   name: string; tagline: string | null; announcement: string | null; seoDescription: string | null;
   contactEmail: string | null; contactPhone: string | null; address: string | null; openingHours: string | null;
   instagramUrl: string | null; facebookUrl: string | null; tiktokUrl: string | null; xUrl: string | null;
+  googleReviewsUrl: string | null; googleRating: string | null; googleReviewCount: string | null; whatsappGroupUrl: string | null;
   ga4MeasurementId: string | null; searchConsoleVerification: string | null;
   metaPixelId: string | null; tiktokPixelId: string | null; xPixelId: string | null;
 };
@@ -115,6 +116,34 @@ export default function StoreInfoPage() {
           <div className="portal-field">
             <label htmlFor="si-x">X (Twitter)</label>
             <input id="si-x" type="url" maxLength={300} value={text('xUrl')} placeholder="https://x.com/yourshop" onChange={(e) => set({ xUrl: e.target.value })} />
+          </div>
+        </div>
+
+        <div className="portal-card">
+          <h4>Customer reviews &amp; community</h4>
+          <p className="hint" style={{ marginTop: 0 }}>
+            A strip at the top of your footer asking customers to rate you on Google and to join your WhatsApp group. Each part is hidden while its box is blank.
+          </p>
+          <div className="portal-field">
+            <label htmlFor="si-greview">Google review link</label>
+            <input id="si-greview" type="url" maxLength={300} value={text('googleReviewsUrl')} placeholder="https://g.page/r/.../review" onChange={(e) => set({ googleReviewsUrl: e.target.value })} />
+            <span className="hint">
+              In Google Business Profile choose <em>Get more reviews</em> and copy the short link (a profile share link also works).
+            </span>
+          </div>
+          <div className="portal-field">
+            <label htmlFor="si-grating">Google rating (optional)</label>
+            <input id="si-grating" inputMode="decimal" maxLength={3} value={text('googleRating')} placeholder="4.8" onChange={(e) => set({ googleRating: e.target.value })} />
+          </div>
+          <div className="portal-field">
+            <label htmlFor="si-gcount">Number of Google reviews (optional)</label>
+            <input id="si-gcount" inputMode="numeric" maxLength={6} value={text('googleReviewCount')} placeholder="37" onChange={(e) => set({ googleReviewCount: e.target.value })} />
+            <span className="hint">Copy both from your Google profile and update them when they change. The rating line only shows when both are filled in.</span>
+          </div>
+          <div className="portal-field">
+            <label htmlFor="si-wagroup">WhatsApp group invite link</label>
+            <input id="si-wagroup" type="url" maxLength={300} value={text('whatsappGroupUrl')} placeholder="https://chat.whatsapp.com/..." onChange={(e) => set({ whatsappGroupUrl: e.target.value })} />
+            <span className="hint">In WhatsApp: open the group &rarr; Group info &rarr; <em>Invite via link</em> &rarr; Copy link.</span>
           </div>
         </div>
 

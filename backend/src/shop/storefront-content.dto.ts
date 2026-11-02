@@ -34,6 +34,23 @@ export class UpdateStorefrontDto {
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) tiktokUrl?: string | null;
   @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl(HTTP_URL) @MaxLength(300) xUrl?: string | null;
 
+  // Customer asks in the footer. Links are https only (they become <a href> on every page); the
+  // WhatsApp one must be a group invite, so it cannot point anywhere else by mistake.
+  @ApiPropertyOptional() @ValidateIf(present) @IsOptional() @IsUrl({ protocols: ['https'], require_protocol: true }) @MaxLength(300) googleReviewsUrl?: string | null;
+  @ApiPropertyOptional()
+  @ValidateIf(present) @IsOptional()
+  @Matches(/^([0-4](\.\d)?|5(\.0)?)$/, { message: 'googleRating must be a number from 0 to 5, such as 4.8' })
+  googleRating?: string | null;
+  @ApiPropertyOptional()
+  @ValidateIf(present) @IsOptional()
+  @Matches(/^\d{1,6}$/, { message: 'googleReviewCount must be a whole number' })
+  googleReviewCount?: string | null;
+  @ApiPropertyOptional()
+  @ValidateIf(present) @IsOptional()
+  @Matches(/^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+(\?\S*)?$/, { message: 'whatsappGroupUrl must be a WhatsApp group invite link (https://chat.whatsapp.com/...)' })
+  @MaxLength(300)
+  whatsappGroupUrl?: string | null;
+
   // Google Analytics 4 Measurement ID (G-XXXXXXXXXX). Cleaned (trim, upper-case) before it is checked.
   @ApiPropertyOptional()
   @Transform(({ value }) => (typeof value === 'string' ? cleanGa4Id(value) : value))

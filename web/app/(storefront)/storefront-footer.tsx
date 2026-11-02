@@ -3,6 +3,43 @@ import { ShopInfo, ShopPageLink } from '@/app/lib/api';
 import { WhatsAppIcon } from '@/app/whatsapp-icon';
 import { FacebookIcon, InstagramIcon, TikTokIcon, XIcon } from '@/app/social-icons';
 
+/** Only https addresses are linked, whatever is stored. */
+const httpsOnly = (value?: string | null) => (value && /^https:\/\//i.test(value.trim()) ? value.trim() : '');
+
+/** Ask customers to rate the shop on Google (with its rating, when set) and to join its WhatsApp group. */
+function CustomerAsks({ shopInfo }: { shopInfo: ShopInfo }) {
+  const googleUrl = httpsOnly(shopInfo.googleReviewsUrl);
+  const groupUrl = httpsOnly(shopInfo.whatsappGroupUrl);
+  if (!googleUrl && !groupUrl) return null;
+  const rating = Number.parseFloat(shopInfo.googleRating ?? '');
+  const count = Number.parseInt(shopInfo.googleReviewCount ?? '', 10);
+  const showRating = Number.isFinite(rating) && rating > 0 && rating <= 5 && Number.isFinite(count) && count > 0;
+  const filled = Math.round(rating);
+
+  return (
+    <div className="shop-footer-asks">
+      {googleUrl ? (
+        <div>
+          <h4>Bought from us? Tell others how it went</h4>
+          {showRating ? (
+            <p className="shop-footer-rating" aria-label={`Rated ${rating.toFixed(1)} out of 5 from ${count} Google review${count === 1 ? '' : 's'}`}>
+              <span className="stars" aria-hidden="true">{'★'.repeat(filled)}{'☆'.repeat(5 - filled)}</span>
+              <strong>{rating.toFixed(1)}</strong> from {count} Google review{count === 1 ? '' : 's'}
+            </p>
+          ) : null}
+          <a className="btn btn-outline" href={googleUrl} target="_blank" rel="noopener noreferrer">Rate us on Google</a>
+        </div>
+      ) : null}
+      {groupUrl ? (
+        <div>
+          <h4>Get new arrivals first</h4>
+          <a className="btn btn-outline" href={groupUrl} target="_blank" rel="noopener noreferrer"><WhatsAppIcon /> Join our WhatsApp group</a>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; pages: ShopPageLink[] }) {
   const year = new Date().getFullYear();
   const footerPages = pages.filter((p) => p.showInFooter);
@@ -18,6 +55,7 @@ export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; page
   return (
     <footer className="shop-footer">
       <div className="shop-container">
+        <CustomerAsks shopInfo={shopInfo} />
         <div className="shop-footer-grid">
           <div>
             <div className="logo">{shopInfo.name}</div>

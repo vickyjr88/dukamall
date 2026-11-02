@@ -39,3 +39,13 @@ re-check the price list against the catalogue (it is a snapshot), and read them 
 **Two shops with the same stock and address:** nairobigents.com and msa.dripemporium.store sell the same shoes from the same shop, and
 dripemporium.store does too. Three near-identical sites compete with each other for the same searches. Publish the guides on one shop first,
 and give the other shops a genuinely different angle before publishing theirs.
+
+## Google reviews and WhatsApp group (footer)
+
+Each shop can ask customers to rate it on Google and to join its WhatsApp group: a strip at the top of the storefront footer, set in the portal under
+**Store info > Customer reviews & community** (`googleReviewsUrl`, `googleRating`, `googleReviewCount`, `whatsappGroupUrl` on the Shop).
+
+- Each part is hidden while its box is blank; the rating line shows only when both the rating and the review count are filled in.
+- The rating and count are typed in by hand (Google has no free feed of them without a Places API key); update them when they change.
+- Links are stored and rendered as https only, and the WhatsApp one must be a `https://chat.whatsapp.com/...` invite.
+- No `AggregateRating` markup on purpose: Google does not show review stars for a business's reviews of itself.
