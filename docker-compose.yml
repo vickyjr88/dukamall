@@ -55,6 +55,10 @@ x-backend-environment: &backend-environment
   MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
   MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL:-}
   REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  # Instant catalogue sync from Drip Emporium (see docs/DRIP-SYNC.md). Off until DRIP_SYNC_SECRET is set.
+  DRIP_SYNC_SECRET: ${DRIP_SYNC_SECRET:-}
+  DRIP_SYNC_TARGET_SHOPS: ${DRIP_SYNC_TARGET_SHOPS:-nairobigents}
+  DRIP_API_URL: ${DRIP_API_URL:-https://api.dripemporium.store}
 
 x-backend-healthcheck: &backend-healthcheck
   test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3200/health || exit 1"]

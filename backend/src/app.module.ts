@@ -14,6 +14,7 @@ import { TrialModule } from './trial/trial.module';
 import { ShopPageModule } from './shop-page/shop-page.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { ProductFeedModule } from './product-feed/product-feed.module';
+import { DripSyncModule } from './drip-sync/drip-sync.module';
 import { CheckoutModule } from './checkout/checkout.module';
 import { PaystackModule } from './paystack/paystack.module';
 import { CartLeadModule } from './cart-lead/cart-lead.module';
@@ -54,6 +55,7 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     ShopPageModule,
     StorefrontModule,
     ProductFeedModule,
+    DripSyncModule,
     PaystackModule,
     CheckoutModule,
     CartLeadModule,
