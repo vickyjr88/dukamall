@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { portalFetch } from '../portal-api';
 import { useSession } from '../portal-session';
-import { ImagePicker } from './image-picker';
+import { ImagePicker } from '../media/image-picker';
 import { SizeBuilder } from './size-builder';
 import { ApiProduct, Category, newRowKey, SizeRow, slugify, suggestSku } from './product-types';
 

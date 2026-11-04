@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { authHeaders, portalFetch, PORTAL_API_BASE } from '../portal-api';
+import { ImagePicker } from '../media/image-picker';
 
 type ThemeOptions = {
   fontPairings: { key: string; label: string }[];
@@ -28,6 +29,7 @@ export default function ThemePage() {
   const [error, setError] = useState<string | null>(null);
   const [uploadingHero, setUploadingHero] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [pickerFor, setPickerFor] = useState<'logoUrl' | 'heroImageUrl' | null>(null);
 
   useEffect(() => {
     portalFetch('/portal/theme-options').then((r) => r.json()).then(setOptions);
@@ -123,6 +125,9 @@ export default function ThemePage() {
             ) : null}
             <input type="file" accept="image/*" onChange={(e) => upload(e, 'logoUrl', setUploadingLogo)} disabled={uploadingLogo} />
             {uploadingLogo ? <span className="hint">Uploading...</span> : null}
+            <button type="button" className="portal-btn portal-btn-outline portal-btn-sm" style={{ marginTop: 6 }} onClick={() => setPickerFor('logoUrl')}>
+              Choose from your photos
+            </button>
             {theme.logoUrl ? (
               <button type="button" className="portal-btn-ghost" style={{ marginTop: 6 }} onClick={() => setTheme({ ...theme, logoUrl: null })}>
                 Remove logo
@@ -144,6 +149,9 @@ export default function ThemePage() {
             ) : null}
             <input type="file" accept="image/*" onChange={(e) => upload(e, 'heroImageUrl', setUploadingHero)} disabled={uploadingHero} />
             {uploadingHero ? <span className="hint">Uploading...</span> : null}
+            <button type="button" className="portal-btn portal-btn-outline portal-btn-sm" style={{ marginTop: 6 }} onClick={() => setPickerFor('heroImageUrl')}>
+              Choose from your photos
+            </button>
             {theme.heroImageUrl ? (
               <button
                 type="button"
@@ -197,6 +205,19 @@ export default function ThemePage() {
           <button type="submit" className="portal-btn">Save theme</button>
         </form>
       </div>
+
+      <ImagePicker
+        open={pickerFor !== null}
+        onClose={() => setPickerFor(null)}
+        alreadyAdded={[]}
+        remainingSlots={1}
+        title={pickerFor === 'logoUrl' ? 'Choose your logo' : 'Choose the hero image'}
+        confirmLabel="Use this image"
+        onAdd={(urls) => {
+          // Held in local state like an upload: "Save theme" is still the one action that commits it.
+          if (pickerFor && urls[0]) setTheme({ ...theme, [pickerFor]: urls[0] });
+        }}
+      />
     </div>
   );
 }

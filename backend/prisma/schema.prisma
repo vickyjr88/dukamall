@@ -112,6 +112,7 @@ model Shop {
   trialReminders TrialReminder[]
   dailyReportSetting DailyReportSetting?
   dailyReportRuns    DailyReportRun[]
+  mediaAssets        MediaAsset[]
   staff         UserShop[]
   products      Product[]
   categories    ProductCategory[]
@@ -768,4 +769,26 @@ model DailyReportRun {
 
   @@unique([shopId, reportDate, channel, recipient])
   @@index([shopId, reportDate])
+}
+
+/// One image in a shop's media library. The file lives in the object store under `objectKey` ("{shopId}/{uuid}.ext"); this
+/// row is what the media manager lists and searches. Cropping overwrites the file under the same key and keeps the
+/// previous picture in `versions`, so every product or theme using the image shows the crop and nothing needs re-linking.
+model MediaAsset {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  objectKey   String   @unique
+  fileName    String
+  contentType String
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  /// Earlier pictures of this image (newest last), each a stored copy under "{shopId}/versions/". Never listed as images.
+  versions    Json?
+  uploadedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([shopId, createdAt])
 }
