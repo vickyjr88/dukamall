@@ -110,6 +110,8 @@ model Shop {
   theme         ShopTheme?
   pages         ShopPage[]
   trialReminders TrialReminder[]
+  dailyReportSetting DailyReportSetting?
+  dailyReportRuns    DailyReportRun[]
   staff         UserShop[]
   products      Product[]
   categories    ProductCategory[]
@@ -733,4 +735,37 @@ model TrialReminder {
   sentAt      DateTime @default(now())
 
   @@unique([shopId, kind, trialEndsAt])
+}
+
+/// Who receives the 07:00 daily report for a shop. With no row, it goes to the shop's notification email (else its
+/// owners). Editing takes effect on the next send.
+model DailyReportSetting {
+  shopId             String   @id
+  shop               Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  enabled            Boolean  @default(true)
+  emailRecipients    String[]
+  whatsappRecipients String[]
+  updatedBy          String   @default("system")
+  updatedAt          DateTime @updatedAt
+}
+
+/// One row per shop, report day, channel and recipient. The unique key is what stops a report going out twice when
+/// both backend slots run the scheduler or a send is retried.
+model DailyReportRun {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// The day described, YYYY-MM-DD in Nairobi time.
+  reportDate String
+  channel    String
+  recipient  String
+  /// PENDING while being sent, then SENT, FAILED or SKIPPED.
+  status     String
+  attempts   Int      @default(0)
+  error      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([shopId, reportDate, channel, recipient])
+  @@index([shopId, reportDate])
 }
