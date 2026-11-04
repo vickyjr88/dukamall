@@ -132,7 +132,7 @@ const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
 /**
  * The six values the approved WhatsApp template fills in. Template text:
  *
- *   Daily report for {{1}} ({{2}}): {{3}} paid orders, {{4}} revenue, {{5}} vs the day before. {{6}} need attention. Full report is in your email.
+ *   Daily report for {{1}} ({{2}}): {{3}} paid orders, {{4}} revenue, {{5}} vs the day before. To act on: {{6}}. Full report is in your email.
  */
 export function whatsappParams(r: DailyReport): string[] {
   const n = needsActionCount(r);

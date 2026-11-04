@@ -51,7 +51,7 @@ can serve Drip Emporium's report):
 1. In Meta Business Suite > WhatsApp Manager, connect the sending number to a WhatsApp Business account.
 2. Create a template named `daily_report`, category **Utility**, language English:
 
-   > Daily report for {{1}} ({{2}}): {{3}} paid orders, {{4}} revenue, {{5}} vs the day before. {{6}} need attention. Full report is in your email.
+   > Daily report for {{1}} ({{2}}): {{3}} paid orders, {{4}} revenue, {{5}} vs the day before. To act on: {{6}}. Full report is in your email.
 
    Example values for the approval form: `Nairobi Gents`, `Wed 4 Nov 2026`, `12`, `KES 54,000`, `+8%`, `3 items`.
 3. Create a System User token with `whatsapp_business_messaging` and set `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_ACCESS_TOKEN` in the server `.env`
