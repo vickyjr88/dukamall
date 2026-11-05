@@ -4,7 +4,18 @@ import { useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3211';
 
+// The kinds of product a shop can switch on. The full descriptions live in the portal under "What you sell"; this is only
+// the choice made at sign-up, which sets up the starter categories. It can be changed later.
+const SECTION_CHOICES = [
+  { key: 'devices', label: 'Phones, tablets and accessories' },
+  { key: 'clothes', label: 'Clothes' },
+  { key: 'footwear', label: 'Shoes' },
+  { key: 'watches', label: 'Watches' },
+  { key: 'electronics', label: 'Electronics' },
+];
+
 export default function SignupPage() {
+  const [sections, setSections] = useState<string[]>([]);
   const [form, setForm] = useState({ shopName: '', slug: '', ownerEmail: '', ownerFirstName: '', ownerLastName: '', password: '' });
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +30,7 @@ export default function SignupPage() {
       const res = await fetch(`${API_BASE}/onboarding/shops`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, ...(sections.length ? { sections } : {}) }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -64,6 +75,20 @@ export default function SignupPage() {
             <label htmlFor="signup-password">Password</label>
             <input id="signup-password" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} required minLength={8} />
           </div>
+          <fieldset className="portal-field" style={{ border: 0, padding: 0, margin: '0 0 12px' }}>
+            <legend style={{ fontSize: 13, marginBottom: 6 }}>What will you sell? <span style={{ color: 'var(--p-muted)' }}>(you can change this later)</span></legend>
+            {SECTION_CHOICES.map((choice) => (
+              <label key={choice.key} style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 400, margin: '4px 0' }}>
+                <input
+                  type="checkbox"
+                  checked={sections.includes(choice.key)}
+                  onChange={(e) => setSections((prev) => (e.target.checked ? [...prev, choice.key] : prev.filter((k) => k !== choice.key)))}
+                  style={{ width: 'auto' }}
+                />
+                {choice.label}
+              </label>
+            ))}
+          </fieldset>
           {result ? <div className="portal-alert is-success">{result}</div> : null}
           {error ? <div className="portal-alert is-error">{error}</div> : null}
           <button type="submit" className="portal-btn portal-btn-block" disabled={submitting}>

@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { authHeaders, portalFetch, PORTAL_API_BASE } from '../portal-api';
 import { useSession } from '../portal-session';
+import { orderedValues } from './product-types';
 
-type Variant = { id: string; sku: string; name: string; size: string | null; priceKes: string; wasPriceKes: string | null; stockOnHand: number; isActive: boolean };
+type Variant = { id: string; sku: string; name: string; size: string | null; attributes?: Record<string, string> | null; priceKes: string; wasPriceKes: string | null; stockOnHand: number; isActive: boolean };
 type Product = { id: string; name: string; slug: string; description: string | null; imageUrls: string[]; isActive: boolean; isFeatured: boolean; variants: Variant[] };
 type Category = { id: string; name: string; slug: string; isActive: boolean };
 
@@ -271,7 +272,13 @@ function ProductRow({ product, onChanged }: { product: Product; onChanged: () =>
   const hiddenCount = product.variants.length - variants.length;
   const prices = variants.map((v) => Number(v.priceKes));
   const stock = variants.reduce((sum, v) => sum + v.stockOnHand, 0);
-  const sizes = variants.map((v) => v.size ?? v.name);
+  // A shirt or a shoe has sizes; a phone has combinations ("128GB / Black / New"); a watch or a charger often has one way only.
+  const optioned = variants.some((v) => orderedValues(v.attributes ?? undefined).length > 0);
+  const sized = !optioned && variants.some((v) => v.size);
+  const sizes = optioned
+    ? variants.map((v) => orderedValues(v.attributes ?? undefined).join(' / '))
+    : sized ? variants.map((v) => v.size ?? v.name) : [];
+  const noun = optioned ? 'option' : 'size';
   const priceText = prices.length
     ? Math.min(...prices) === Math.max(...prices)
       ? `KES ${Math.min(...prices).toLocaleString()}`
@@ -286,8 +293,7 @@ function ProductRow({ product, onChanged }: { product: Product; onChanged: () =>
           <Link href={`/portal/products/${product.id}`}><strong>{product.name}</strong></Link>{' '}
           {!product.isActive ? <span className="portal-badge is-cancelled" style={{ marginLeft: 8 }}>Inactive</span> : null}
           <p style={{ marginTop: 4, fontSize: 13, color: 'var(--p-muted)' }}>
-            {priceText} &middot; {stock.toLocaleString()} in stock &middot; {sizes.length} size{sizes.length === 1 ? '' : 's'}
-            {sizes.length ? `: ${sizes.slice(0, 8).join(', ')}${sizes.length > 8 ? ` +${sizes.length - 8} more` : ''}` : ''}
+            {priceText} &middot; {stock.toLocaleString()} in stock {sizes.length ? ` \u00b7 ${sizes.length} ${noun}${sizes.length === 1 ? '' : 's'}: ${sizes.slice(0, 8).join(', ')}${sizes.length > 8 ? ` +${sizes.length - 8} more` : ''}` : ''}
             {hiddenCount ? ` \u00b7 ${hiddenCount} hidden` : ''}
           </p>
         </div>

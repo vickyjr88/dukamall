@@ -674,3 +674,18 @@
     order: -1;
   }
 }
+
+/* Sections (what the shop sells) and the options builder */
+.sec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.sec-card { display: flex; flex-direction: column; gap: 8px; }
+.sec-card + .sec-card { margin-top: 0; }
+.sec-card.is-on { border-color: var(--p-primary); }
+.sec-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.sec-tag { margin: 0; font-size: 0.88rem; color: var(--p-ink); line-height: 1.5; }
+.sec-meta { margin: 0; font-size: 0.8rem; color: var(--p-muted); }
+.sec-cats summary { cursor: pointer; font-size: 0.85rem; color: var(--p-primary); }
+.sec-cat-list { display: grid; gap: 6px; margin-top: 8px; max-height: 200px; overflow-y: auto; }
+.sec-cat-have { margin: 0; padding-left: 18px; font-size: 0.85rem; color: var(--p-muted); columns: 2; }
+.sec-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; flex-wrap: wrap; }
+.ob-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ob-presets .portal-btn-sm.is-on { background: var(--p-primary); color: #fff; border-color: var(--p-primary); }

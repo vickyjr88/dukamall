@@ -6,6 +6,16 @@ import { currentOrigin, OG_IMAGE_SIZE, truncate } from '@/app/lib/seo';
 import { breadcrumbJsonLd, JsonLd } from '@/app/lib/structured-data';
 import { ProductClient } from './product-client';
 
+/** schema.org's three condition values, from whatever the shop typed ("Brand new", "Refurbished", "Ex-UK"); undefined when it did not say. */
+function itemCondition(text: string | undefined): string | undefined {
+  const raw = (text ?? '').trim().toLowerCase();
+  if (!raw) return undefined;
+  if (/^(brand )?new|sealed|boxed/.test(raw)) return 'https://schema.org/NewCondition';
+  if (/refurb|renew|reconditioned|certified/.test(raw)) return 'https://schema.org/RefurbishedCondition';
+  if (/used|second|pre-?owned|ex-?uk|open box/.test(raw)) return 'https://schema.org/UsedCondition';
+  return undefined;
+}
+
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const [product, shopInfo] = await Promise.all([getProduct(params.slug), getShopInfo()]);
   if (!product) return {};
@@ -45,8 +55,11 @@ export async function generateMetadata({ params }: { params: { slug: string } })
 // itself already renders (ProductClient), so it can never drift out of
 // sync with what a shopper actually sees.
 function productJsonLd(product: NonNullable<Awaited<ReturnType<typeof getProduct>>>, shopInfo: { name: string; currency: string }, origin: string) {
-  const cheapestVariant = product.variants.reduce((min, v) => (Number(v.priceKes) < Number(min.priceKes) ? v : min), product.variants[0]);
+  // The offer is the cheapest one that can be had today (a refurbished phone out of stock should not be what search results
+  // show as "in stock"); when nothing is on the shelf, the cheapest overall.
   const inStock = product.variants.some((v) => v.stockOnHand > 0);
+  const offerable = inStock ? product.variants.filter((v) => v.stockOnHand > 0) : product.variants;
+  const cheapestVariant = offerable.reduce((min, v) => (Number(v.priceKes) < Number(min.priceKes) ? v : min), offerable[0]);
   return {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -56,12 +69,17 @@ function productJsonLd(product: NonNullable<Awaited<ReturnType<typeof getProduct
     description: product.description || undefined,
     image: product.imageUrls,
     category: product.category?.name || undefined,
+    // The specification table, in a form search engines read: "Screen: 6.1 inch".
+    additionalProperty: product.specs?.length
+      ? product.specs.map((row) => ({ '@type': 'PropertyValue', name: row.label, value: row.value }))
+      : undefined,
     brand: product.brand ? { '@type': 'Brand', name: product.brand } : undefined,
     offers: cheapestVariant ? {
       '@type': 'Offer',
       url: `${origin}/shop/${product.slug}`,
       priceCurrency: shopInfo.currency,
       price: Number(cheapestVariant.priceKes),
+      itemCondition: itemCondition(cheapestVariant.attributes?.condition),
       availability: inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       seller: { '@type': 'Organization', name: shopInfo.name },
     } : undefined,

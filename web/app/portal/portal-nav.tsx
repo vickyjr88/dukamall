@@ -8,6 +8,7 @@ const LINKS = [
   { href: '/portal/analytics', label: 'Analytics' },
   { href: '/portal/orders', label: 'Orders' },
   { href: '/portal/products', label: 'Products' },
+  { href: '/portal/sections', label: 'What you sell' },
   { href: '/portal/categories', label: 'Categories' },
   { href: '/portal/media', label: 'Media' },
   { href: '/portal/catalog-health', label: 'Catalog check' },

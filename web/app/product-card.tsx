@@ -9,6 +9,7 @@ import { FavoriteButton } from './favorite-button';
 import { useShopInfo } from './lib/shop-info-context';
 import { WhatsAppIcon } from './whatsapp-icon';
 import { useCart } from './lib/cart';
+import { hasSize, optionEntries, variantLabel } from './lib/variant-options';
 
 /**
  * The variant whose price the card shows. Cheapest in-stock variant, or
@@ -54,6 +55,9 @@ export function ProductCard({ product }: { product: ShopProduct }) {
   const sizesInStock = product.variants
     .filter((v) => v.stockOnHand > 0 && (v.size || v.name))
     .map((v) => v.size ?? v.name);
+  // Sizes are only worth showing on the card when the product has them: a phone or a watch has none, and the card says
+  // so by showing nothing rather than listing "128GB / Black / New" as if it were a size range.
+  const sized = product.variants.some(hasSize);
 
   // Quick add from the grid, without opening the product page. A single
   // variant (a watch, a perfume, or a shoe down to its last size) has
@@ -69,7 +73,7 @@ export function ProductCard({ product }: { product: ShopProduct }) {
       variantId: v.id,
       productSlug: product.slug,
       name: product.name,
-      size: v.size ?? v.name,
+      size: variantLabel(v),
       sku: v.sku,
       priceKes: Number(v.priceKes),
       imageUrl: product.imageUrls[0] || null,
@@ -95,7 +99,9 @@ export function ProductCard({ product }: { product: ShopProduct }) {
           `Hi! I'd like to order:`,
           '',
           `Item:  ${product.name}${product.brand ? ` (${product.brand})` : ''}`,
-          ...(variant.size ? [`Size:  ${variant.size}`] : []),
+          ...(optionEntries(variant.attributes).length
+            ? optionEntries(variant.attributes).map(([key, value]) => `${key.charAt(0).toUpperCase()}${key.slice(1)}: ${value}`)
+            : variant.size ? [`Size:  ${variant.size}`] : []),
           `SKU:   ${variant.sku}`,
           `Price: KES ${Number(variant.priceKes).toLocaleString()}`,
           ...(variant.stockOnHand <= 0 ? ['(Available to Order -- usual lead time applies)'] : []),
@@ -144,13 +150,13 @@ export function ProductCard({ product }: { product: ShopProduct }) {
             KES {Number(variant.priceKes).toLocaleString()}
           </div>
         ) : null}
-        {sizesInStock.length ? (
+        {sized && sizesInStock.length ? (
           <p className="product-card-sizes">
             <span>Sizes</span>
             <em>{sizeRange(sizesInStock)}</em>
             {sizesInStock.length > 1 ? <small>{sizesInStock.length} available</small> : null}
           </p>
-        ) : needsOrder ? (
+        ) : needsOrder && sized ? (
           <p className="product-card-sizes is-preorder">Available to Order</p>
         ) : null}
 
@@ -159,13 +165,13 @@ export function ProductCard({ product }: { product: ShopProduct }) {
             {pickingSize ? (
               <div className="product-card-size-picker" onClick={(e) => e.stopPropagation()}>
                 <div className="product-card-size-picker-head">
-                  <span>Select size</span>
+                  <span>{sized ? 'Select size' : 'Choose one'}</span>
                   <button type="button" onClick={() => setPickingSize(false)} aria-label="Cancel">×</button>
                 </div>
                 <div className="product-card-size-picker-grid">
                   {product.variants.map((v) => (
                     <button key={v.id} type="button" className="pf-chip" onClick={() => addVariant(v)}>
-                      {(v.size ?? v.name).replace('EUR ', '')}
+                      {variantLabel(v).replace('EUR ', '')}
                     </button>
                   ))}
                 </div>

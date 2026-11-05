@@ -3,7 +3,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { ShopInfo, ShopProduct } from '@/app/lib/api';
+import { OptionGroup, ShopInfo, ShopProduct } from '@/app/lib/api';
+import { hasSize, optionEntries, variantLabel } from '@/app/lib/variant-options';
 import { useCart } from '@/app/lib/cart';
 import { FavoriteButton } from '@/app/favorite-button';
 import { ShareButton } from '@/app/share-button';
@@ -25,20 +26,25 @@ import { WhatsAppIcon } from '@/app/whatsapp-icon';
  * so both the very first client render and every render after start correct
  * (a brief absence during the pre-effect first paint, not a stuck omission).
  */
-function buildEnquiry(product: ShopProduct, chosen: ShopProduct['variants'][number] | null, manualSize: string, origin: string | null) {
+function buildEnquiry(product: ShopProduct, chosen: ShopProduct['variants'][number] | null, manualSize: string, origin: string | null, groups: OptionGroup[]) {
+  const sized = product.variants.some(hasSize);
   const lines: string[] = [];
   if (chosen) {
     lines.push(`Hi! I'd like to order:`);
     lines.push('');
     lines.push(`Item:  ${product.name}${product.brand ? ` (${product.brand})` : ''}`);
-    if (chosen.size) lines.push(`Size:  ${chosen.size}`);
+    const options = optionEntries(chosen.attributes);
+    if (options.length) {
+      // A phone's enquiry says which storage, colour and condition, so the shop never has to ask.
+      for (const [key, value] of options) lines.push(`${groups.find((g) => g.key === key)?.label ?? key}: ${value}`);
+    } else if (chosen.size) lines.push(`Size:  ${chosen.size}`);
     lines.push(`SKU:   ${chosen.sku}`);
     lines.push(`Price: KES ${Number(chosen.priceKes).toLocaleString()}`);
     if (chosen.stockOnHand <= 0) lines.push('(Available to Order -- usual lead time applies)');
   } else {
     lines.push(`Hi! I'm interested in the ${product.name}.`);
     lines.push('');
-    lines.push('What sizes do you have?');
+    lines.push(sized ? 'What sizes do you have?' : 'Is it available?');
   }
   if (manualSize.trim()) lines.push(`Size needed (not listed): ${manualSize.trim()}`);
   if (origin) {
@@ -51,7 +57,10 @@ function buildEnquiry(product: ShopProduct, chosen: ShopProduct['variants'][numb
 /** brandPage: the shop's landing page for this product's brand, when it has one (links shoppers and crawlers there). */
 export function ProductClient({ product, shopInfo, brandPage }: { product: ShopProduct; shopInfo: ShopInfo; brandPage?: { href: string; label: string } }) {
   const cart = useCart();
-  const [variantId, setVariantId] = useState(product.variants[0]?.id ?? null);
+  const groups = product.optionGroups ?? [];
+  const sized = product.variants.some(hasSize);
+  // Start on the first combination that is on the shelf, so the price and photo a shopper first sees can be bought today.
+  const [variantId, setVariantId] = useState((product.variants.find((v) => v.stockOnHand > 0) ?? product.variants[0])?.id ?? null);
   const [manualSize, setManualSize] = useState('');
   const [added, setAdded] = useState(false);
   const [image, setImage] = useState(0);
@@ -61,6 +70,25 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
   const [origin, setOrigin] = useState<string | null>(null);
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const chosen = product.variants.find((v) => v.id === variantId) || null;
+  const picked = chosen?.attributes ?? {};
+
+  // Choosing one option keeps the others where they can still be had; where the exact combination does not exist, the
+  // closest one (most options kept, then in stock) is chosen instead, so the page never shows a combination that is not for sale.
+  function pick(key: string, value: string) {
+    const wanted = { ...picked, [key]: value };
+    const score = (v: ShopProduct['variants'][number]) => {
+      const attrs = v.attributes ?? {};
+      if (attrs[key] !== value) return -1;
+      return Object.entries(wanted).filter(([k, val]) => attrs[k] === val).length * 2 + (v.stockOnHand > 0 ? 1 : 0);
+    };
+    const best = product.variants.reduce<ShopProduct['variants'][number] | null>((top, v) => (score(v) > (top ? score(top) : -1) ? v : top), null);
+    if (best) setVariantId(best.id);
+  }
+  // A value that cannot be had today (with the other choices kept) is drawn as order-on-request, never disabled.
+  function inStockWith(key: string, value: string) {
+    return product.variants.some((v) => v.stockOnHand > 0 && v.attributes?.[key] === value && Object.entries(picked).every(([k, val]) => k === key || v.attributes?.[k] === val));
+  }
+  const condition = picked.condition && !/^(brand )?new$/i.test(picked.condition) ? picked.condition : null;
   const isOnSale = chosen?.wasPriceKes && Number(chosen.wasPriceKes) > Number(chosen.priceKes);
 
   const shareUrl = origin ? `${origin}/shop/${product.slug}` : `/shop/${product.slug}`;
@@ -68,7 +96,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
 
   const whatsappNumber = (shopInfo.whatsappNumber || '').replace(/[^\d]/g, '');
   const whatsappHref = whatsappNumber
-    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(buildEnquiry(product, chosen, manualSize, origin))}`
+    ? `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(buildEnquiry(product, chosen, manualSize, origin, groups))}`
     : null;
 
   return (
@@ -128,13 +156,36 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
             </div>
           ) : null}
 
+          {condition ? <p className="pdp-condition"><span className="sale-badge">{condition}</span></p> : null}
+
           {product.description ? <p className="pdp-description">{product.description}</p> : null}
 
-          {product.variants.length > 0 ? (
+          {groups.length > 0 ? (
+            groups.map((group) => (
+              <div key={group.key}>
+                <div className="pdp-field-label">
+                  <span>{group.label}</span>
+                  {picked[group.key] ? <span className="selected-value">{picked[group.key]}</span> : null}
+                </div>
+                <div className="size-grid is-options">
+                  {group.values.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={`size-swatch${picked[group.key] === value ? ' is-selected' : ''}${!inStockWith(group.key, value) ? ' is-preorder' : ''}`}
+                      onClick={() => pick(group.key, value)}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : product.variants.length > 1 || (product.variants.length === 1 && sized) ? (
             <div>
               <div className="pdp-field-label">
-                <span>Size</span>
-                {chosen ? <span className="selected-value">{chosen.size ?? chosen.name}</span> : null}
+                <span>{sized ? 'Size' : 'Option'}</span>
+                {chosen ? <span className="selected-value">{variantLabel(chosen)}</span> : null}
               </div>
               <div className="size-grid">
                 {/* Never disabled: a zero-stock size is still orderable, it
@@ -147,16 +198,17 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
                     className={`size-swatch${v.id === variantId ? ' is-selected' : ''}${v.stockOnHand <= 0 ? ' is-preorder' : ''}`}
                     onClick={() => setVariantId(v.id)}
                   >
-                    {v.size ?? v.name}
+                    {variantLabel(v)}
                   </button>
                 ))}
               </div>
-              {chosen && chosen.stockOnHand <= 0 ? (
-                <p className="pdp-preorder-note">Available to Order -- message us on WhatsApp for lead time.</p>
-              ) : null}
             </div>
           ) : null}
+          {chosen && chosen.stockOnHand <= 0 ? (
+            <p className="pdp-preorder-note">Available to Order -- message us on WhatsApp for lead time.</p>
+          ) : null}
 
+          {sized && groups.length === 0 ? (
           <div className="manual-size-block">
             <label htmlFor="manual-size-input">Don&apos;t see your size?</label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -191,6 +243,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
               ) : null}
             </div>
           </div>
+          ) : null}
 
           <div className="pdp-actions">
             <button
@@ -202,7 +255,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
                   variantId: chosen.id,
                   productSlug: product.slug,
                   name: product.name,
-                  size: chosen.size ?? chosen.name,
+                  size: variantLabel(chosen),
                   sku: chosen.sku,
                   priceKes: Number(chosen.priceKes),
                   imageUrl: product.imageUrls[0] || null,
@@ -211,7 +264,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
                 window.setTimeout(() => setAdded(false), 2000);
               }}
             >
-              {added ? 'Added to cart' : chosen ? 'Add to cart' : 'Select a size'}
+              {added ? 'Added to cart' : chosen ? 'Add to cart' : sized ? 'Select a size' : 'Select an option'}
             </button>
 
             {whatsappHref ? (
@@ -223,7 +276,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
               // hydration-mismatch warning even though the end state is
               // correct.
               <a className="btn btn-accent btn-block pdp-whatsapp-btn" href={whatsappHref} suppressHydrationWarning target="_blank" rel="noreferrer">
-                <WhatsAppIcon /> {chosen ? 'Order this on WhatsApp' : 'Ask about sizes on WhatsApp'}
+                <WhatsAppIcon /> {chosen ? 'Order this on WhatsApp' : sized ? 'Ask about sizes on WhatsApp' : 'Ask on WhatsApp'}
               </a>
             ) : null}
           </div>
@@ -235,6 +288,22 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
           </div>
         </div>
       </div>
+
+      {product.specs && product.specs.length > 0 ? (
+        <section className="pdp-specs" aria-labelledby="pdp-specs-title">
+          <h2 id="pdp-specs-title">Specifications</h2>
+          <table>
+            <tbody>
+              {product.specs.map((row, i) => (
+                <tr key={`${row.label}-${i}`}>
+                  <th scope="row">{row.label}</th>
+                  <td>{row.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
 
       {product.related && product.related.length > 0 ? (
         <section className="related-products">

@@ -7,7 +7,9 @@ import { portalFetch } from '../portal-api';
 import { useSession } from '../portal-session';
 import { ImagePicker } from '../media/image-picker';
 import { SizeBuilder } from './size-builder';
-import { ApiProduct, Category, newRowKey, SizeRow, slugify, suggestSku } from './product-types';
+import { OptionsBuilder } from './options-builder';
+import { SpecsEditor } from './specs-editor';
+import { ApiProduct, Category, newRowKey, optionLabel, SectionInfo, SizeRow, slugify, Spec, suggestOptionSku, suggestSku } from './product-types';
 
 const MAX_IMAGES = 12;
 const DESCRIPTION_MAX = 5000;
@@ -16,7 +18,10 @@ function rowsFromProduct(product: ApiProduct): SizeRow[] {
   return product.variants.map((v) => ({
     key: newRowKey(),
     id: v.id,
-    size: v.size ?? '',
+    // A variant that was saved with options keeps them (its label is its options, "128GB / Black / New"); one saved the
+    // old way is just a size until its category says otherwise.
+    ...(v.attributes && Object.keys(v.attributes).length ? { attributes: v.attributes } : {}),
+    size: v.attributes && Object.keys(v.attributes).length ? optionLabel(v.attributes) : v.size ?? '',
     sku: v.sku,
     skuTouched: true,
     priceKes: String(Number(v.priceKes)),
@@ -26,6 +31,25 @@ function rowsFromProduct(product: ApiProduct): SizeRow[] {
     stockTouched: false, // only sent if edited -- see PortalProductService.syncVariants
     isActive: v.isActive,
   }));
+}
+
+/**
+ * Moves a product's rows between the two ways of entering variants when its category's section decides it should be the
+ * other: a plain size becomes a "size" option (and back), and nothing already priced or counted changes.
+ */
+function convertRows(rows: SizeRow[], toOptions: boolean, section?: SectionInfo): SizeRow[] {
+  const hasSizeAxis = Boolean(section?.axes.some((a) => a.key === 'size'));
+  return rows.map((row) => {
+    if (toOptions) {
+      if (row.attributes) return row;
+      const attributes: Record<string, string> = hasSizeAxis && row.size.trim() ? { size: row.size.trim() } : {};
+      return { ...row, attributes, size: optionLabel(attributes) };
+    }
+    if (!row.attributes) return row;
+    const { attributes, ...rest } = row;
+    const label = optionLabel(attributes);
+    return { ...rest, size: label === 'Standard' ? 'One size' : label };
+  });
 }
 
 /**
@@ -55,6 +79,9 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
   const [isActive, setIsActive] = useState(product?.isActive ?? true);
   const [images, setImages] = useState<string[]>(product?.imageUrls ?? []);
   const [rows, setRows] = useState<SizeRow[]>(() => (product ? rowsFromProduct(product) : []));
+  const [specs, setSpecs] = useState<Spec[]>(() => (product?.specs ?? []).map((x) => ({ label: x.label, value: x.value })));
+  const [sections, setSections] = useState<SectionInfo[]>([]);
+  const [categoriesReady, setCategoriesReady] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -66,9 +93,38 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
   const [notice, setNotice] = useState<string | null>(initialNotice ?? null);
 
   useEffect(() => {
-    portalFetch('/portal/products/categories').then((r) => r.json()).then(setCategories).catch(() => {});
+    Promise.all([
+      portalFetch('/portal/products/categories').then((r) => r.json()).then(setCategories).catch(() => {}),
+      portalFetch('/portal/sections').then((r) => r.json()).then((d) => setSections(d.sections ?? [])).catch(() => {}),
+    ]).finally(() => setCategoriesReady(true));
     portalFetch('/portal/products/meta').then((r) => r.json()).then((m) => setBrands(m.brands ?? [])).catch(() => {});
   }, []);
+
+  // The category decides how a product's variants are entered: shoes and categories from before sections use the size
+  // table; every other section (clothes, watches, electronics, devices) uses options. Shoes stay as they were.
+  const section = useMemo(() => {
+    const category = categories.find((c) => c.id === categoryId);
+    return category?.section ? sections.find((x) => x.key === category.section) : undefined;
+  }, [categories, categoryId, sections]);
+  const usesOptions = Boolean(section && section.key !== 'footwear');
+
+  // Once the categories are known, an existing product's rows are put in the right form. That is not an edit, so the
+  // unsaved-changes guard is told to take the converted form as its starting point.
+  const converted = useRef(false);
+  useEffect(() => {
+    if (!categoriesReady || converted.current) return;
+    converted.current = true;
+    if (!product) return;
+    setRows((current) => convertRows(current, usesOptions, section));
+    rebaseNext.current = true;
+  }, [categoriesReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function onCategoryChange(id: string) {
+    setCategoryId(id);
+    const next = categories.find((c) => c.id === id);
+    const nextSection = next?.section ? sections.find((x) => x.key === next.section) : undefined;
+    setRows((current) => convertRows(current, Boolean(nextSection && nextSection.key !== 'footwear'), nextSection));
+  }
 
   // The address follows the name until someone edits it by hand -- on a new
   // product only; an existing product's address is never rewritten behind
@@ -79,13 +135,13 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
 
   // New rows' generated SKUs follow the product name as it is typed.
   useEffect(() => {
-    setRows((current) => current.map((r) => (r.id || r.skuTouched ? r : { ...r, sku: suggestSku(name, r.size) })));
+    setRows((current) => current.map((r) => (r.id || r.skuTouched ? r : { ...r, sku: r.attributes ? suggestOptionSku(name, r.attributes) : suggestSku(name, r.size) })));
   }, [name]);
 
   // Unsaved-changes guard.
   const snapshot = useMemo(
-    () => JSON.stringify({ name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, rows: rows.map(({ key, ...r }) => r) }),
-    [name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, rows],
+    () => JSON.stringify({ name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, specs, rows: rows.map(({ key, ...r }) => r) }),
+    [name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, specs, rows],
   );
   const savedSnapshot = useRef<string | null>(null);
   const rebaseNext = useRef(false);
@@ -105,7 +161,9 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
     const list: string[] = [];
     const invalid = new Set<string>();
     if (!name.trim()) list.push('Give the product a name.');
-    if (rows.length === 0) list.push('Add at least one size. Use "One size" for an item that doesn\'t come in sizes.');
+    if (rows.length === 0) {
+      list.push(usesOptions ? 'Add the product with its options, or with no options, so it has a price.' : 'Add at least one size. Use "One size" for an item that doesn\'t come in sizes.');
+    }
 
     const seenSkus = new Map<string, string>();
     const seenSizes = new Set<string>();
@@ -116,6 +174,11 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
       else if (!/^[A-Za-z0-9][A-Za-z0-9._\-/]*$/.test(row.sku.trim())) { list.push(`The SKU for ${label} can only use letters, numbers and . _ - /`); invalid.add(row.key); }
       else if (seenSkus.has(row.sku.trim())) { list.push(`SKU "${row.sku.trim()}" is used more than once.`); invalid.add(row.key); invalid.add(seenSkus.get(row.sku.trim())!); }
       else seenSkus.set(row.sku.trim(), row.key);
+
+      // A required option (a shirt's size) must be filled on every line.
+      for (const axis of section?.axes ?? []) {
+        if (axis.required && row.attributes && !(row.attributes[axis.key] ?? '').trim()) { list.push(`${label} needs a ${axis.label.toLowerCase()}.`); invalid.add(row.key); }
+      }
 
       const sizeKey = row.size.trim().toLowerCase();
       if (sizeKey && seenSizes.has(sizeKey)) { list.push(`${label} is listed twice.`); invalid.add(row.key); }
@@ -131,13 +194,14 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
     return { problems: Array.from(new Set(list)), invalid };
   }
 
-  const invalidKeys = useMemo(() => validate().invalid, [name, rows]); // eslint-disable-line react-hooks/exhaustive-deps
+  const invalidKeys = useMemo(() => validate().invalid, [name, rows, section]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function variantPayload(row: SizeRow) {
     return {
       ...(row.id ? { id: row.id } : {}),
       sku: row.sku.trim(),
-      size: row.size.trim() || undefined,
+      // A line with options sends those (the server mirrors a "size" option into the size column); a plain size row sends its size.
+      ...(row.attributes ? { attributes: row.attributes } : { size: row.size.trim() || undefined }),
       priceKes: Number(row.priceKes),
       wasPriceKes: row.wasPriceKes === '' ? null : Number(row.wasPriceKes),
       isActive: row.isActive,
@@ -178,6 +242,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
             brand: brand.trim() || undefined,
             categoryId: categoryId || undefined,
             imageUrls: images,
+            specs: specs.filter((x) => x.label.trim() || x.value.trim()),
             isFeatured,
             isActive,
             variants: rows.map(variantPayload),
@@ -202,6 +267,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
           brand,
           categoryId: categoryId || null,
           imageUrls: images,
+          specs: specs.filter((x) => x.label.trim() || x.value.trim()),
           isFeatured,
           isActive,
         }),
@@ -232,7 +298,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
       setIsFeatured(saved.isFeatured);
       setIsActive(saved.isActive);
       setImages(saved.imageUrls);
-      setRows(rowsFromProduct(saved));
+      setSpecs((saved.specs ?? []).map((x) => ({ label: x.label, value: x.value })));
+      setRows(convertRows(rowsFromProduct(saved), usesOptions, section));
       rebaseNext.current = true;
       setNotice(
         result.deactivated.length
@@ -282,7 +349,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
       <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <h3>{editing ? 'Edit product' : 'New product'}</h3>
         {product ? (
-          <a href={`/shop/${product.slug}`} target="_blank" rel="noopener noreferrer" className="portal-btn-outline portal-btn portal-btn-sm">View in shop &nearr;</a>
+          <a href={`/shop/${product.slug}`} target="_blank" rel="noopener noreferrer" className="portal-btn-outline portal-btn portal-btn-sm">View in shop {'\u2197'}</a>
         ) : null}
       </div>
 
@@ -324,11 +391,21 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
               </div>
               <div className="portal-field" style={{ flex: '1 1 200px' }}>
                 <label htmlFor="pe-category">Category</label>
-                <select id="pe-category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+                <select id="pe-category" value={categoryId} onChange={(e) => onCategoryChange(e.target.value)}>
                   <option value="">No category</option>
-                  {categories.map((c) => <option key={c.id} value={c.id}>{c.name}{c.isActive ? '' : ' (inactive)'}</option>)}
+                  {[...sections.map((x) => ({ key: x.key, label: x.label })), { key: '', label: 'Other' }].map((group) => {
+                    const inGroup = categories.filter((c) => (c.section ?? '') === group.key);
+                    return inGroup.length ? (
+                      <optgroup key={group.key || 'other'} label={group.label}>
+                        {inGroup.map((c) => <option key={c.id} value={c.id}>{c.name}{c.isActive ? '' : ' (inactive)'}</option>)}
+                      </optgroup>
+                    ) : null;
+                  })}
                 </select>
-                <span className="hint"><Link href="/portal/categories">Manage categories</Link></span>
+                <span className="hint">
+                  {section ? <>Filed under <strong>{section.label}</strong>: this decides the options below. </> : 'The category decides which options a product has. '}
+                  <Link href="/portal/categories">Manage categories</Link>{sections.some((x) => !x.enabled) ? <> &middot; <Link href="/portal/sections">What you sell</Link></> : null}
+                </span>
               </div>
             </div>
             <div className="portal-field">
@@ -396,9 +473,21 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
           </div>
 
           <div className="portal-card">
-            <h4>Sizes &amp; pricing</h4>
-            <SizeBuilder rows={rows} onRowsChange={(updater) => setRows(updater)} productName={name} invalid={invalidKeys} />
+            <h4>{usesOptions ? (section!.axes.length ? 'Options & pricing' : 'Pricing & stock') : 'Sizes & pricing'}</h4>
+            {usesOptions ? (
+              <OptionsBuilder rows={rows} onRowsChange={(updater) => setRows(updater)} productName={name} invalid={invalidKeys} axes={section!.axes} noun={section!.key === 'watches' ? 'the watch' : 'the product'} />
+            ) : (
+              <SizeBuilder rows={rows} onRowsChange={(updater) => setRows(updater)} productName={name} invalid={invalidKeys} />
+            )}
           </div>
+
+          {section || specs.length ? (
+            <div className="portal-card">
+              <h4>Specifications</h4>
+              <p className="hint" style={{ marginTop: 0 }}>Shown as a table on the product page. Add only what applies.</p>
+              <SpecsEditor specs={specs} onChange={setSpecs} suggestions={section?.specs ?? []} />
+            </div>
+          ) : null}
         </div>
 
         <aside className="pe-side">

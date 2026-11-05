@@ -1,16 +1,25 @@
 // Shared by the new-product and edit-product screens (product-form.tsx and
 // its size/image components).
 
-export type Category = { id: string; name: string; slug: string; isActive: boolean };
+export type Category = { id: string; name: string; slug: string; isActive: boolean; section?: string | null };
+
+/** One kind of option a section's products come in (see backend src/common/sections.ts). */
+export type SectionAxis = { key: string; label: string; required: boolean; presets: string[]; hint?: string };
+/** A section as GET /portal/sections describes it. */
+export type SectionInfo = {
+  key: string; label: string; tagline: string; axes: SectionAxis[]; specs: string[]; enabled: boolean;
+  categories: { name: string; slug: string; exists: boolean; inSection: boolean; products: number }[]; productCount: number;
+};
+export type Spec = { label: string; value: string };
 
 export type ApiVariant = {
-  id: string; sku: string; name: string; size: string | null;
+  id: string; sku: string; name: string; size: string | null; attributes?: Record<string, string> | null;
   priceKes: string; wasPriceKes: string | null; stockOnHand: number; isActive: boolean; position: number;
 };
 
 export type ApiProduct = {
   id: string; name: string; slug: string; description: string | null; seoTitle?: string | null; seoDescription?: string | null; brand: string | null;
-  categoryId: string | null; imageUrls: string[]; isActive: boolean; isFeatured: boolean;
+  categoryId: string | null; imageUrls: string[]; isActive: boolean; isFeatured: boolean; specs?: Spec[] | null;
   variants: ApiVariant[];
 };
 
@@ -21,7 +30,9 @@ export type ApiProduct = {
 export type SizeRow = {
   key: string;            // stable React key; never sent to the server
   id?: string;            // present for a variant that already exists
-  size: string;
+  size: string;           // for an options row this is its label ("128GB / Black / New"), worked out from `attributes`
+  /** Present for a product whose category has options: what this variant is, e.g. { storage: "128GB" }. Absent for a plain size row. */
+  attributes?: Record<string, string>;
   sku: string;
   skuTouched: boolean;    // false = still following the generated SKU
   priceKes: string;
@@ -88,6 +99,49 @@ export function parseSizeEntry(input: string): string[] {
       if (to >= from && to - from <= 60) { out.push(...range(prefix, from, to)); continue; }
     }
     out.push(part);
+  }
+  return out;
+}
+
+/** The options of a row in the order they are shown and named: size, storage, colour, condition... */
+const AXIS_ORDER = ['size', 'storage', 'colour', 'condition', 'choice', 'option'];
+export function orderedValues(attributes: Record<string, string> | undefined): string[] {
+  return Object.entries(attributes ?? {})
+    .filter(([, v]) => v && v.trim())
+    .sort((a, b) => {
+      const ra = AXIS_ORDER.indexOf(a[0]); const rb = AXIS_ORDER.indexOf(b[0]);
+      return (ra === -1 ? 99 : ra) - (rb === -1 ? 99 : rb);
+    })
+    .map(([, v]) => v.trim());
+}
+
+/** What a row is called: its options joined ("128GB / Black / New"), or "Standard" for a product that comes one way. */
+export function optionLabel(attributes: Record<string, string> | undefined): string {
+  const values = orderedValues(attributes);
+  return values.length ? values.join(' / ') : 'Standard';
+}
+
+/** "Galaxy A15" + { storage: "128GB", colour: "Black" } -> "GALAXY-A15-128GB-BLACK". */
+export function suggestOptionSku(productName: string, attributes: Record<string, string> | undefined): string {
+  const base = slugify(productName).toUpperCase().slice(0, 24).replace(/-+$/g, '');
+  const tokens = orderedValues(attributes).map((v) => v.replace(/[^A-Za-z0-9]/g, '').toUpperCase()).filter(Boolean);
+  return [base, ...tokens].filter(Boolean).join('-');
+}
+
+/** Every combination of the values entered for each option: [128GB, 256GB] x [Black, Blue] -> four. An empty option is skipped. */
+export function combinations(axes: Array<{ key: string; values: string[] }>): Array<Record<string, string>> {
+  const used = axes.filter((a) => a.values.length > 0);
+  let out: Array<Record<string, string>> = [{}];
+  for (const axis of used) out = out.flatMap((base) => axis.values.map((value) => ({ ...base, [axis.key]: value })));
+  return out;
+}
+
+/** Comma or new-line separated entries, trimmed and de-duplicated ignoring case. */
+export function splitValues(input: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const part of input.split(/[,\n]/).map((p) => p.trim()).filter(Boolean)) {
+    if (!seen.has(part.toLowerCase())) { seen.add(part.toLowerCase()); out.push(part); }
   }
   return out;
 }

@@ -39,10 +39,16 @@ export type ShopVariant = {
   sku: string;
   name: string;
   size: string | null;
+  /** Named options of this variant ({ storage: "128GB", colour: "Black" }); empty for a plain sized product. */
+  attributes?: Record<string, string> | null;
   priceKes: string;
   wasPriceKes: string | null;
   stockOnHand: number;
 };
+
+/** One kind of choice on a product page, with its values in the order the shop entered them. */
+export type OptionGroup = { key: string; label: string; values: string[] };
+export type ProductSpec = { label: string; value: string };
 
 export type ShopProduct = {
   id: string;
@@ -58,6 +64,12 @@ export type ShopProduct = {
   updatedAt?: string;
   variants: ShopVariant[];
   category: { id: string; name: string; slug: string } | null;
+  /** Specification rows ("Screen", "6.1 inch") shown as a table on the product page. */
+  specs?: ProductSpec[] | null;
+  /** Single-product response only: the choices to render. Empty means the plain size picker. */
+  optionGroups?: OptionGroup[];
+  /** Which kind of product this is (devices, watches, clothes...), from its category. */
+  section?: string | null;
   /** Only present on the single-product response (getProduct), never on a
    * list response -- "you might also like" doesn't make sense for a related
    * product itself, so the backend doesn't recurse into its own relateds. */
