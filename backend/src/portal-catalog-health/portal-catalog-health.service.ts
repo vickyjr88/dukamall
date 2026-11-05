@@ -15,7 +15,7 @@ export class PortalCatalogHealthService {
         where: { shopId, isActive: true },
         orderBy: { name: 'asc' },
         select: {
-          id: true, name: true, slug: true, brand: true, description: true, imageUrls: true, categoryId: true,
+          id: true, name: true, slug: true, brand: true, description: true, imageUrls: true, categoryId: true, category: { select: { section: true } },
           variants: { where: { isActive: true }, select: { sku: true, size: true, priceKes: true, stockOnHand: true } },
         },
       }),
@@ -23,6 +23,7 @@ export class PortalCatalogHealthService {
     return analyseCatalog(
       products.map((p) => ({
         ...p,
+        section: p.category?.section ?? null,
         // Stored as JSON: anything that isn't a list of strings counts as no photos.
         imageUrls: Array.isArray(p.imageUrls) ? p.imageUrls.filter((u): u is string => typeof u === 'string' && u.trim() !== '') : [],
         variants: p.variants.map((v) => ({ ...v, priceKes: Number(v.priceKes) })),

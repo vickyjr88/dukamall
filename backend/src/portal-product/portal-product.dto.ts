@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUrl, Matches,
+  ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, IsUrl, Matches,
   MaxLength, Min, ValidateNested,
 } from 'class-validator';
 
@@ -15,6 +15,8 @@ export class VariantInputDto {
   @ApiPropertyOptional() @IsOptional() @IsString() id?: string;
   @ApiProperty() @IsString() @IsNotEmpty() @MaxLength(64) @Matches(SKU_PATTERN, { message: 'SKU may only contain letters, numbers and . _ - /' }) sku!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(40) size?: string;
+  /** What this variant is, as named options: { storage: "128GB", colour: "Black", condition: "New" }. Checked against the product's section. */
+  @ApiPropertyOptional({ example: { storage: '128GB', colour: 'Black' } }) @IsOptional() @IsObject() attributes?: Record<string, string>;
   /** Kept optional for older callers; the server derives "<product> - <size>" when it is missing. */
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(250) name?: string;
   @ApiProperty() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) priceKes!: number;
@@ -39,6 +41,8 @@ export class CreateProductDto {
   imageUrls?: string[];
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  /** Specifications shown as a table: [{ label: "Battery", value: "5000 mAh" }]. */
+  @ApiPropertyOptional() @IsOptional() @IsArray() specs?: Array<{ label: string; value: string }>;
 
   @ApiProperty({ type: [VariantInputDto] })
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(60) @ValidateNested({ each: true }) @Type(() => VariantInputDto)
@@ -60,6 +64,7 @@ export class UpdateProductDto {
   imageUrls?: string[];
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsArray() specs?: Array<{ label: string; value: string }>;
 }
 
 export class SyncVariantsDto {

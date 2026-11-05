@@ -2,6 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { distinctSizes, sizeSpellings } from '../common/size-labels';
+import { optionGroups } from '../common/variant-options';
+import { sectionByKey } from '../common/sections';
 
 export type ProductListQuery = {
   category?: string;
@@ -165,7 +167,9 @@ export class StorefrontService {
     // a populated rail instead of an empty one.
     const related = await this.findRelated(shopId, product.id, product.categoryId, product.brand);
 
-    return { ...product, related };
+    // What the product page lets a shopper choose (storage, colour, condition...), worked out here so every page agrees on
+    // the labels and their order. Empty for a product with no options: the page then shows its plain size picker.
+    return { ...product, optionGroups: optionGroups(product.variants), section: sectionByKey(product.category?.section)?.key ?? null, related };
   }
 
   private async findRelated(

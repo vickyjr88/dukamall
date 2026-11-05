@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, VariantInputDto } from './portal-product.dto';
+import { Section, sectionByKey } from '../common/sections';
+import { Attributes, cleanAttributes, cleanSpecs, sizeFrom, variantLabel } from '../common/variant-options';
 
 export type PortalProductListQuery = {
   search?: string;
@@ -23,9 +25,23 @@ function slugify(text: string): string {
     .slice(0, 100);
 }
 
-/** "<product> - <size>", the same shape the synced catalogue's variants already use. */
-function variantName(productName: string, size?: string | null): string {
-  return size && size.trim() ? `${productName} - ${size.trim()}` : productName;
+/** "<product> - <size>", the same shape the synced catalogue's variants already use. For a product with options the label is the options: "<product> - 128GB / Black / New". */
+function variantName(productName: string, size?: string | null, attributes?: Attributes | null): string {
+  const label = variantLabel(attributes, size);
+  return label ? `${productName} - ${label}` : productName;
+}
+
+/**
+ * What to store for one variant row, for a product in `section` (or none, for a category from before sections). A section
+ * with a size option mirrors it into the `size` column, and a plain size sent by an older client is taken as that option,
+ * so a shirt entered either way is the same shirt.
+ */
+export function variantFields(productName: string, row: VariantInputDto, section?: Section) {
+  const raw: Record<string, unknown> = { ...(row.attributes ?? {}) };
+  if (section?.axes.some((a) => a.key === 'size') && row.size?.trim() && !raw.size) raw.size = row.size.trim();
+  const attributes = cleanAttributes(raw, section);
+  const size = sizeFrom(attributes, row.size);
+  return { attributes, size, name: row.name?.trim() || variantName(productName, size, attributes) };
 }
 
 @Injectable()
@@ -91,6 +107,13 @@ export class PortalProductService {
   }
 
   // --- shared checks -------------------------------------------------------
+
+  /** The section a product's category belongs to (none for no category, or one made before sections). */
+  private async sectionOfCategory(shopId: string, categoryId: string | null | undefined): Promise<Section | undefined> {
+    if (!categoryId) return undefined;
+    const category = await this.prisma.productCategory.findFirst({ where: { id: categoryId, shopId }, select: { section: true } });
+    return sectionByKey(category?.section);
+  }
 
   /** A categoryId arrives from the client, so it must be this shop's own -- Product.categoryId is a plain foreign key and would happily point at another shop's category. */
   private async assertCategoryBelongsToShop(shopId: string, categoryId: string) {
@@ -196,6 +219,10 @@ export class PortalProductService {
   async create(shopId: string, dto: CreateProductDto) {
     if (dto.categoryId) await this.assertCategoryBelongsToShop(shopId, dto.categoryId);
     await this.assertSkusFree(shopId, dto.variants);
+    const section = await this.sectionOfCategory(shopId, dto.categoryId);
+    // Checked before anything is written: a bad option on the fifth variant must not leave a half-made product.
+    const variantRows = dto.variants.map((v) => variantFields(dto.name.trim(), v, section));
+    const specs = cleanSpecs(dto.specs);
 
     let slug: string;
     if (dto.slug && slugify(dto.slug)) {
@@ -216,13 +243,15 @@ export class PortalProductService {
         brand: dto.brand?.trim() || null,
         categoryId: dto.categoryId || null,
         imageUrls: dto.imageUrls ?? [],
+        specs: specs as unknown as Prisma.InputJsonValue,
         isFeatured: dto.isFeatured ?? false,
         isActive: dto.isActive ?? true,
         variants: {
           create: dto.variants.map((v, index) => ({
             sku: v.sku,
-            name: v.name?.trim() || variantName(dto.name.trim(), v.size),
-            size: v.size?.trim() || null,
+            name: variantRows[index].name,
+            size: variantRows[index].size,
+            attributes: variantRows[index].attributes as Prisma.InputJsonValue,
             priceKes: v.priceKes,
             wasPriceKes: v.wasPriceKes ?? null,
             stockOnHand: v.stockOnHand ?? 0,
@@ -253,8 +282,9 @@ export class PortalProductService {
       // name the merchant wrote themselves alone.
       if (name && name !== product.name) {
         for (const variant of product.variants) {
-          if (variant.name === variantName(product.name, variant.size)) {
-            await tx.productVariant.update({ where: { id: variant.id }, data: { name: variantName(name, variant.size) } });
+          const attributes = variant.attributes as Attributes | null;
+          if (variant.name === variantName(product.name, variant.size, attributes)) {
+            await tx.productVariant.update({ where: { id: variant.id }, data: { name: variantName(name, variant.size, attributes) } });
           }
         }
       }
@@ -270,6 +300,7 @@ export class PortalProductService {
           ...(data.brand !== undefined ? { brand: data.brand.trim() || null } : {}),
           ...(data.categoryId !== undefined ? { categoryId: data.categoryId || null } : {}),
           ...(data.imageUrls !== undefined ? { imageUrls: data.imageUrls } : {}),
+          ...(data.specs !== undefined ? { specs: cleanSpecs(data.specs) as unknown as Prisma.InputJsonValue } : {}),
           ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {}),
           ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
         },
@@ -303,6 +334,8 @@ export class PortalProductService {
       if (row.id && !existing.has(row.id)) throw new BadRequestException('One of those sizes does not belong to this product');
     }
     await this.assertSkusFree(shopId, rows, productId);
+    const section = await this.sectionOfCategory(shopId, product.categoryId);
+    const rowFields = rows.map((row) => variantFields(product.name, row, section));
 
     const keptIds = new Set(rows.filter((r) => r.id).map((r) => r.id!));
     const removed = product.variants.filter((v) => !keptIds.has(v.id));
@@ -330,8 +363,9 @@ export class PortalProductService {
       for (const [index, row] of rows.entries()) {
         const data = {
           sku: row.sku,
-          size: row.size?.trim() || null,
-          name: row.name?.trim() || variantName(product.name, row.size),
+          size: rowFields[index].size,
+          attributes: rowFields[index].attributes as Prisma.InputJsonValue,
+          name: rowFields[index].name,
           priceKes: row.priceKes,
           wasPriceKes: row.wasPriceKes ?? null,
           position: index,

@@ -22,6 +22,7 @@ import { CartLeadModule } from './cart-lead/cart-lead.module';
 import { MediaModule } from './media/media.module';
 import { ReportsModule } from './reports/reports.module';
 import { PortalProductModule } from './portal-product/portal-product.module';
+import { PortalSectionsModule } from './portal-sections/portal-sections.module';
 import { PortalOrderModule } from './portal-order/portal-order.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { AdminAuthModule } from './admin-auth/admin-auth.module';
@@ -64,6 +65,7 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     MediaModule,
     ReportsModule,
     PortalProductModule,
+    PortalSectionsModule,
     PortalOrderModule,
     OnboardingModule,
     AdminAuthModule,

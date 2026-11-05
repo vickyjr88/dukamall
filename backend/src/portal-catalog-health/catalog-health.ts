@@ -13,6 +13,8 @@ export type HealthProduct = {
   description: string | null;
   imageUrls: string[];
   categoryId: string | null;
+  /** The section of the product's category (see common/sections.ts); null for one made before sections. */
+  section?: string | null;
   variants: { sku: string; size: string | null; priceKes: number; stockOnHand: number }[];
 };
 
@@ -37,6 +39,9 @@ export type CatalogHealth = {
 // Anything under this is almost certainly a typo for a footwear/fashion/electronics price in KES.
 const IMPLAUSIBLE_PRICE = 100;
 const SHORT_DESCRIPTION = 120;
+
+/** Only shoes and clothes (and products from before sections) are sized: a phone's "128" or a watch is not a size problem. */
+const isSized = (p: HealthProduct) => !p.section || p.section === 'footwear' || p.section === 'clothes';
 
 // "Boss Casuals Black - EUR 40", "Converse White - 42", "Kanly (UK 8)".
 const SIZE_IN_NAME = /(\s[-–]\s*|\s*\()(?:EUR|UK|US)?\s?\d{1,2}(?:\.\d)?\)?$/i;
@@ -68,7 +73,7 @@ export function analyseCatalog(products: HealthProduct[], ctx: HealthContext): C
   add('no-image', 'problem', 'No photo', 'Shoppers rarely buy what they cannot see, and link previews are blank.',
     products.filter((p) => p.imageUrls.length === 0).map((product) => ({ product })));
 
-  add('no-variants', 'problem', 'No size or price', 'The product cannot be ordered until it has at least one priced size.',
+  add('no-variants', 'problem', 'No price', 'The product cannot be ordered until it has at least one priced option.',
     products.filter((p) => p.variants.length === 0).map((product) => ({ product })));
 
   // A price far below its own sizes' typical price, or below any plausible price at all.
@@ -87,14 +92,14 @@ export function analyseCatalog(products: HealthProduct[], ctx: HealthContext): C
 
   add('size-in-name', 'problem', 'Size typed into the name', 'Put the size on the size option instead, so shoppers can pick it and the name stays clean.',
     products
-      .filter((p) => SIZE_IN_NAME.test(p.name) && p.variants.every((v) => !v.size))
+      .filter((p) => isSized(p) && SIZE_IN_NAME.test(p.name) && p.variants.every((v) => !v.size))
       .map((product) => ({ product, detail: `"${product.name.match(SIZE_IN_NAME)![0].trim()}" at the end of the name` })));
 
   // Sizes written two ways ("EUR 40" on most products, a bare "40" on a few).
   const bareSize = /^\d{1,2}(?:\.\d)?$/;
   const euroSize = /^EUR\s*\d{1,2}(?:\.\d)?$/i;
-  const withBare = products.filter((p) => p.variants.some((v) => bareSize.test((v.size ?? '').trim())));
-  const withEuro = products.filter((p) => p.variants.some((v) => euroSize.test((v.size ?? '').trim())));
+  const withBare = products.filter((p) => isSized(p) && p.variants.some((v) => bareSize.test((v.size ?? '').trim())));
+  const withEuro = products.filter((p) => isSized(p) && p.variants.some((v) => euroSize.test((v.size ?? '').trim())));
   if (withBare.length > 0 && withEuro.length > 0) {
     const minorityIsBare = withBare.length <= withEuro.length;
     add('mixed-size-labels', 'tip', 'Sizes written two ways',

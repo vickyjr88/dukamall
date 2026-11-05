@@ -3,6 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateShopDto } from './onboarding.dto';
 import { findUserByEmail, normaliseEmail } from '../common/user-email';
+import { cleanSectionKeys, ensureSectionCategories } from '../common/shop-sections';
 
 /**
  * Self-service shop creation -- design doc Phase 3, but built from day one
@@ -42,6 +43,7 @@ export class OnboardingService {
           name: dto.shopName,
           status: 'TRIAL',
           trialEndsAt,
+          sections: cleanSectionKeys(dto.sections),
           theme: { create: {} }, // Platform defaults -- see ShopService.getTheme fallback.
         },
       });
@@ -59,6 +61,9 @@ export class OnboardingService {
       }
 
       await tx.userShop.create({ data: { userId: user.id, shopId: shop.id, role: 'OWNER' } });
+
+      // What the shop said it sells: its starter categories, so the first product can be filed under the right one.
+      for (const key of cleanSectionKeys(dto.sections)) await ensureSectionCategories(tx, shop.id, key);
 
       return { shop, ownerUserId: user.id };
     });

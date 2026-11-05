@@ -53,6 +53,11 @@ model Shop {
   domainVerificationToken String?
   domainVerifiedAt        DateTime?
 
+  /// What this shop sells, as section keys (see src/common/sections.ts): "watches", "clothes", "electronics", "devices",
+  /// "footwear". Chosen at sign-up and changed in the portal (Sections). Empty for a shop that predates sections: it keeps
+  /// working exactly as before.
+  sections               String[] @default([])
+
   whatsappNumber         String?
   paystackSecretKey      String?
   paystackPublicKey      String?
@@ -246,6 +251,11 @@ model ProductCategory {
   slug     String
   isActive Boolean @default(true)
 
+  /// Which kind of product this category holds ("watches", "clothes", "electronics", "devices", "footwear"; see
+  /// src/common/sections.ts), which decides how its products are entered (the options they come in) and shown. Null for a
+  /// category made before sections existed: those keep behaving as they always did (sizes).
+  section  String?
+
   products Product[]
 
   @@unique([shopId, slug])
@@ -271,6 +281,10 @@ model Product {
   // previews; empty falls back to the product name / description.
   seoTitle       String?
   seoDescription String?
+
+  /// Facts a shopper compares, shown as a table on the product page: [{ "label": "Battery", "value": "5000 mAh" }].
+  /// Which labels are suggested depends on the category's section (a phone: Display, RAM, Camera; a watch: Movement, Case size).
+  specs          Json     @default("[]")
 
   // Set only for a product created by scripts/sync-drip-emporium-feed.ts,
   // holding that feed's item_group_id -- the sync's find-key for "have I

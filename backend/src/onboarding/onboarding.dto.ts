@@ -1,5 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotIn, IsString, Matches, MinLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsArray, IsEmail, IsNotIn, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 import { RESERVED_SLUGS } from '../common/reserved-slugs';
 
 export class CreateShopDto {
@@ -15,4 +15,8 @@ export class CreateShopDto {
   @ApiProperty() @IsString() ownerFirstName!: string;
   @ApiProperty() @IsString() ownerLastName!: string;
   @ApiProperty() @IsString() @MinLength(8) password!: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'What the shop will sell: "watches", "clothes", "electronics", "devices", "footwear". Starter categories are created for each.' })
+  @IsOptional() @IsArray() @IsString({ each: true })
+  sections?: string[];
 }
