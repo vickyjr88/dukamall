@@ -244,6 +244,7 @@ export class PortalProductService {
         categoryId: dto.categoryId || null,
         imageUrls: dto.imageUrls ?? [],
         specs: specs as unknown as Prisma.InputJsonValue,
+        costKes: dto.costKes ?? null,
         isFeatured: dto.isFeatured ?? false,
         isActive: dto.isActive ?? true,
         variants: {
@@ -301,6 +302,7 @@ export class PortalProductService {
           ...(data.categoryId !== undefined ? { categoryId: data.categoryId || null } : {}),
           ...(data.imageUrls !== undefined ? { imageUrls: data.imageUrls } : {}),
           ...(data.specs !== undefined ? { specs: cleanSpecs(data.specs) as unknown as Prisma.InputJsonValue } : {}),
+          ...(data.costKes !== undefined ? { costKes: data.costKes } : {}),
           ...(data.isFeatured !== undefined ? { isFeatured: data.isFeatured } : {}),
           ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
         },

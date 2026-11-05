@@ -184,6 +184,7 @@ export class PortalOrderService {
 
     const variants = await this.prisma.productVariant.findMany({
       where: { id: { in: Array.from(wanted.keys()) }, product: { shopId } },
+      include: { product: { select: { costKes: true } } },
     });
     if (variants.length !== wanted.size) throw new BadRequestException('One or more of those items no longer exists.');
 
@@ -192,7 +193,7 @@ export class PortalOrderService {
       const quantity = wanted.get(variant.id)!;
       const price = Number(variant.priceKes);
       subtotal += price * quantity;
-      return { variantId: variant.id, quantity, priceKes: price };
+      return { variantId: variant.id, quantity, priceKes: price, unitCostKes: variant.product.costKes };
     });
 
     const discountKes = Math.min(dto.discountKes ?? 0, subtotal);

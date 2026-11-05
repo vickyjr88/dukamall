@@ -16,6 +16,11 @@ export type FunnelRow = {
 
 const num = (v: unknown) => Number(v ?? 0);
 
+/** Visits that did not come from an ad: what a search, a shared link, a typed address or a link on another site brings. */
+const NOT_AD_MEDIUMS = new Set(['organic', 'referral', 'social', 'none']);
+
+export type AdReturnRow = { source: string; spendKes: number; visits: number; whatsappTaps: number; orders: number; revenueKes: number };
+
 /**
  * A date as the UTC timestamp the columns hold. Without the cast, Postgres reads a bound date in the database session's
  * own time zone, which shifts the window by hours on any server not set to UTC.
@@ -95,6 +100,26 @@ export class FunnelService {
       add(d, r); byDevice.set(String(r.device), d);
     }
 
+    // Ad spend by platform, set against the visits those platforms' ads brought (tagged ads and ad click ids).
+    const spendRows = await this.prisma.adSpend.groupBy({
+      by: ['source'],
+      where: { shopId, day: { gte: new Date(from.toISOString().slice(0, 10)), lte: new Date(to.toISOString().slice(0, 10)) } },
+      _sum: { amountKes: true },
+    });
+    const adReturn = new Map<string, AdReturnRow>();
+    const adRow = (source: string) => {
+      const row = adReturn.get(source) ?? { source, spendKes: 0, visits: 0, whatsappTaps: 0, orders: 0, revenueKes: 0 };
+      adReturn.set(source, row);
+      return row;
+    };
+    for (const r of spendRows) adRow(r.source).spendKes += Number(r._sum.amountKes ?? 0);
+    for (const r of rows) {
+      if (NOT_AD_MEDIUMS.has(String(r.medium))) continue;
+      const row = adRow(String(r.source));
+      row.visits += num(r.sessions); row.whatsappTaps += num(r.tappedWhatsapp); row.orders += num(r.orders); row.revenueKes += num(r.revenueKes);
+    }
+    const adRows = Array.from(adReturn.values()).filter((r) => r.spendKes > 0).sort((a, b) => b.spendKes - a.spendKes);
+
     const [orderTotal, daily, products, searches] = await Promise.all([
       this.prisma.order.aggregate({
         where: { shopId, status: { not: 'CANCELLED' }, createdAt: { gte: from, lte: to } },
@@ -151,6 +176,7 @@ export class FunnelService {
     const attributedOrders = totals.orders;
     return {
       from, to, totals,
+      adReturn: adRows,
       bySource: Array.from(bySource.values()).sort((a, b) => b.sessions - a.sessions),
       byDevice: Array.from(byDevice.values()).sort((a, b) => b.sessions - a.sessions),
       daily: daily.map((d) => ({ date: d.day.toISOString().slice(0, 10), sessions: d.sessions, productViews: d.productViews })),

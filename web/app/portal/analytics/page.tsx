@@ -7,18 +7,25 @@ import {
 } from 'recharts';
 import { portalFetch } from '../portal-api';
 import { FunnelSection } from './funnel-section';
+import { MoneySection } from './money-section';
+import { StockSection } from './stock-section';
+import { BuyersSection } from './buyers-section';
 
 type Granularity = 'day' | 'week' | 'month';
 type TrendPoint = { date: string; revenueKes: number; orderCount: number };
 type BreakdownRow = { name: string; revenueKes: number; unitsSold: number };
-type CustomerInsights = {
-  distinctCustomers: number; newCustomers: number; returningCustomers: number; repeatPurchaseRate: number;
-  topCustomers: { id: string; name: string; email: string | null; phone: string | null; revenueKes: number; orderCount: number }[];
-};
 type LeadConversion = {
   totalLeads: number; converted: number; conversionRate: number; convertedRevenueKes: number;
   whatsappOrder: { total: number; converted: number }; abandonedCart: { total: number; converted: number };
 };
+
+const TABS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'visits', label: 'Visits & ads' },
+  { key: 'stock', label: 'Products & stock' },
+  { key: 'customers', label: 'Customers' },
+] as const;
+type Tab = (typeof TABS)[number]['key'];
 
 const PIE_COLORS = ['#2438a8', '#0f7a40', '#a85b00', '#b3261e', '#6b7280', '#7c3aed', '#0891b2', '#be185d'];
 
@@ -51,10 +58,11 @@ export default function AnalyticsPage() {
   const [from, setFrom] = useState(toDateInput(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)));
   const [to, setTo] = useState(toDateInput(today));
   const [granularity, setGranularity] = useState<Granularity>('day');
+  const [tab, setTab] = useState<Tab>('overview');
 
   const [trend, setTrend] = useState<TrendPoint[] | null>(null);
   const [breakdown, setBreakdown] = useState<{ byCategory: BreakdownRow[]; byBrand: BreakdownRow[] } | null>(null);
-  const [customers, setCustomers] = useState<CustomerInsights | null>(null);
+  const [repeatRate, setRepeatRate] = useState<number | null>(null);
   const [leads, setLeads] = useState<LeadConversion | null>(null);
 
   useEffect(() => {
@@ -65,7 +73,7 @@ export default function AnalyticsPage() {
       portalFetch(path).then((r) => (r.ok ? r.json() : null)).then((v) => { if (v) set(v); }).catch(() => {});
     load<TrendPoint[]>(`/portal/analytics/revenue-trend?${query.toString()}&granularity=${granularity}`, setTrend);
     load<{ byCategory: BreakdownRow[]; byBrand: BreakdownRow[] }>(`/portal/analytics/sales-breakdown?${query.toString()}`, setBreakdown);
-    load<CustomerInsights>(`/portal/analytics/customers?${query.toString()}`, setCustomers);
+    load<{ repeatRate: number }>(`/portal/analytics/buyers?${query.toString()}`, (v) => setRepeatRate(v.repeatRate));
     load<LeadConversion>(`/portal/analytics/lead-conversion?${query.toString()}`, setLeads);
   }, [from, to, granularity]);
 
@@ -106,6 +114,13 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
+      <div className="analytics-tabs" role="tablist">
+        {TABS.map((t) => (
+          <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? 'is-on' : undefined} onClick={() => setTab(t.key)}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === 'overview' ? (<>
       <div className="portal-stat-row">
         <div className="portal-stat">
           <div className="label">Revenue in range</div>
@@ -116,8 +131,8 @@ export default function AnalyticsPage() {
           <div className="value">{totalOrders}</div>
         </div>
         <div className="portal-stat">
-          <div className="label">Repeat purchase rate</div>
-          <div className="value">{customers ? `${(customers.repeatPurchaseRate * 100).toFixed(0)}%` : '–'}</div>
+          <div className="label">Buyers who came back</div>
+          <div className="value">{repeatRate !== null ? `${(repeatRate * 100).toFixed(0)}%` : '–'}</div>
         </div>
         <div className="portal-stat">
           <div className="label">Lead conversion</div>
@@ -125,7 +140,12 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <FunnelSection from={from} to={to} />
+      <MoneySection from={from} to={to} />
+      </>) : null}
+
+      {tab === 'visits' ? <FunnelSection from={from} to={to} /> : null}
+
+      {tab === 'overview' ? (<>
 
       <div className="portal-card" style={{ marginBottom: 20 }}>
         <h4>Revenue trend</h4>
@@ -146,6 +166,10 @@ export default function AnalyticsPage() {
         )}
       </div>
 
+      </>) : null}
+
+      {tab === 'stock' ? (<>
+      <StockSection from={from} to={to} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
         <div className="portal-card">
           <h4>Sales by category</h4>
@@ -180,34 +204,11 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
-        <div className="portal-card">
-          <h4>Customers</h4>
-          {!customers ? <p>Loading...</p> : (
-            <>
-              <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
-                <div><div style={{ fontSize: 12, color: 'var(--p-muted)' }}>New</div><div style={{ fontSize: 22, fontWeight: 700 }}>{customers.newCustomers}</div></div>
-                <div><div style={{ fontSize: 12, color: 'var(--p-muted)' }}>Returning</div><div style={{ fontSize: 22, fontWeight: 700 }}>{customers.returningCustomers}</div></div>
-              </div>
-              {customers.topCustomers.length === 0 ? (
-                <p style={{ color: 'var(--p-muted)' }}>No customer orders in this range.</p>
-              ) : (
-                <table className="portal-table">
-                  <thead><tr><th>Customer</th><th>Orders</th><th>Revenue</th></tr></thead>
-                  <tbody>
-                    {customers.topCustomers.slice(0, 5).map((c) => (
-                      <tr key={c.id}>
-                        <td>{c.name}</td>
-                        <td>{c.orderCount}</td>
-                        <td>KES {c.revenueKes.toLocaleString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </>
-          )}
-        </div>
+      </>) : null}
+
+      {tab === 'customers' ? (<>
+      <BuyersSection from={from} to={to} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 16, marginBottom: 20 }}>
         <div className="portal-card">
           <h4>Lead conversion</h4>
           {!leads ? <p>Loading...</p> : (
@@ -242,6 +243,7 @@ export default function AnalyticsPage() {
           ) : null}
         </div>
       </div>
+      </>) : null}
     </div>
   );
 }

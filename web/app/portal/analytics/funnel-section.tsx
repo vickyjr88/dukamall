@@ -2,10 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { portalFetch } from '../portal-api';
+import { AdSpendCard } from './ad-spend-card';
+import { kes } from './format';
 
 type Row = { sessions: number; viewedProduct: number; addedToCart: number; beganCheckout: number; tappedWhatsapp: number; whatsappOrders: number; orders: number; revenueKes: number };
+type AdReturn = { source: string; spendKes: number; visits: number; whatsappTaps: number; orders: number; revenueKes: number };
 type Funnel = {
   totals: Row;
+  adReturn: AdReturn[];
   bySource: Array<Row & { source: string; medium: string }>;
   byDevice: Array<Row & { device: string }>;
   products: Array<{ slug: string; name: string; views: number; addedToCart: number; tappedWhatsapp: number; unitsSold: number; inStock: boolean | null }>;
@@ -43,6 +47,8 @@ function insights(f: Funnel): string[] {
 export function FunnelSection({ from, to }: { from: string; to: string }) {
   const [data, setData] = useState<Funnel | null>(null);
   const [failed, setFailed] = useState(false);
+  // Bumped when spend is added or removed, so the table below recounts.
+  const [spendVersion, setSpendVersion] = useState(0);
 
   useEffect(() => {
     setData(null);
@@ -51,7 +57,7 @@ export function FunnelSection({ from, to }: { from: string; to: string }) {
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setData)
       .catch(() => setFailed(true));
-  }, [from, to]);
+  }, [from, to, spendVersion]);
 
   if (failed) return null;
   if (!data) return <div className="portal-card" style={{ marginBottom: 20 }}><h4>Visits to orders</h4><p>Loading...</p></div>;
@@ -95,6 +101,38 @@ export function FunnelSection({ from, to }: { from: string; to: string }) {
             ) : null}
           </>
         )}
+      </div>
+
+      <div className="portal-card" style={{ marginBottom: 20, overflowX: 'auto' }}>
+        <h4>What ads return</h4>
+        {data.adReturn.length === 0 ? (
+          <p style={{ color: 'var(--p-muted)' }}>Enter what you spend on ads below to see what each platform costs per order and what it brings back.</p>
+        ) : (
+          <>
+            <table className="portal-table">
+              <thead><tr><th>Platform</th><th>Spent</th><th>Visits</th><th>Cost per visit</th><th>WhatsApp taps</th><th>Orders</th><th>Cost per order</th><th>Sales</th><th>Sales per KES 1</th></tr></thead>
+              <tbody>
+                {data.adReturn.map((a) => (
+                  <tr key={a.source}>
+                    <td><strong>{a.source}</strong></td>
+                    <td>{kes(a.spendKes)}</td>
+                    <td>{a.visits}</td>
+                    <td>{a.visits ? kes(a.spendKes / a.visits) : '–'}</td>
+                    <td>{a.whatsappTaps}{a.whatsappTaps > 0 ? <small style={{ color: 'var(--p-muted)' }}> ({kes(a.spendKes / a.whatsappTaps)} each)</small> : null}</td>
+                    <td>{a.orders}</td>
+                    <td>{a.orders ? kes(a.spendKes / a.orders) : '–'}</td>
+                    <td>{kes(a.revenueKes)}</td>
+                    <td>{a.spendKes > 0 ? (a.revenueKes / a.spendKes).toFixed(1) : '–'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{ fontSize: 13, color: 'var(--p-muted)', marginTop: 10 }}>
+              Counts visits from tagged ads and ad click ids only. Orders agreed over the phone, or by a customer who came back later through another door, are not counted, so treat these as the least the ads returned.
+            </p>
+          </>
+        )}
+        <AdSpendCard from={from} to={to} onChanged={() => setSpendVersion((v) => v + 1)} />
       </div>
 
       {t.sessions > 0 ? (

@@ -43,6 +43,8 @@ export class CreateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
   /** Specifications shown as a table: [{ label: "Battery", value: "5000 mAh" }]. */
   @ApiPropertyOptional() @IsOptional() @IsArray() specs?: Array<{ label: string; value: string }>;
+  /** What the shop pays for one item. Private: used for profit, never shown to shoppers. */
+  @ApiPropertyOptional() @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) costKes?: number | null;
 
   @ApiProperty({ type: [VariantInputDto] })
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(60) @ValidateNested({ each: true }) @Type(() => VariantInputDto)
@@ -65,6 +67,8 @@ export class UpdateProductDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isFeatured?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsArray() specs?: Array<{ label: string; value: string }>;
+  /** null clears it; leaving it out leaves it as is. */
+  @ApiPropertyOptional() @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) costKes?: number | null;
 }
 
 export class SyncVariantsDto {

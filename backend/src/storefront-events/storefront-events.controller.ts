@@ -13,7 +13,8 @@ export class StorefrontEventsController {
   constructor(private events: StorefrontEventsService) {}
 
   @Public()
-  @RateLimit(120, 60)
+  // Generous: mobile carriers put many shoppers behind one address, and an event is a few bytes.
+  @RateLimit(600, 60)
   @HttpCode(202)
   @Post()
   record(@ShopId() shopId: string, @Body() body: { sessionId?: unknown; events?: unknown }, @Req() req: Request) {

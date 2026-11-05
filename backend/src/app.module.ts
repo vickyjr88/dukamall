@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { PrivateCostsInterceptor } from './common/private-costs';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -94,6 +95,8 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     // Last: needs request.user from JwtAuthGuard. Only acts on routes marked
     // @Roles(...); everything else passes through untouched.
     { provide: APP_GUARD, useClass: RolesGuard },
+    // No public response may carry what the shop pays for its goods.
+    { provide: APP_INTERCEPTOR, useClass: PrivateCostsInterceptor },
   ],
 })
 export class AppModule {}

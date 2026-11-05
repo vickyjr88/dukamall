@@ -79,6 +79,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
   const [isActive, setIsActive] = useState(product?.isActive ?? true);
   const [images, setImages] = useState<string[]>(product?.imageUrls ?? []);
   const [rows, setRows] = useState<SizeRow[]>(() => (product ? rowsFromProduct(product) : []));
+  // What the shop pays for one item. Private: it only ever feeds the profit figures on the Analytics page.
+  const [cost, setCost] = useState(() => (product?.costKes != null ? String(Number(product.costKes)) : ''));
   const [specs, setSpecs] = useState<Spec[]>(() => (product?.specs ?? []).map((x) => ({ label: x.label, value: x.value })));
   const [sections, setSections] = useState<SectionInfo[]>([]);
   const [categoriesReady, setCategoriesReady] = useState(false);
@@ -140,8 +142,8 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
 
   // Unsaved-changes guard.
   const snapshot = useMemo(
-    () => JSON.stringify({ name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, specs, rows: rows.map(({ key, ...r }) => r) }),
-    [name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, specs, rows],
+    () => JSON.stringify({ name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, specs, cost, rows: rows.map(({ key, ...r }) => r) }),
+    [name, slug, description, seoTitle, seoDescription, brand, categoryId, isFeatured, isActive, images, specs, cost, rows],
   );
   const savedSnapshot = useRef<string | null>(null);
   const rebaseNext = useRef(false);
@@ -161,6 +163,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
     const list: string[] = [];
     const invalid = new Set<string>();
     if (!name.trim()) list.push('Give the product a name.');
+    if (cost.trim() !== '' && !(Number(cost) >= 0)) list.push('What you pay for it must be an amount, or leave it empty.');
     if (rows.length === 0) {
       list.push(usesOptions ? 'Add the product with its options, or with no options, so it has a price.' : 'Add at least one size. Use "One size" for an item that doesn\'t come in sizes.');
     }
@@ -243,6 +246,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
             categoryId: categoryId || undefined,
             imageUrls: images,
             specs: specs.filter((x) => x.label.trim() || x.value.trim()),
+            ...(cost.trim() !== '' ? { costKes: Number(cost) } : {}),
             isFeatured,
             isActive,
             variants: rows.map(variantPayload),
@@ -268,6 +272,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
           categoryId: categoryId || null,
           imageUrls: images,
           specs: specs.filter((x) => x.label.trim() || x.value.trim()),
+          costKes: cost.trim() === '' ? null : Number(cost),
           isFeatured,
           isActive,
         }),
@@ -299,6 +304,7 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
       setIsActive(saved.isActive);
       setImages(saved.imageUrls);
       setSpecs((saved.specs ?? []).map((x) => ({ label: x.label, value: x.value })));
+      setCost(saved.costKes != null ? String(Number(saved.costKes)) : '');
       setRows(convertRows(rowsFromProduct(saved), usesOptions, section));
       rebaseNext.current = true;
       setNotice(
@@ -479,6 +485,15 @@ export function ProductForm({ product, initialNotice }: { product?: ApiProduct; 
             ) : (
               <SizeBuilder rows={rows} onRowsChange={(updater) => setRows(updater)} productName={name} invalid={invalidKeys} />
             )}
+          </div>
+
+          <div className="portal-card">
+            <h4>Your cost (private)</h4>
+            <div className="portal-field" style={{ marginBottom: 0, maxWidth: 260 }}>
+              <label htmlFor="pe-cost">What you pay for one (KES)</label>
+              <input id="pe-cost" type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="e.g. 2600" />
+              <span className="hint">Shoppers never see this. It lets Analytics show your profit, not just your sales.</span>
+            </div>
           </div>
 
           {section || specs.length ? (

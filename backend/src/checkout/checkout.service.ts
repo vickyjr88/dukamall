@@ -41,6 +41,7 @@ export class CheckoutService {
     const variantIds = dto.lines.map((l) => l.variantId);
     const variants = await this.prisma.productVariant.findMany({
       where: { id: { in: variantIds }, product: { shopId } },
+      include: { product: { select: { costKes: true } } },
     });
     if (variants.length !== variantIds.length) {
       throw new NotFoundException('One or more items are no longer available');
@@ -51,7 +52,8 @@ export class CheckoutService {
       const variant = variants.find((v) => v.id === line.variantId)!;
       const price = Number(variant.priceKes);
       subtotal += price * line.quantity;
-      return { variantId: variant.id, quantity: line.quantity, priceKes: price };
+      // The cost is kept on the line so profit on this order does not move if the product's cost is edited later.
+      return { variantId: variant.id, quantity: line.quantity, priceKes: price, unitCostKes: variant.product.costKes };
     });
 
     // Resolved before the Order row exists -- an invalid/expired/exhausted

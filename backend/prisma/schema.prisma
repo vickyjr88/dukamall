@@ -37,6 +37,7 @@ enum BillingPlan {
 
 model Shop {
   storefrontEvents StorefrontEvent[]
+  adSpend AdSpend[]
   id           String     @id @default(cuid())
   slug         String     @unique
   name         String
@@ -286,6 +287,8 @@ model Product {
   /// Facts a shopper compares, shown as a table on the product page: [{ "label": "Battery", "value": "5000 mAh" }].
   /// Which labels are suggested depends on the category's section (a phone: Display, RAM, Camera; a watch: Movement, Case size).
   specs          Json     @default("[]")
+  /// What the shop pays for one item, private to the merchant. Used for profit; never shown to shoppers.
+  costKes        Decimal? @db.Decimal(12, 2)
 
   // Set only for a product created by scripts/sync-drip-emporium-feed.ts,
   // holding that feed's item_group_id -- the sync's find-key for "have I
@@ -543,6 +546,8 @@ model OrderLine {
 
   quantity Int
   priceKes Decimal @db.Decimal(12, 2)
+  /// The product's cost per item when the order was made, so profit on an old order does not move when the cost is edited later.
+  unitCostKes Decimal? @db.Decimal(12, 2)
 }
 
 /// A merchant's internal note on an order ("customer will collect Friday",
@@ -839,4 +844,23 @@ model StorefrontEvent {
   @@index([shopId, createdAt])
   @@index([shopId, type, createdAt])
   @@index([shopId, sessionId])
+}
+
+
+/// What the shop paid an ad platform on one day, entered by the owner. Matched to visits by source name, so the Analytics
+/// page can show cost per order and return on ad spend.
+model AdSpend {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// The day the money was spent (no time of day).
+  day       DateTime @db.Date
+  /// The platform, as it reads on the Analytics page: Facebook, Instagram, TikTok, Google...
+  source    String
+  campaign  String?
+  amountKes Decimal  @db.Decimal(12, 2)
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([shopId, day])
 }

@@ -697,3 +697,16 @@
 .funnel-bar span { display: block; height: 100%; background: var(--p-primary); border-radius: 4px; }
 .funnel-step small { display: block; margin-top: 4px; color: var(--p-muted); font-size: 12px; }
 .funnel-notes { margin: 12px 0 0; padding-left: 18px; font-size: 14px; display: grid; gap: 6px; }
+
+/* Analytics tabs, the money and stock summaries, and the ad spend form. */
+.analytics-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid var(--p-line); }
+.analytics-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 10px 14px; font: inherit; font-weight: 600; color: var(--p-muted); cursor: pointer; margin-bottom: -1px; }
+.analytics-tabs button.is-on { color: var(--p-primary); border-bottom-color: var(--p-primary); }
+.money-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+.money-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.money-grid span { font-size: 12px; color: var(--p-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.money-grid strong { font-size: 22px; }
+.money-grid small { font-size: 12px; color: var(--p-muted); }
+.money-note { margin: 14px 0 0; font-size: 13px; color: var(--p-muted); }
+.ad-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--p-muted); text-transform: uppercase; }
+.ad-field input { min-width: 120px; }
