@@ -27,12 +27,12 @@ export class PortalCategoryService {
     });
   }
 
-  async create(shopId: string, name: string) {
+  async create(shopId: string, name: string, section?: string) {
     const slug = slugify(name);
     if (!slug) throw new BadRequestException('Category name must contain at least one letter or number');
     const existing = await this.prisma.productCategory.findUnique({ where: { shopId_slug: { shopId, slug } } });
     if (existing) throw new BadRequestException('A category with this name already exists');
-    return this.prisma.productCategory.create({ data: { shopId, name: name.trim(), slug } });
+    return this.prisma.productCategory.create({ data: { shopId, name: name.trim(), slug, section: section || null } });
   }
 
   async rename(shopId: string, categoryId: string, name: string) {
@@ -45,6 +45,13 @@ export class PortalCategoryService {
       if (existing) throw new BadRequestException('A category with this name already exists');
     }
     return this.prisma.productCategory.update({ where: { id: categoryId }, data: { name: name.trim(), slug } });
+  }
+
+  /** Moves a category into a section, or out of every section. Its products keep their variants; the next time one is edited, the form shows the options of its new section. */
+  async setSection(shopId: string, categoryId: string, section: string | null) {
+    const category = await this.prisma.productCategory.findFirst({ where: { id: categoryId, shopId } });
+    if (!category) throw new NotFoundException('Category not found');
+    return this.prisma.productCategory.update({ where: { id: categoryId }, data: { section } });
   }
 
   async setActive(shopId: string, categoryId: string, isActive: boolean) {

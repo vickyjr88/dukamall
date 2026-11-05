@@ -1,11 +1,19 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsString, IsNotEmpty } from 'class-validator';
+import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { SECTION_KEYS } from '../common/sections';
 import { PortalCategoryService } from './portal-category.service';
 import { ShopId } from '../common/shop-context';
 
 class CategoryNameDto {
   @IsString() @IsNotEmpty() name!: string;
+  /** The section the category belongs to (watches, clothes, electronics, devices, footwear); it decides how its products are entered. */
+  @IsOptional() @IsIn(SECTION_KEYS) section?: string;
+}
+
+class SetSectionDto {
+  /** null moves the category out of any section (its products go back to plain sizes). */
+  @IsOptional() @IsIn([...SECTION_KEYS, null]) section!: string | null;
 }
 
 class SetActiveDto {
@@ -25,12 +33,17 @@ export class PortalCategoryController {
 
   @Post()
   create(@ShopId() shopId: string, @Body() dto: CategoryNameDto) {
-    return this.portalCategoryService.create(shopId, dto.name);
+    return this.portalCategoryService.create(shopId, dto.name, dto.section);
   }
 
   @Patch(':id')
   rename(@ShopId() shopId: string, @Param('id') id: string, @Body() dto: CategoryNameDto) {
     return this.portalCategoryService.rename(shopId, id, dto.name);
+  }
+
+  @Patch(':id/section')
+  setSection(@ShopId() shopId: string, @Param('id') id: string, @Body() dto: SetSectionDto) {
+    return this.portalCategoryService.setSection(shopId, id, dto.section ?? null);
   }
 
   @Patch(':id/active')

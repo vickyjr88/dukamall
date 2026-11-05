@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { storefrontOriginForShop } from '../common/storefront-origin';
+import { sectionByKey } from '../common/sections';
+import { Attributes, conditionOf, variantLabel } from '../common/variant-options';
 
 /**
  * One shared row-shaper for every ad platform's catalog feed (Meta, Google
@@ -20,11 +22,15 @@ export type FeedRow = {
   imageLink: string;
   availability: 'in stock' | 'out of stock';
   price: string;
-  condition: 'new';
+  condition: 'new' | 'refurbished' | 'used';
   brand: string;
   mpn: string;
   itemGroupId: string;
   productType: string;
+  /** Google's own category name for the shop section the product is in; empty when it is in none. */
+  googleProductCategory: string;
+  color: string;
+  size: string;
 };
 
 @Injectable()
@@ -46,23 +52,31 @@ export class ProductFeedService {
       const image = imageUrls[0];
       if (!image) continue;
 
+      const section = sectionByKey(product.category?.section);
       const link = `${origin}/shop/${product.slug}`;
       const description = product.description || product.name;
 
       for (const variant of product.variants) {
+        const attributes = (variant.attributes ?? {}) as Attributes;
+        const label = variantLabel(attributes, variant.size);
+        // A phone with no storage is an accessory (a case, a charger), whatever else the section holds.
+        const google = section?.key === 'devices' && !attributes.storage ? 'Electronics > Electronics Accessories' : section?.googleCategory ?? '';
         rows.push({
           id: variant.sku,
-          title: variant.size ? `${product.name} - ${variant.size}` : product.name,
+          title: label ? `${product.name} - ${label}` : product.name,
           description,
           link,
           imageLink: image,
           availability: variant.stockOnHand > 0 ? 'in stock' : 'out of stock',
           price: `${Number(variant.priceKes).toFixed(2)} ${shop.currency}`,
-          condition: 'new',
+          condition: conditionOf(attributes) ?? 'new',
           brand: product.brand || shop.name,
           mpn: variant.sku,
           itemGroupId: product.id,
           productType: product.category?.name ?? '',
+          googleProductCategory: google,
+          color: attributes.colour ?? '',
+          size: attributes.size ?? variant.size ?? '',
         });
       }
     }

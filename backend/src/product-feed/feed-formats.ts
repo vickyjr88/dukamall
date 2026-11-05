@@ -28,6 +28,9 @@ function itemXml(row: FeedRow): string {
       <g:mpn>${escapeXml(row.mpn)}</g:mpn>
       <g:item_group_id>${escapeXml(row.itemGroupId)}</g:item_group_id>
       ${row.productType ? `<g:product_type>${escapeXml(row.productType)}</g:product_type>` : ''}
+      ${row.googleProductCategory ? `<g:google_product_category>${escapeXml(row.googleProductCategory)}</g:google_product_category>` : ''}
+      ${row.color ? `<g:color>${escapeXml(row.color)}</g:color>` : ''}
+      ${row.size ? `<g:size>${escapeXml(row.size)}</g:size>` : ''}
     </item>`;
 }
 
@@ -62,6 +65,9 @@ export const CSV_COLUMNS: [keyof FeedRow, string][] = [
   ['mpn', 'mpn'],
   ['itemGroupId', 'item_group_id'],
   ['productType', 'product_type'],
+  ['googleProductCategory', 'google_product_category'],
+  ['color', 'color'],
+  ['size', 'size'],
 ];
 
 function csvCell(value: string): string {
