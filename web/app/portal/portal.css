@@ -689,3 +689,11 @@
 .sec-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; flex-wrap: wrap; }
 .ob-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .ob-presets .portal-btn-sm.is-on { background: var(--p-primary); color: #fff; border-color: var(--p-primary); }
+
+/* Visits to orders: the funnel on the Analytics page. */
+.funnel-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+.funnel-step-head { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-bottom: 6px; }
+.funnel-bar { height: 8px; border-radius: 4px; background: var(--p-line); overflow: hidden; }
+.funnel-bar span { display: block; height: 100%; background: var(--p-primary); border-radius: 4px; }
+.funnel-step small { display: block; margin-top: 4px; color: var(--p-muted); font-size: 12px; }
+.funnel-notes { margin: 12px 0 0; padding-left: 18px; font-size: 14px; display: grid; gap: 6px; }

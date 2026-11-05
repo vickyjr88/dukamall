@@ -10,6 +10,7 @@ import { useShopInfo } from './lib/shop-info-context';
 import { WhatsAppIcon } from './whatsapp-icon';
 import { useCart } from './lib/cart';
 import { hasSize, optionEntries, variantLabel } from './lib/variant-options';
+import { fireAdEvent, useTracker } from './lib/tracking';
 
 /**
  * The variant whose price the card shows. Cheapest in-stock variant, or
@@ -46,6 +47,7 @@ function sizeRange(sizes: string[]) {
 
 export function ProductCard({ product }: { product: ShopProduct }) {
   const cart = useCart();
+  const { track } = useTracker();
   const variant = currentPrice(product);
   const isOnSale = variant?.wasPriceKes && Number(variant.wasPriceKes) > Number(variant.priceKes);
   // Never a dead end: a product with nothing on the shelf is still shown as
@@ -202,7 +204,11 @@ export function ProductCard({ product }: { product: ShopProduct }) {
             suppressHydrationWarning
             target="_blank"
             rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              track('WHATSAPP_CLICK', { productSlug: product.slug, detail: 'card' });
+              fireAdEvent('contact', { ids: variant?.sku ? [variant.sku] : undefined, name: product.name, value: variant ? Number(variant.priceKes) : undefined });
+            }}
           >
             <WhatsAppIcon /> Order on WhatsApp
           </a>

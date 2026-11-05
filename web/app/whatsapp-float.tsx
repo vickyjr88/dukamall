@@ -11,9 +11,11 @@
 
 import { useShopInfo } from './lib/shop-info-context';
 import { WhatsAppIcon } from './whatsapp-icon';
+import { fireAdEvent, useTracker } from './lib/tracking';
 
 export function WhatsAppFloat() {
   const shopInfo = useShopInfo();
+  const { track } = useTracker();
   const whatsappNumber = (shopInfo?.whatsappNumber || '').replace(/[^\d]/g, '');
 
   if (!whatsappNumber) return null;
@@ -23,7 +25,7 @@ export function WhatsAppFloat() {
   )}`;
 
   return (
-    <a className="whatsapp-float" href={href} target="_blank" rel="noreferrer" aria-label="Chat with us on WhatsApp">
+    <a className="whatsapp-float" href={href} target="_blank" rel="noreferrer" aria-label="Chat with us on WhatsApp" onClick={() => { track('WHATSAPP_CLICK', { detail: 'float' }); fireAdEvent('contact'); }}>
       <WhatsAppIcon />
     </a>
   );

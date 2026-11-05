@@ -45,6 +45,7 @@ export class CartLeadService {
         customerEmail: dto.customerEmail,
         shippingAddress: dto.shippingAddress,
         message: dto.message,
+        sessionId: dto.sessionId,
         lines: {
           create: dto.lines.map((line) => ({
             variantId: line.variantId,

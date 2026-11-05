@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, ValidateNested } from 'class-validator';
 
 export class CheckoutLineDto {
   @ApiProperty() @IsString() @IsNotEmpty() variantId!: string;
@@ -18,4 +18,6 @@ export class CheckoutDto {
   @ApiPropertyOptional() @IsOptional() @IsString() phone?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() shippingAddress?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() discountCode?: string;
+  /** The browsing session (see StorefrontEvent): how an order is traced back to the ad that brought the shopper. */
+  @ApiPropertyOptional() @IsOptional() @IsString() @Matches(/^[A-Za-z0-9]{12,40}$/) sessionId?: string;
 }

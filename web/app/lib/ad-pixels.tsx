@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import Script from 'next/script';
+import './tracking'; // the shared Window typings for the pixels
 
 // The same shapes the backend accepts (backend/src/common/tracking-ids.ts). They are checked again
 // here because each ID is written into an inline script, and nothing that is not exactly an ID
@@ -12,14 +13,6 @@ const TIKTOK_ID = /^[A-Z0-9]{10,30}$/;
 const X_ID = /^[a-z0-9]{4,12}$/;
 
 type Pixels = { metaPixelId?: string | null; tiktokPixelId?: string | null; xPixelId?: string | null };
-
-declare global {
-  interface Window {
-    fbq?: (...args: unknown[]) => void;
-    ttq?: { page: () => void };
-    twq?: (...args: unknown[]) => void;
-  }
-}
 
 /**
  * Meta, TikTok and X ad pixels for one shop's storefront pages. Each shop has its own IDs, so each

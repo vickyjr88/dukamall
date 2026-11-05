@@ -11,6 +11,7 @@
 import {
   ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
+import { fireAdEvent, useTracker } from './tracking';
 
 const STORAGE_KEY = 'shop_cart_v1';
 
@@ -45,6 +46,7 @@ const CartContext = createContext<CartValue | null>(null);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [ready, setReady] = useState(false);
+  const { track } = useTracker();
 
   useEffect(() => {
     try {
@@ -66,6 +68,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [lines, ready]);
 
   const add = useCallback((line: Omit<CartLine, 'id' | 'quantity'> & { id?: string }, quantity = 1) => {
+    track('ADD_TO_CART', { productSlug: line.productSlug });
+    fireAdEvent('cart', { ids: line.sku ? [line.sku] : undefined, name: line.name, value: line.priceKes * quantity, quantity });
     setLines((prev) => {
       const id = line.id ?? line.variantId ?? undefined;
       const existing = id ? prev.find((item) => item.id === id) : undefined;
@@ -75,7 +79,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const newId = id ?? `custom-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       return [...prev, { ...line, id: newId, quantity }];
     });
-  }, []);
+  }, [track]);
 
   const setQuantity = useCallback((id: string, quantity: number) => {
     setLines((prev) =>

@@ -9,6 +9,7 @@ import { CustomerAuthProvider } from '@/app/lib/customer-auth';
 import { WhatsAppFloat } from '@/app/whatsapp-float';
 import { GoogleAnalytics } from '@/app/lib/google-analytics';
 import { AdPixels } from '@/app/lib/ad-pixels';
+import { StorefrontTracker } from '@/app/lib/storefront-tracker';
 import { StorefrontHeader } from './storefront-header';
 import { StorefrontFooter } from './storefront-footer';
 
@@ -30,6 +31,7 @@ export default async function StorefrontLayout({ children }: { children: React.R
         <ShopInfoProvider shopInfo={shopInfo}>
           <CustomerAuthProvider>
             <CartProvider>
+              <StorefrontTracker />
               {shopInfo.announcement ? <div className="shop-announcement">{shopInfo.announcement}</div> : null}
               <StorefrontHeader shopName={shopInfo.name} logoUrl={theme.logoUrl} />
               <div style={{ flex: 1 }}>{children}</div>

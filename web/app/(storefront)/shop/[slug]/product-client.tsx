@@ -10,6 +10,7 @@ import { FavoriteButton } from '@/app/favorite-button';
 import { ShareButton } from '@/app/share-button';
 import { ProductCard } from '@/app/product-card';
 import { WhatsAppIcon } from '@/app/whatsapp-icon';
+import { fireAdEvent, useTracker } from '@/app/lib/tracking';
 
 /**
  * Builds a structured WhatsApp enquiry for one product/size, the same shape
@@ -57,6 +58,7 @@ function buildEnquiry(product: ShopProduct, chosen: ShopProduct['variants'][numb
 /** brandPage: the shop's landing page for this product's brand, when it has one (links shoppers and crawlers there). */
 export function ProductClient({ product, shopInfo, brandPage }: { product: ShopProduct; shopInfo: ShopInfo; brandPage?: { href: string; label: string } }) {
   const cart = useCart();
+  const { track } = useTracker();
   const groups = product.optionGroups ?? [];
   const sized = product.variants.some(hasSize);
   // Start on the first combination that is on the shelf, so the price and photo a shopper first sees can be bought today.
@@ -70,6 +72,13 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
   const [origin, setOrigin] = useState<string | null>(null);
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const chosen = product.variants.find((v) => v.id === variantId) || null;
+  // One product view per visit to this page, with what the ads need to match it to the catalogue.
+  useEffect(() => {
+    track('VIEW_PRODUCT', { productSlug: product.slug });
+    const first = product.variants.find((v) => v.stockOnHand > 0) ?? product.variants[0];
+    fireAdEvent('view', { ids: first?.sku ? [first.sku] : undefined, name: product.name, value: first ? Number(first.priceKes) : undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.slug]);
   const picked = chosen?.attributes ?? {};
 
   // Choosing one option keeps the others where they can still be had; where the exact combination does not exist, the
@@ -275,7 +284,17 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
               // buildEnquiry's header comment. Without this, React logs a
               // hydration-mismatch warning even though the end state is
               // correct.
-              <a className="btn btn-accent btn-block pdp-whatsapp-btn" href={whatsappHref} suppressHydrationWarning target="_blank" rel="noreferrer">
+              <a
+                className="btn btn-accent btn-block pdp-whatsapp-btn"
+                href={whatsappHref}
+                suppressHydrationWarning
+                target="_blank"
+                rel="noreferrer"
+                onClick={() => {
+                  track('WHATSAPP_CLICK', { productSlug: product.slug, detail: 'product-page' });
+                  fireAdEvent('contact', { ids: chosen?.sku ? [chosen.sku] : undefined, name: product.name, value: chosen ? Number(chosen.priceKes) : undefined });
+                }}
+              >
                 <WhatsAppIcon /> {chosen ? 'Order this on WhatsApp' : sized ? 'Ask about sizes on WhatsApp' : 'Ask on WhatsApp'}
               </a>
             ) : null}

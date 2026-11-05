@@ -84,6 +84,7 @@ export class CheckoutService {
         email: dto.email,
         phone: dto.phone,
         shippingAddress: dto.shippingAddress,
+        sessionId: dto.sessionId,
         subtotalKes: subtotal,
         shippingKes: shipping,
         discountKes,

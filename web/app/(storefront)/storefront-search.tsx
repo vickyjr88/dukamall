@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ProductCard } from '@/app/product-card';
+import { fireAdEvent, useTracker } from '@/app/lib/tracking';
 import { ProductSearch } from '@/app/product-search';
 import { ShopCategory, ShopFilters, ShopProduct } from '@/app/lib/api';
 import { useShopFetch } from '@/app/lib/shop-id-context';
@@ -29,6 +30,7 @@ export function StorefrontSearch({
   const router = useRouter();
   const params = useSearchParams();
   const shopFetch = useShopFetch();
+  const { track } = useTracker();
 
   const category = params.get('category') || '';
   const brand = params.get('brand') || '';
@@ -74,13 +76,18 @@ export function StorefrontSearch({
    * row would both read the same stale params and the second would
    * overwrite the first. */
   const setParams = useCallback((changes: Record<string, string>) => {
+    // What people look for is the plainest demand signal a shop gets.
+    if (changes.search && changes.search !== params.get('search')) {
+      track('SEARCH', { detail: changes.search });
+      fireAdEvent('search', { searchString: changes.search });
+    }
     const next = new URLSearchParams(params.toString());
     for (const [key, value] of Object.entries(changes)) {
       if (value) next.set(key, value);
       else next.delete(key);
     }
     router.replace(next.toString() ? `/?${next.toString()}#catalog` : '/#catalog', { scroll: false });
-  }, [params, router]);
+  }, [params, router, track]);
 
   const setParam = useCallback((key: string, value: string) => setParams({ [key]: value }), [setParams]);
 

@@ -36,6 +36,7 @@ enum BillingPlan {
 }
 
 model Shop {
+  storefrontEvents StorefrontEvent[]
   id           String     @id @default(cuid())
   slug         String     @unique
   name         String
@@ -443,6 +444,8 @@ model Order {
   discount   Discount? @relation(fields: [discountId], references: [id], onDelete: SetNull)
 
   paystackReference String?
+  /// The shopper's browsing session (see StorefrontEvent), so an order can be traced back to the ad that brought them.
+  sessionId         String?
 
   fulfilmentStatus FulfilmentStatus @default(UNFULFILLED)
   shippedAt        DateTime?
@@ -469,6 +472,7 @@ model Order {
   updatedAt DateTime @updatedAt
 
   @@unique([shopId, orderNumber])
+  @@index([shopId, sessionId])
 }
 
 // ---------------------------------------------------------------------------
@@ -587,6 +591,8 @@ model CartLead {
   customerEmail   String?
   shippingAddress String?
   message         String?
+  /// The shopper's browsing session (see StorefrontEvent).
+  sessionId       String?
 
   status           LeadStatus @default(NEW)
   // The order created from this lead. A plain id, not a relation: the lead
@@ -805,4 +811,32 @@ model MediaAsset {
   updatedAt   DateTime @updatedAt
 
   @@index([shopId, createdAt])
+}
+
+
+/// One thing a shopper did on a shop's storefront: arrived, looked at a product, added to cart, began checkout, tapped
+/// WhatsApp, searched. First-party and anonymous: the sessionId is a random string made in the browser, with no name,
+/// phone or email. Orders and WhatsApp leads carry the same sessionId, which is how a sale is traced to its source.
+model StorefrontEvent {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  sessionId  String
+  /// SESSION_START | VIEW_PRODUCT | ADD_TO_CART | BEGIN_CHECKOUT | WHATSAPP_CLICK | SEARCH
+  type       String
+  /// The product's slug, for product events.
+  productSlug String?
+  /// Where it happened: "product-page", "card", "cart", "float" for a WhatsApp click; the typed words for SEARCH.
+  detail     String?
+  /// SESSION_START only: where the visit came from, worked out once and kept with the session.
+  source     String?
+  medium     String?
+  campaign   String?
+  device     String?
+  landingPath String?
+  createdAt  DateTime @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([shopId, type, createdAt])
+  @@index([shopId, sessionId])
 }

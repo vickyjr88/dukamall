@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Granularity, PortalAnalyticsService } from './portal-analytics.service';
+import { FunnelService } from './funnel.service';
 import { ShopId } from '../common/shop-context';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { parseRangeEnd } from '../common/date-range';
@@ -11,7 +12,7 @@ import { parseRangeEnd } from '../common/date-range';
 // Owner-only: revenue and customer figures are the owner business data.
 @Roles('OWNER')
 export class PortalAnalyticsController {
-  constructor(private portalAnalyticsService: PortalAnalyticsService) {}
+  constructor(private portalAnalyticsService: PortalAnalyticsService, private funnelService: FunnelService) {}
 
   @Get('revenue-trend')
   revenueTrend(
@@ -36,5 +37,13 @@ export class PortalAnalyticsController {
   @Get('lead-conversion')
   leadConversion(@ShopId() shopId: string, @Query('from') from?: string, @Query('to') to?: string) {
     return this.portalAnalyticsService.leadConversion(shopId, from ? new Date(from) : undefined, parseRangeEnd(to));
+  }
+
+  /** Visits to orders: the funnel, by source and device, with the products people looked at. */
+  @Get('funnel')
+  funnel(@ShopId() shopId: string, @Query('from') from?: string, @Query('to') to?: string) {
+    const end = parseRangeEnd(to) ?? new Date();
+    const start = from ? new Date(from) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    return this.funnelService.funnel(shopId, start, end);
   }
 }

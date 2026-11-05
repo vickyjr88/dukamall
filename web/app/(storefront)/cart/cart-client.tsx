@@ -7,9 +7,12 @@ import { useShopFetch } from '@/app/lib/shop-id-context';
 import { useCustomerAuth } from '@/app/lib/customer-auth';
 import { useCustomerFetch } from '@/app/lib/use-customer-fetch';
 import { WhatsAppIcon } from '@/app/whatsapp-icon';
+import { fireAdEvent, getSessionId, useTracker } from '@/app/lib/tracking';
+import { rememberOrder } from './order-memory';
 
 export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const cart = useCart();
+  const { track } = useTracker();
   const shopFetch = useShopFetch();
   const customerFetch = useCustomerFetch();
   const { customer } = useCustomerAuth();
@@ -91,6 +94,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
         customerEmail: form.email.trim() || undefined,
         shippingAddress: buildShippingAddress(),
         message: buildWhatsappMessage(),
+        sessionId: getSessionId() ?? undefined,
       }),
     }).catch(() => {
       // Best-effort: the shopper's own WhatsApp order still goes out even if
@@ -99,6 +103,8 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   }
 
   function onWhatsapp() {
+    track('WHATSAPP_CLICK', { detail: 'cart' });
+    fireAdEvent('contact', { ids: cart.lines.map((l) => l.sku).filter(Boolean), value: cart.subtotal });
     recordWhatsappLead();
     const phone = (shopInfo.whatsappNumber || '').replace(/[^\d]/g, '');
     const url = phone
@@ -139,6 +145,8 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const untilFree = deliveryFee > 0 && freeOver > 0 && !deliveryWaived ? freeOver - afterDiscount : 0;
 
   async function onCheckout() {
+    track('BEGIN_CHECKOUT');
+    fireAdEvent('checkout', { ids: cart.payableLines.map((l) => l.sku).filter(Boolean), value: total, quantity: cart.count });
     setSubmitting(true);
     setError(null);
     try {
@@ -146,6 +154,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          sessionId: getSessionId() ?? undefined,
           lines: cart.payableLines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
           firstName: form.firstName,
           lastName: form.lastName,
@@ -157,11 +166,13 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.message || 'Checkout failed');
+      rememberOrder({ id: data.order.id, orderNumber: data.order.orderNumber, totalKes: Number(data.order.totalKes), online: Boolean(data.online) });
       if (data.online && data.authorizationUrl) {
         window.location.href = data.authorizationUrl;
       } else {
         cart.clear();
-        alert('Order placed. We will contact you to arrange payment.');
+        // A confirmation page, not a pop-up: it is also where the purchase is reported to the ad platforms.
+        window.location.assign(`/checkout/complete?order=${encodeURIComponent(data.order.id)}`);
       }
     } catch (e: any) {
       setError(e.message);

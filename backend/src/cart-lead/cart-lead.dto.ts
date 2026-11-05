@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
-  ArrayMinSize, IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Min, ValidateNested,
+  ArrayMinSize, IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Min, ValidateNested,
 } from 'class-validator';
 
 export class CartLeadLineDto {
@@ -31,4 +31,5 @@ export class RecordCartLeadDto {
   @ApiPropertyOptional() @IsOptional() @IsEmail() customerEmail?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() shippingAddress?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() message?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() @Matches(/^[A-Za-z0-9]{12,40}$/) sessionId?: string;
 }

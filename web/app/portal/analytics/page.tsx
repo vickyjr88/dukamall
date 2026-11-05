@@ -6,6 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
 import { portalFetch } from '../portal-api';
+import { FunnelSection } from './funnel-section';
 
 type Granularity = 'day' | 'week' | 'month';
 type TrendPoint = { date: string; revenueKes: number; orderCount: number };
@@ -123,6 +124,8 @@ export default function AnalyticsPage() {
           <div className="value">{leads ? `${(leads.conversionRate * 100).toFixed(0)}%` : '–'}</div>
         </div>
       </div>
+
+      <FunnelSection from={from} to={to} />
 
       <div className="portal-card" style={{ marginBottom: 20 }}>
         <h4>Revenue trend</h4>
