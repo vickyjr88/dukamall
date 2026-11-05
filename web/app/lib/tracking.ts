@@ -105,6 +105,9 @@ function visitDetails() {
   };
 }
 
+// True while the first request of a visit is on its way, so events fired in the meantime do not each start the visit again.
+let startPending = false;
+
 export function useTracker(): Tracker {
   const shopId = useShopId();
   return useMemo<Tracker>(() => ({
@@ -113,17 +116,19 @@ export function useTracker(): Tracker {
       if (!sessionId) return;
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3200';
       const events: Record<string, unknown>[] = [];
-      // The first event of a tab's session carries where the visit came from.
+      // The first event of a tab's session carries where the visit came from. The visit counts as started only once the
+      // server has accepted it, so a request lost on a bad connection does not leave the whole visit unrecorded.
+      let needStart = false;
       try {
-        const started = Boolean(window.sessionStorage.getItem(STARTED_KEY));
-        // A visit starts once: a repeat of the start (React runs effects twice in development) is not sent again.
-        if (type === 'SESSION_START' && started) return;
-        if (!started) {
-          window.sessionStorage.setItem(STARTED_KEY, '1');
-          if (type !== 'SESSION_START') events.push({ type: 'SESSION_START', ...visitDetails() });
-        }
+        needStart = !window.sessionStorage.getItem(STARTED_KEY) && !startPending;
       } catch {
         // Storage refused: the event below is still sent.
+      }
+      // A visit starts once: a repeat of the start (React runs effects twice in development) is not sent again.
+      if (type === 'SESSION_START' && !needStart) return;
+      if (needStart) {
+        startPending = true;
+        if (type !== 'SESSION_START') events.push({ type: 'SESSION_START', ...visitDetails() });
       }
       events.push({ type, ...(type === 'SESSION_START' ? visitDetails() : {}), ...extra });
       void fetch(`${apiBase}/shop/events`, {
@@ -131,9 +136,17 @@ export function useTracker(): Tracker {
         keepalive: true,
         headers: { 'Content-Type': 'application/json', ...(shopId ? { 'x-shop-id': shopId } : {}) },
         body: JSON.stringify({ sessionId, events }),
-      }).catch(() => {
-        // Best effort: a lost event is a rounding error, a broken page is not.
-      });
+      })
+        .then((res) => {
+          if (!needStart) return;
+          startPending = false;
+          if (res.ok) {
+            try { window.sessionStorage.setItem(STARTED_KEY, '1'); } catch { /* storage refused */ }
+          }
+        })
+        .catch(() => {
+          if (needStart) startPending = false;
+        });
     },
   }), [shopId]);
 }
