@@ -6,6 +6,7 @@ import { clearCachedRole, OWNER_ONLY_PATHS, useSession } from './portal-session'
 const LINKS = [
   { href: '/portal/dashboard', label: 'Dashboard' },
   { href: '/portal/analytics', label: 'Analytics' },
+  { href: '/portal/daily-report', label: 'Daily report' },
   { href: '/portal/orders', label: 'Orders' },
   { href: '/portal/products', label: 'Products' },
   { href: '/portal/sections', label: 'What you sell' },

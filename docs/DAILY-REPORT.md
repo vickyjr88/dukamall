@@ -28,6 +28,15 @@ Owner-only portal API: `GET/PUT /portal/daily-report/settings`.
 Until settings are saved, the report goes to the shop's notification email, else to its owners. Changes apply to the next send; no deploy needed.
 Which shops are scheduled is the server setting `DAILY_REPORT_SHOPS` (default `nairobigents`); `settings.scheduled` says whether a shop is on it.
 
+## Changing it in the portal
+
+Portal > **Daily report** (owner only). It shows who gets the report on WhatsApp and by email, with add and remove, an on/off
+switch, **Preview yesterday's report** (nothing is sent), **Send now** (asks first, shows the result for each recipient, and offers
+"Send again anyway" if someone already had it), and the list of what was sent. It says when the shop is not on the server's
+morning schedule (`DAILY_REPORT_SHOPS`) or WhatsApp is not connected. Until a list is saved the shop notification email (else the
+owners) is used and the screen says so; saving replaces it, and a saved empty list means nobody on that channel. No WhatsApp number
+is set by default: add one here.
+
 ## Operating it
 
 | | |
