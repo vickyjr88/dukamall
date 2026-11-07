@@ -6,10 +6,11 @@ import { portalFetch } from '../portal-api';
 import { downloadFile, today } from '../download';
 import { useSession } from '../portal-session';
 import {
-  FulfilmentBadge, FulfilmentStatus, OrderDetail, OrderSource, PaymentBadge, PaymentStatus, SOURCE_LABEL, money, whatsappLink,
+  FulfilmentBadge, FulfilmentStatus, OrderDetail, OrderSource, PaymentBadge, PaymentStatus, SOURCE_LABEL, money,
 } from '../order-ui';
+import { FollowUpButton } from '../follow-up';
 
-type Order = Pick<OrderDetail, 'id' | 'orderNumber' | 'status' | 'fulfilmentStatus' | 'source' | 'firstName' | 'lastName' | 'phone' | 'totalKes' | 'createdAt'>;
+type Order = Pick<OrderDetail, 'id' | 'orderNumber' | 'status' | 'fulfilmentStatus' | 'source' | 'firstName' | 'lastName' | 'phone' | 'totalKes' | 'createdAt' | 'followUp'>;
 
 const PAYMENT_TABS: { value: 'ALL' | PaymentStatus; label: string }[] = [
   { value: 'ALL', label: 'All' }, { value: 'PENDING', label: 'Unpaid' }, { value: 'PAID', label: 'Paid' }, { value: 'CANCELLED', label: 'Cancelled' },
@@ -141,7 +142,6 @@ export default function OrdersPage() {
             </thead>
             <tbody>
               {orders.map((order) => {
-                const notify = whatsappLink(order.phone, `Hi ${order.firstName}, an update on order ${order.orderNumber}.`);
                 return (
                   <tr key={order.id}>
                     <td><Link href={`/portal/orders/${order.id}`}><strong>{order.orderNumber}</strong></Link></td>
@@ -156,7 +156,7 @@ export default function OrdersPage() {
                     <td style={{ fontSize: 13 }}>{SOURCE_LABEL[order.source]}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <Link href={`/portal/orders/${order.id}`} className="portal-btn-outline portal-btn portal-btn-sm">Open</Link>{' '}
-                      {notify ? <a href={notify} target="_blank" rel="noopener noreferrer" className="portal-btn portal-btn-sm">Notify</a> : null}
+                      <FollowUpButton followUp={order.followUp} solid>Follow up</FollowUpButton>
                     </td>
                   </tr>
                 );

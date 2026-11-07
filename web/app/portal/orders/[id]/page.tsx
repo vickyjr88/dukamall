@@ -6,8 +6,9 @@ import Link from 'next/link';
 import { portalFetch } from '../../portal-api';
 import {
   FULFILMENT_LABEL, FulfilmentBadge, MANUAL_METHODS, METHOD_LABEL, OrderDetail, PaymentBadge, PaymentMethod, SOURCE_LABEL,
-  methodOf, money, when, whatsappLink,
+  methodOf, money, when,
 } from '../../order-ui';
+import { FollowUpButton, FollowUpPreview } from '../../follow-up';
 
 /**
  * One order, everything about it: what was bought and what it came to, who it's
@@ -69,7 +70,6 @@ export default function OrderDetailPage() {
   const cancelled = order.status === 'CANCELLED';
   const method = methodOf(order);
   const customerName = `${order.firstName} ${order.lastName}`.trim();
-  const notifyLink = whatsappLink(order.phone, `Hi ${order.firstName}, an update on order ${order.orderNumber}.`);
 
   return (
     <div>
@@ -83,8 +83,9 @@ export default function OrderDetailPage() {
             <span>{SOURCE_LABEL[order.source]} &middot; {when(order.createdAt)}</span>
           </div>
         </div>
-        {notifyLink ? <a href={notifyLink} target="_blank" rel="noopener noreferrer" className="portal-btn-outline portal-btn portal-btn-sm">Message on WhatsApp</a> : null}
+        <FollowUpButton followUp={order.followUp} />
       </div>
+      {order.followUp ? <div className="portal-card" style={{ marginBottom: 14 }}><strong>Follow up on WhatsApp</strong><FollowUpPreview followUp={order.followUp} /></div> : null}
 
       {error ? <div className="portal-alert is-error">{error}</div> : null}
 

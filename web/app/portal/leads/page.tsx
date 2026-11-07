@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { portalFetch } from '../portal-api';
+import { FollowUp, FollowUpButton, FollowUpPreview } from '../follow-up';
 
 type LeadLine = { id: string; variantId: string | null; name: string; size: string; quantity: number; priceKes: string; isCustomSize: boolean };
 type LeadStatus = 'NEW' | 'CONTACTED' | 'CONVERTED' | 'LOST';
@@ -10,6 +11,7 @@ type CartLead = {
   id: string; source: 'WHATSAPP_ORDER' | 'ABANDONED_CART'; status: LeadStatus; convertedOrderId: string | null;
   customerName: string | null; customerPhone: string | null; customerEmail: string | null;
   shippingAddress: string | null; message: string | null; createdAt: string; lines: LeadLine[];
+  followUp: FollowUp | null;
 };
 
 const SOURCE_LABEL: Record<CartLead['source'], string> = { WHATSAPP_ORDER: 'WhatsApp order', ABANDONED_CART: 'Abandoned cart' };
@@ -59,14 +61,6 @@ export default function LeadsPage() {
     await load();
   }
 
-  function contactHref(lead: CartLead): string | null {
-    if (!lead.customerPhone) return null;
-    const digits = lead.customerPhone.replace(/[^0-9]/g, '');
-    const items = lead.lines.map((l) => `${l.quantity}x ${l.name} (${l.size})`).join(', ');
-    const text = `Hi ${lead.customerName || 'there'}, following up on your order: ${items}`;
-    return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
-  }
-
   return (
     <div>
       <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -98,7 +92,6 @@ export default function LeadsPage() {
             <thead><tr><th>When</th><th>Source</th><th>Customer</th><th>Items</th><th>Status</th><th></th></tr></thead>
             <tbody>
               {leads.map((lead) => {
-                const href = contactHref(lead);
                 const converted = lead.status === 'CONVERTED';
                 return (
                   <>
@@ -113,7 +106,7 @@ export default function LeadsPage() {
                       <td><span className={`portal-badge ${STATUS_CLASS[lead.status]}`}>{STATUS_LABEL[lead.status]}</span></td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <button className="portal-btn-ghost" onClick={() => setExpanded(expanded === lead.id ? null : lead.id)}>{expanded === lead.id ? 'Hide' : 'Details'}</button>
-                        {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => lead.status === 'NEW' && void setLeadStatus(lead.id, 'CONTACTED')}>WhatsApp</a> : null}{' '}
+                        <FollowUpButton followUp={lead.followUp} onOpened={() => { if (lead.status === 'NEW') void setLeadStatus(lead.id, 'CONTACTED'); }}>Follow up</FollowUpButton>{' '}
                         {converted && lead.convertedOrderId ? (
                           <Link href={`/portal/orders/${lead.convertedOrderId}`} className="portal-btn portal-btn-sm">View order</Link>
                         ) : (
@@ -136,6 +129,9 @@ export default function LeadsPage() {
                             {lead.shippingAddress ? <p style={{ margin: 0 }}>Shipping address: {lead.shippingAddress}</p> : null}
                             {lead.message ? <p style={{ margin: 0 }}>Message: {lead.message}</p> : null}
                           </div>
+                          {lead.followUp ? <FollowUpPreview followUp={lead.followUp} /> : !converted && lead.status !== 'LOST' ? (
+                            <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--p-muted)' }}>No WhatsApp follow-up: this lead has no phone number we can message.</p>
+                          ) : null}
                           {!converted ? (
                             <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
                               {lead.status !== 'CONTACTED' ? <button className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => void setLeadStatus(lead.id, 'CONTACTED')}>Mark contacted</button> : null}

@@ -3,6 +3,8 @@ import { FulfilmentStatus, OrderSource, OrderStatus, PaymentMethod, Prisma } fro
 import { PrismaService } from '../prisma/prisma.service';
 import { CheckoutService } from '../checkout/checkout.service';
 import { nextOrderNumber } from '../common/order-helpers';
+import { buildFollowUp, FollowUp, followUpStatus, productPath } from '../common/follow-up';
+import { storefrontOriginForShop } from '../common/storefront-origin';
 import type { CreateManualOrderDto } from './portal-order.controller';
 
 export type PortalOrderListQuery = {
@@ -17,6 +19,27 @@ export type PortalOrderListQuery = {
 };
 
 /** Who a note is credited to; a platform-support session says so rather than posing as the owner. */
+type OrderForFollowUp = {
+  orderNumber: string; status: string; fulfilmentStatus: string; firstName: string; phone: string | null; totalKes: unknown;
+  lines: Array<{ quantity: number; priceKes: unknown; variant: { name: string; product: { slug: string } } }>;
+};
+
+/** The WhatsApp follow-up for an order: its items with a link to each product, worded for where the order has got to. */
+export function orderFollowUp(order: OrderForFollowUp, shop: { name: string; currency: string }, origin: string): FollowUp | null {
+  const status = followUpStatus(order);
+  return buildFollowUp({
+    kind: 'ORDER',
+    shopName: shop.name, currency: shop.currency, name: order.firstName, phone: order.phone,
+    lines: order.lines.map((l) => ({ name: l.variant.name, quantity: l.quantity, unitPrice: Number(l.priceKes), path: productPath(l.variant.product) })),
+    total: Number(order.totalKes),
+    orderNumber: order.orderNumber,
+    orderStatus: status,
+    // An order is unpaid or paid in full: this platform records no part payments.
+    balance: status === 'PENDING' ? Number(order.totalKes) : 0,
+    origin,
+  });
+}
+
 function authorLabel(user: { firstName: string; lastName: string; impersonatedBy?: string | null }): string {
   const name = `${user.firstName} ${user.lastName}`.trim() || 'Staff';
   return user.impersonatedBy ? `${name} (platform support)` : name;
@@ -103,7 +126,9 @@ export class PortalOrderService {
       this.prisma.order.count({ where }),
     ]);
 
-    return { orders, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+    const origin = storefrontOriginForShop(shop);
+    return { orders: orders.map((order) => ({ ...order, followUp: orderFollowUp(order, shop, origin) })), total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
   }
 
   async get(shopId: string, orderId: string) {
@@ -116,7 +141,8 @@ export class PortalOrderService {
       },
     });
     if (!order) throw new NotFoundException('Order not found');
-    return order;
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+    return { ...order, followUp: orderFollowUp(order, shop, storefrontOriginForShop(shop)) };
   }
 
   async setStatus(shopId: string, orderId: string, status: OrderStatus, payment: { method?: PaymentMethod; reference?: string } = {}) {

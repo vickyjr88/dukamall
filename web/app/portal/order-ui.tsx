@@ -3,6 +3,8 @@
 // Types, labels and badges shared by the orders list, the order detail screen
 // and the new-order form.
 
+import type { FollowUp } from './follow-up';
+
 export type PaymentStatus = 'PENDING' | 'PAID' | 'CANCELLED';
 export type FulfilmentStatus = 'UNFULFILLED' | 'SHIPPED' | 'DELIVERED';
 export type OrderSource = 'WEBSITE' | 'WHATSAPP' | 'IN_PERSON' | 'OTHER';
@@ -21,6 +23,7 @@ export type OrderDetail = {
   paymentMethod: PaymentMethod | null; paymentReference: string | null; paystackReference: string | null; paidAt: string | null;
   trackingNote: string | null; shippedAt: string | null; deliveredAt: string | null;
   createdAt: string; lines: OrderLine[]; notes?: OrderNote[]; discount?: { code: string } | null;
+  followUp?: FollowUp | null;
 };
 
 export const SOURCE_LABEL: Record<OrderSource, string> = { WEBSITE: 'Website', WHATSAPP: 'WhatsApp', IN_PERSON: 'In person', OTHER: 'Other' };
