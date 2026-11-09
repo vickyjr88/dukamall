@@ -17,6 +17,8 @@ export type ResolvedConnection = {
   externalId: string | null;
   config: Record<string, string>;
   secrets: Record<string, string>;
+  /** When the token ends, if the app knows (a Threads token lasts 60 days and is renewed by the app). */
+  tokenExpiresAt?: Date | null;
 };
 
 /** The platform sender only sends the daily report: a number, a token and the template. Everything else is the shop's own business. */
@@ -126,7 +128,7 @@ export class IntegrationsService implements OnApplicationBootstrap {
     const row = await this.prisma.shopIntegration.findUnique({ where: { shopId_provider: { shopId, provider } } });
     if (row) {
       const s = this.toStored(row);
-      if (s.enabled && this.isComplete(provider, s)) value = { source: 'shop', externalId: s.externalId, config: s.config, secrets: s.secrets };
+      if (s.enabled && this.isComplete(provider, s)) value = { source: 'shop', externalId: s.externalId, config: s.config, secrets: s.secrets, tokenExpiresAt: row.tokenExpiresAt };
     }
     if (!value && opts.allowPlatform && provider === 'WHATSAPP') {
       const platform = await this.prisma.platformIntegration.findUnique({ where: { provider } });
@@ -195,6 +197,32 @@ export class IntegrationsService implements OnApplicationBootstrap {
       await this.audit({ action: 'integration.updated', shopId, actor, metadata: { provider, fields: merged.changedFields, ...(input.enabled !== undefined ? { enabled: input.enabled } : {}) } });
     }
     return this.list(shopId);
+  }
+
+  /**
+   * Writes back something the APP learned or renewed, not something the owner typed: a Threads token it renewed (with when the new one ends),
+   * or the account id it found from the token. Merged into what is stored, encrypted, and audited by field name as a system change.
+   */
+  async updateStored(shopId: string, provider: IntegrationProvider, patch: { secrets?: Record<string, string>; config?: Record<string, string>; externalId?: string | null; tokenExpiresAt?: Date | null; lastError?: string | null }) {
+    const row = await this.prisma.shopIntegration.findUnique({ where: { shopId_provider: { shopId, provider } } });
+    if (!row) return;
+    const s = this.toStored(row);
+    const secrets = { ...s.secrets, ...(patch.secrets ?? {}) };
+    const config = { ...s.config, ...(patch.config ?? {}) };
+    await this.prisma.shopIntegration.update({
+      where: { id: row.id },
+      data: {
+        secrets: Object.keys(secrets).length ? encryptSecret(JSON.stringify(secrets)) : null,
+        config: config as Prisma.InputJsonValue,
+        ...(patch.externalId !== undefined ? { externalId: patch.externalId } : {}),
+        ...(patch.tokenExpiresAt !== undefined ? { tokenExpiresAt: patch.tokenExpiresAt } : {}),
+        ...(patch.lastError !== undefined ? { lastError: patch.lastError } : {}),
+        updatedBy: 'the app (renewed automatically)',
+      },
+    });
+    this.invalidate(shopId);
+    const names = [...Object.keys(patch.secrets ?? {}), ...Object.keys(patch.config ?? {}), ...(patch.externalId !== undefined ? ['externalId'] : []), ...(patch.tokenExpiresAt !== undefined ? ['tokenExpiresAt'] : [])];
+    if (names.length) await this.audit({ action: 'integration.renewed', shopId, actor: { id: null, email: 'system' }, metadata: { provider, fields: names } });
   }
 
   private async audit(p: { action: string; shopId: string | null; actor: Actor; metadata: Prisma.InputJsonValue }) {

@@ -126,6 +126,8 @@ model Shop {
   whatsappOutreach   WhatsappOutreach[]
   whatsappStatuses   WhatsappMessageStatus[]
   facebookReplies    FacebookCommentReply[]
+  socialSetting      SocialSetting?
+  socialPosts        SocialPost[]
   products      Product[]
   categories    ProductCategory[]
   customers     Customer[]
@@ -1035,6 +1037,57 @@ model FacebookCommentReply {
   @@unique([shopId, commentId])
   @@index([shopId, status, updatedAt])
   @@index([shopId, fromId, status])
+  @@index([shopId, createdAt])
+  @@index([status, updatedAt])
+}
+
+/// Whether and when the shop's products are posted to its Facebook Page and Threads on their own. One row per shop. Everything is off until
+/// the owner turns a channel on: a post is public, so nothing posts by itself on a fresh shop.
+model SocialSetting {
+  shopId          String   @id
+  shop            Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  facebookEnabled Boolean  @default(false)
+  threadsEnabled  Boolean  @default(false)
+  /// When to post, Nairobi time, "HH:MM". Three a day by default; at most six.
+  times           String[] @default(["09:00", "13:00", "19:00"])
+  /// A product is not posted again to the same channel for this many days.
+  cooldownDays    Int      @default(30)
+  updatedBy       String   @default("system")
+  updatedAt       DateTime @updatedAt
+}
+
+/// One post the engine made (or tried to make) to one of a shop's channels. slotKey is "2026-11-08@09:00" for a scheduled post, which with
+/// the shop and channel is unique: that is what stops both backend slots posting the same slot twice.
+model SocialPost {
+  id           String    @id @default(cuid())
+  shopId       String
+  shop         Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// FACEBOOK | THREADS
+  channel      String
+  slotKey      String
+  productId    String?
+  productName  String?
+  productSlug  String?
+  caption      String?
+  imageUrl     String?
+  /// PENDING (being posted), POSTED, RETRY (the channel was unavailable, tried again shortly), FAILED, SKIPPED (nothing to post) or REMOVED.
+  status       String    @default("PENDING")
+  detail       String?
+  attempts     Int       @default(0)
+  /// The channel's id for the post: Facebook's looks like 405520572643076_122229878420494913, Threads' is a number.
+  externalId   String?
+  /// A link to the post, when the channel gives one.
+  permalink    String?
+  scheduledFor DateTime?
+  postedAt     DateTime?
+  /// Who started it: "schedule" or the owner's email (Post now).
+  triggeredBy  String    @default("schedule")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([shopId, channel, slotKey])
+  @@index([shopId, channel, status, postedAt])
+  @@index([shopId, productId, channel, status])
   @@index([shopId, createdAt])
   @@index([status, updatedAt])
 }

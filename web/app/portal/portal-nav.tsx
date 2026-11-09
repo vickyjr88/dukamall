@@ -18,6 +18,7 @@ const LINKS = [
   { href: '/portal/leads', label: 'Leads' },
   { href: '/portal/whatsapp', label: 'WhatsApp' },
   { href: '/portal/facebook', label: 'Facebook' },
+  { href: '/portal/social', label: 'Social posting' },
   { href: '/portal/theme', label: 'Theme' },
   { href: '/portal/storefront', label: 'Store info' },
   { href: '/portal/pages', label: 'Pages' },
