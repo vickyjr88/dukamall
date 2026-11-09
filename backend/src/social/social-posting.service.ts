@@ -1,9 +1,7 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { IntegrationProvider, Prisma } from '@prisma/client';
-import { storefrontOriginForShop } from '../common/storefront-origin';
 import { isTransientFacebookError } from '../facebook/facebook-comments';
 import { IntegrationsService, ResolvedConnection } from '../integrations/integrations.service';
-import { WhatsAppClient } from '../integrations/whatsapp-client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PostableProductsService } from './postable-products.service';
 import { PostContext, PostableProduct, buildCaption, buildThreadsCaption, cleanTimes, dueSlots, isPostable, nairobiParts, nextSlot, pickProduct } from './social-post';
@@ -242,11 +240,8 @@ export class SocialPostingService implements OnApplicationBootstrap, OnApplicati
     return pickProduct({ candidates, lastPosted: map, lastBrand, now, cooldownDays });
   }
 
-  /** The shop's own name, WhatsApp link, address and storefront address: what its posts say. */
-  private async context(shopId: string): Promise<PostContext> {
-    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
-    const phone = WhatsAppClient.normalisePhone(shop.whatsappNumber ?? '');
-    return { shopName: shop.name, origin: storefrontOriginForShop(shop), whatsapp: phone ? `https://wa.me/${phone}` : '', location: (shop.address ?? '').trim() };
+  private context(shopId: string): Promise<PostContext> {
+    return this.products.contextFor(shopId);
   }
 
   private async captionFor(shopId: string, channel: Channel, product: PostableProduct, now: Date) {
@@ -375,7 +370,7 @@ export class SocialPostingService implements OnApplicationBootstrap, OnApplicati
   /** Takes one of the shop's posts down from its channel. */
   async remove(shopId: string, id: string) {
     const row = await this.prisma.socialPost.findFirst({ where: { id, shopId } });
-    if (!row || row.status !== 'POSTED' || !row.externalId) return { removed: false, detail: 'That post is not live' };
+    if (!row || !['FACEBOOK', 'THREADS'].includes(row.channel) || row.status !== 'POSTED' || !row.externalId) return { removed: false, detail: 'That post is not live' };
     const channel = row.channel as Channel;
     const conn = await this.integrations.resolve(shopId, providerOf(channel));
     if (!conn) return { removed: false, detail: `${channel === 'FACEBOOK' ? 'Facebook' : 'Threads'} is not connected for this shop` };
@@ -422,7 +417,8 @@ export class SocialPostingService implements OnApplicationBootstrap, OnApplicati
   async list(shopId: string, query: { page?: number; pageSize?: number }) {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 20));
-    const where = { shopId };
+    // WhatsApp Status pictures (channel STATUS) are prepared for staff, not posted by the engine: they have their own screen.
+    const where = { shopId, channel: { in: ['FACEBOOK', 'THREADS'] } };
     const [items, total] = await Promise.all([
       this.prisma.socialPost.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.socialPost.count({ where }),

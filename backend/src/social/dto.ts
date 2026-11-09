@@ -24,3 +24,8 @@ export class PostNowDto {
   @ApiPropertyOptional({ enum: ['FACEBOOK', 'THREADS'], description: 'Where to post. Defaults to the Facebook Page.' })
   @IsOptional() @IsIn(['FACEBOOK', 'THREADS']) channel?: 'FACEBOOK' | 'THREADS';
 }
+
+export class UpdateStatusKitDto {
+  @ApiPropertyOptional({ example: 3, description: 'How many WhatsApp Status pictures are prepared each day (1 to 8)' })
+  @IsInt() @Min(1) @Max(8) count!: number;
+}

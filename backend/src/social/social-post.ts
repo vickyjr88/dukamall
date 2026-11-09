@@ -40,8 +40,8 @@ const OPENERS = [
 ];
 
 /** A product's own page, tagged so Insights counts the visit as coming from that channel, by the engine (campaign `autopost`). */
-export function postLink(origin: string, slug: string, channel: 'facebook' | 'threads'): string {
-  return `${origin.replace(/\/+$/, '')}/shop/${slug}?utm_source=${channel}&utm_medium=social&utm_campaign=autopost`;
+export function postLink(origin: string, slug: string, channel: 'facebook' | 'threads' | 'whatsapp', campaign = 'autopost'): string {
+  return `${origin.replace(/\/+$/, '')}/shop/${slug}?utm_source=${channel}&utm_medium=social&utm_campaign=${campaign}`;
 }
 
 /**
@@ -68,15 +68,21 @@ export function compactSizes(sizes: string[]): string {
 const ICONS: Record<string, string> = { size: '📏', colour: '🎨', storage: '💾', condition: '🏷️' };
 const MAX_VALUES = 8;
 
-/** One readable line for a kind of option: "📏 Sizes: EUR 36–39, 41–44", "🎨 Colours: Black, White", "💾 Storage: 128GB, 256GB". */
-function optionLine(group: OptionGroup): string | null {
+/** The name and the readable values of one kind of option: "Sizes" / "EUR 36–39, 41–44", "Colours" / "Black, White". Null when it has no values. */
+export function optionParts(group: OptionGroup): { label: string; value: string } | null {
   const values = [...new Set(group.values.map((v) => v.trim()).filter(Boolean))];
   if (!values.length) return null;
   const label = group.key === 'size' ? (values.length > 1 ? 'Sizes' : 'Size') : group.key === 'colour' ? (values.length > 1 ? 'Colours' : 'Colour') : group.label;
-  const shown = group.key === 'size'
+  const value = group.key === 'size'
     ? compactSizes(values)
     : values.length > MAX_VALUES ? `${values.slice(0, MAX_VALUES).join(', ')} and more` : values.join(', ');
-  return `${ICONS[group.key] ?? '▫️'} ${label}: ${shown}`;
+  return { label, value };
+}
+
+/** One readable line for a kind of option: "📏 Sizes: EUR 36–39, 41–44", "🎨 Colours: Black, White", "💾 Storage: 128GB, 256GB". */
+function optionLine(group: OptionGroup): string | null {
+  const parts = optionParts(group);
+  return parts ? `${ICONS[group.key] ?? '▫️'} ${parts.label}: ${parts.value}` : null;
 }
 
 /** The option lines for a product: none for something that comes in one form. */
@@ -141,6 +147,26 @@ export function buildThreadsCaption(product: PostableProduct, ctx: PostContext, 
   // Measured with a one-letter name: an empty one would collapse a blank line and read one character short.
   const maxName = THREADS_LIMIT - length(compose('x', bare)) + 1;
   return compose(`${Array.from(product.name).slice(0, Math.max(10, maxName - 1)).join('').trim()}…`, bare);
+}
+
+/**
+ * What a Status picture says about what is in stock, by what the product comes in: sizes for shoes and clothes, storage and colour for a phone,
+ * nothing for a watch that comes in one form. At most two lines, "condition" left out (it is on the product page), in the order the shop entered them.
+ */
+export function statusDetails(options: OptionGroup[]): Array<{ label: string; value: string }> {
+  return options.filter((g) => g.key !== 'condition').map(optionParts).filter((p): p is { label: string; value: string } => Boolean(p)).slice(0, 2);
+}
+
+/** The text that goes with a Status: the details and a tagged link, short enough to read at a glance. Replies to a Status reach the shop's chat, so it says to reply. */
+export function buildStatusCaption(product: PostableProduct, ctx: PostContext): string {
+  return [
+    product.name,
+    priceLine(product),
+    ...optionLines(product.options.filter((g) => g.key !== 'condition').slice(0, 2)),
+    '',
+    '💬 Reply to this status to order',
+    `🛒 ${postLink(ctx.origin, product.slug, 'whatsapp', 'status')}`,
+  ].filter((l) => l !== null).join('\n').replace(/\n{3,}/g, '\n\n');
 }
 
 /** Whether a product is good enough to put on a shop's Page unattended. */

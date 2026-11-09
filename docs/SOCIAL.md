@@ -38,3 +38,5 @@ The photo is posted to the Page with the caption (`pages_manage_posts`). If Meta
 `backend/src/social/`: `social-post.ts` (the pure rules: wording, sizes, rotation, slots), `postable-products.service.ts` (what a shop could post), `social-posting.service.ts` (the engine, claims, retries, Threads renewal, take-down),
 `social-posting.controller.ts` (`/portal/social`, owner only), `dto.ts`, `social.module.ts`. Screen: `web/app/portal/social/page.tsx`. Tables `SocialSetting` and `SocialPost`
 (migration `20261120090000_add_social_posting`). Ids and tokens come from the shop's own connections (see `INTEGRATIONS.md`); the only environment names used are the kill switch `SOCIAL_POSTING` and the test timing knobs `SOCIAL_PUBLISH_WAIT_MS`, `SOCIAL_POLL_MS`.
+
+The WhatsApp Status kit (pictures to share by hand, since WhatsApp has no way to post a Status automatically) is in `STATUS-KIT.md`; it uses the same products and the same table, under its own channel.

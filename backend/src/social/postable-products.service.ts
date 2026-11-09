@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { optionGroups, optionEntries, Attributes } from '../common/variant-options';
+import { storefrontOriginForShop } from '../common/storefront-origin';
+import { WhatsAppClient } from '../integrations/whatsapp-client';
 import { PrismaService } from '../prisma/prisma.service';
-import { OptionGroup, PostableProduct } from './social-post';
+import { OptionGroup, PostContext, PostableProduct } from './social-post';
 
 /**
  * What a shop could post right now, in the shape the engine needs: products a shopper can buy (active, in a live category, at least one
@@ -13,6 +15,13 @@ import { OptionGroup, PostableProduct } from './social-post';
 @Injectable()
 export class PostableProductsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** The shop's own name, WhatsApp link, address and storefront address: what its posts say. */
+  async contextFor(shopId: string): Promise<PostContext> {
+    const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
+    const phone = WhatsAppClient.normalisePhone(shop.whatsappNumber ?? '');
+    return { shopName: shop.name, origin: storefrontOriginForShop(shop), whatsapp: phone ? `https://wa.me/${phone}` : '', location: (shop.address ?? '').trim() };
+  }
 
   async forShop(shopId: string): Promise<Array<Omit<PostableProduct, 'imageUrl'> & { imageUrl: string | null }>> {
     const products = await this.prisma.product.findMany({

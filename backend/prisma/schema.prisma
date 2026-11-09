@@ -1052,6 +1052,8 @@ model SocialSetting {
   times           String[] @default(["09:00", "13:00", "19:00"])
   /// A product is not posted again to the same channel for this many days.
   cooldownDays    Int      @default(30)
+  /// How many WhatsApp Status pictures are prepared each day (1 to 8).
+  statusKitCount  Int      @default(3)
   updatedBy       String   @default("system")
   updatedAt       DateTime @updatedAt
 }
