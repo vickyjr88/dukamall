@@ -9,7 +9,9 @@ type Settings = {
   enabled: boolean; emailRecipients: string[]; whatsappRecipients: string[];
   isCustomised: boolean; scheduled: boolean; whatsappConfigured: boolean; whatsappSource: 'shop' | 'platform' | null; whatsappTemplate: string;
 };
-type Run = { id: string; reportDate: string; channel: 'EMAIL' | 'WHATSAPP'; recipient: string; status: string; attempts: number; error?: string | null; updatedAt: string };
+type Run = { id: string; reportDate: string; channel: 'EMAIL' | 'WHATSAPP'; recipient: string; status: string; attempts: number; error?: string | null; delivery?: string | null; deliveryError?: string | null; updatedAt: string };
+/** What WhatsApp reported after accepting a message. "Sent" alone only means WhatsApp took it. */
+const DELIVERY_LABEL: Record<string, string> = { sent: 'Reached WhatsApp', delivered: 'Delivered', read: 'Read', failed: 'Not delivered' };
 type Preview = { report: { label: string; shopName: string }; email: { subject: string }; whatsappParameters: string[] };
 type Delivery = { dateKey: string; skipped?: string; email: Array<{ recipient: string; status: string; error?: string }>; whatsapp: Array<{ recipient: string; status: string; error?: string }> };
 
@@ -218,7 +220,12 @@ export default function DailyReportPage() {
                   <td>{r.reportDate}</td>
                   <td>{r.channel === 'WHATSAPP' ? 'WhatsApp' : 'Email'}</td>
                   <td>{r.recipient}</td>
-                  <td><Status status={r.status} />{r.error ? <div style={{ fontSize: 12, color: 'var(--p-muted)', whiteSpace: 'normal', maxWidth: 360 }}>{r.error}</div> : null}</td>
+                  <td>
+                    <Status status={r.status} />
+                    {r.delivery ? <span className={`portal-badge ${r.delivery === 'failed' ? 'is-cancelled' : r.delivery === 'sent' ? 'is-muted' : 'is-paid'}`} style={{ marginLeft: 6 }}>{DELIVERY_LABEL[r.delivery] ?? r.delivery}</span> : null}
+                    {r.error ? <div style={{ fontSize: 12, color: 'var(--p-muted)', whiteSpace: 'normal', maxWidth: 360 }}>{r.error}</div> : null}
+                    {r.deliveryError ? <div style={{ fontSize: 12, color: 'var(--p-muted)', whiteSpace: 'normal', maxWidth: 360 }}>{r.deliveryError}</div> : null}
+                  </td>
                   <td style={{ whiteSpace: 'nowrap' }}>{new Date(r.updatedAt).toLocaleString()}</td>
                 </tr>
               ))}

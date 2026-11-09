@@ -72,6 +72,12 @@ can serve Drip Emporium's report):
 The report goes from the shop's own connected number when it has one switched on, otherwise from the operator's sender, otherwise it is not
 sent: WhatsApp recipients are recorded as `SKIPPED` with the reason and the email still goes out.
 
+## Did it arrive?
+
+For a WhatsApp recipient, **Sent** only means WhatsApp accepted the message. Meta reports what happened afterwards to the shop's own webhook (see `docs/WHATSAPP.md`), and the
+**What was sent** list shows it beside the result: Reached WhatsApp, Delivered, Read, or **Not delivered** with Meta's reason (for example `131042` is a payment problem on the
+WhatsApp Business Account, `131026` a number that is not on WhatsApp). Without the webhook connected, only "Sent" is known. Sending a report again forgets the old report's delivery state.
+
 ## Tests
 
 `cd backend && npx jest test/unit/daily-report.spec.ts` covers day boundaries, revenue rules, comparisons, best sellers, splits, stock warnings,

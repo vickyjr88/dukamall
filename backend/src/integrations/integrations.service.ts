@@ -19,11 +19,16 @@ export type ResolvedConnection = {
   secrets: Record<string, string>;
 };
 
+/** The platform sender only sends the daily report: a number, a token and the template. Everything else is the shop's own business. */
+const PLATFORM_SENDER_FIELDS = ['phoneNumberId', 'reportTemplate', 'templateLang', 'accessToken'];
 const CACHE_MS = 30_000;
 const GRAPH = 'https://graph.facebook.com/v21.0';
 const THREADS = 'https://graph.threads.net/v1.0';
 
 const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+
+/** Where Meta reaches this API from outside. A plain address, not a secret: the same one the media library already uses. */
+export const publicApiBase = () => (process.env.PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/$/, '');
 
 /** Secrets are stored as ONE encrypted JSON string, so a database dump shows nothing and a new provider needs no new column. */
 function readSecrets(stored: string | null): Record<string, string> {
@@ -91,6 +96,7 @@ export class IntegrationsService implements OnApplicationBootstrap {
           connected: this.isComplete(provider, stored),
           fields: fieldsOf(provider).map((f) => ({
             key: f.key, label: f.label, kind: f.kind, required: Boolean(f.required), help: f.help, placeholder: f.placeholder ?? null,
+            input: f.input ?? 'text',
             value: f.kind === 'config' ? stored.config[f.key] ?? null : null,
             default: f.default ?? null,
             set: Boolean(stored.config[f.key] || stored.secrets[f.key]),
@@ -207,7 +213,7 @@ export class IntegrationsService implements OnApplicationBootstrap {
       description: 'Shops that have not connected their own WhatsApp number get their daily report from this one. Customers never receive a message from it.',
       enabled: stored.enabled,
       connected: this.isComplete('WHATSAPP', stored),
-      fields: fieldsOf('WHATSAPP').filter((f) => f.key !== 'appId' && f.key !== 'appSecret' && f.key !== 'wabaId').map((f) => ({
+      fields: fieldsOf('WHATSAPP').filter((f) => PLATFORM_SENDER_FIELDS.includes(f.key)).map((f) => ({
         key: f.key, label: f.label, kind: f.kind, required: Boolean(f.required), help: f.help, placeholder: f.placeholder ?? null,
         value: f.kind === 'config' ? stored.config[f.key] ?? null : null,
         default: f.default ?? null,
@@ -277,6 +283,41 @@ export class IntegrationsService implements OnApplicationBootstrap {
     await this.prisma.shopIntegration.update({ where: { id: row.id }, data: { webhookKey: sha256(secret), updatedBy: actor.email } });
     await this.audit({ action: 'integration.webhook_rotated', shopId, actor, metadata: { provider } });
     return { secret };
+  }
+
+  /** The app secret saved for a connection even if it is switched off, so Meta's signature on an incoming event can still be checked. */
+  async appSecretFor(shopId: string, provider: IntegrationProvider): Promise<string | null> {
+    const row = await this.prisma.shopIntegration.findUnique({ where: { shopId_provider: { shopId, provider } } });
+    return row ? readSecrets(row.secrets).appSecret || null : null;
+  }
+
+  /**
+   * Gives Meta this shop's webhook address for incoming WhatsApp messages and delivery reports, using the shop's own token. Makes a new
+   * secret each time (so the address changes), registers it with the shop's WhatsApp Business Account, and returns the address ONCE so
+   * it can also be pasted into Meta's dashboard by hand if the registration is refused. Meta refuses it until the app's "messages" webhook
+   * field has been subscribed in the app dashboard, and says so; that message is passed on.
+   */
+  async connectWhatsappWebhook(shopId: string, actor: Actor): Promise<{ ok: boolean; message: string; url: string; verifyToken: string }> {
+    const row = await this.prisma.shopIntegration.findUnique({ where: { shopId_provider: { shopId, provider: 'WHATSAPP' } } });
+    if (!row) throw new NotFoundException('WhatsApp has not been set up yet.');
+    const s = this.toStored(row);
+    if (!s.config.wabaId) throw new BadRequestException('Fill in the WhatsApp Business Account ID and save before connecting incoming messages.');
+    if (!s.secrets.accessToken) throw new BadRequestException('Fill in the access token and save before connecting incoming messages.');
+    const { secret } = await this.rotateWebhookSecret(shopId, 'WHATSAPP', actor);
+    const url = `${publicApiBase()}/whatsapp/webhook/${secret}`;
+    try {
+      const r = await fetch(`${GRAPH}/${s.config.wabaId}/subscribed_apps`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${s.secrets.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ override_callback_uri: url, verify_token: secret }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      const data = (await r.json().catch(() => ({}))) as any;
+      if (r.status >= 300) return { ok: false, message: this.failure({ status: r.status, data }), url, verifyToken: secret };
+      return { ok: true, message: 'Meta now sends this shop\'s WhatsApp messages and delivery reports to your shop.', url, verifyToken: secret };
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : 'Could not reach Meta.', url, verifyToken: secret };
+    }
   }
 
   /** The shop an incoming event belongs to, from the secret in the address it was sent to. A wrong secret finds nothing. */

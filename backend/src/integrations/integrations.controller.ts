@@ -34,6 +34,15 @@ export class IntegrationsController {
     return this.service.save(shopId, providerOf(provider), dto, actorOf(request));
   }
 
+  /**
+   * Gives the shop's own webhook address to Meta so incoming messages and delivery reports reach the shop. The address (with its secret) is
+   * returned once, here, and cannot be read back later: connecting again makes a new one.
+   */
+  @Post('whatsapp/webhook')
+  connectWhatsapp(@ShopId() shopId: string, @Req() request: any) {
+    return this.service.connectWhatsappWebhook(shopId, actorOf(request));
+  }
+
   /** Read-only call to the provider with the saved token; says in words what worked or what Meta answered. */
   @Post(':provider/test')
   test(@ShopId() shopId: string, @Param('provider') provider: string, @Req() request: any) {

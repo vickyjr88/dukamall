@@ -259,10 +259,11 @@ export class DailyReportService {
     return row?.status === 'FAILED' ? 'GAVE_UP' : 'ALREADY_SENT';
   }
 
-  private finish(shopId: string, reportDate: string, channel: string, recipient: string, status: 'SENT' | 'FAILED' | 'SKIPPED', error?: string) {
+  private finish(shopId: string, reportDate: string, channel: string, recipient: string, status: 'SENT' | 'FAILED' | 'SKIPPED', error?: string, messageId?: string) {
     return this.prisma.dailyReportRun.update({
       where: { shopId_reportDate_channel_recipient: { shopId, reportDate, channel, recipient } },
-      data: { status, error: error ?? null },
+      // A new send forgets what the last one's delivery report said: that report was about a different message.
+      data: { status, error: error ?? null, ...(channel === 'WHATSAPP' ? { messageId: messageId ?? null, delivery: null, deliveryError: null } : {}) },
     });
   }
 
@@ -309,7 +310,7 @@ export class DailyReportService {
         continue;
       }
       const sent = await client.sendTemplate(recipient, parameters);
-      await this.finish(shopId, dateKey, 'WHATSAPP', recipient, sent.delivered ? 'SENT' : 'FAILED', sent.error);
+      await this.finish(shopId, dateKey, 'WHATSAPP', recipient, sent.delivered ? 'SENT' : 'FAILED', sent.error, sent.messageId);
       result.whatsapp.push({ recipient, status: sent.delivered ? 'SENT' : 'FAILED', error: sent.error });
     }
 

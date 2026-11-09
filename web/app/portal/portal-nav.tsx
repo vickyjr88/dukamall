@@ -16,6 +16,7 @@ const LINKS = [
   { href: '/portal/discounts', label: 'Discounts' },
   { href: '/portal/customers', label: 'Customers' },
   { href: '/portal/leads', label: 'Leads' },
+  { href: '/portal/whatsapp', label: 'WhatsApp' },
   { href: '/portal/theme', label: 'Theme' },
   { href: '/portal/storefront', label: 'Store info' },
   { href: '/portal/pages', label: 'Pages' },

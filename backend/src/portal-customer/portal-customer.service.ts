@@ -197,6 +197,23 @@ export class PortalCustomerService {
     }));
   }
 
+  /**
+   * People the shop could message on WhatsApp: everyone in the customer list who has a phone number, optionally narrowed to some keys or
+   * a search. Light (no orders or leads), so the outreach screen can resolve a batch of 25 or list everyone not yet messaged.
+   */
+  async messageable(shopId: string, query: { keys?: string[]; search?: string; limit?: number }) {
+    const limit = Math.min(5000, Math.max(1, query.limit ?? 1000));
+    const keyFilter = query.keys?.length ? Prisma.sql`AND key = ANY(${query.keys}::text[])` : Prisma.empty;
+    const search = this.searchFilter(query.search);
+    const rows = await this.prisma.$queryRaw<PersonRow[]>(Prisma.sql`
+      WITH ${peopleCte(shopId)}
+      SELECT * FROM (SELECT * FROM people ${search}) found
+      WHERE phone IS NOT NULL AND length(regexp_replace(phone, '\\D', '', 'g')) >= 7 ${keyFilter}
+      ORDER BY coalesce(last_order_at, first_seen) DESC, key
+      LIMIT ${limit}`);
+    return rows.map(toSummary);
+  }
+
   async get(shopId: string, key: string) {
     const [person] = await this.prisma.$queryRaw<PersonRow[]>(Prisma.sql`
       WITH ${peopleCte(shopId)} SELECT * FROM people WHERE key = ${key} LIMIT 1`);

@@ -22,6 +22,8 @@ export type FieldDef = {
   /** The id Meta calls this connection by; stored in its own unique column so events can be matched to the shop. */
   externalId?: boolean;
   default?: string;
+  /** How the screen shows it: a text box (the default), an on/off switch (value "true" or "false") or a number box. */
+  input?: 'text' | 'toggle' | 'number';
 };
 
 export type ProviderDef = {
@@ -31,6 +33,7 @@ export type ProviderDef = {
 };
 
 const DIGITS = /^\d{5,25}$/;
+const TEMPLATE_NAME = /^[a-z0-9_]{1,512}$/;
 const TOKEN = /^\S{16,1000}$/;
 
 export const PROVIDERS: Record<IntegrationProvider, ProviderDef> = {
@@ -43,6 +46,12 @@ export const PROVIDERS: Record<IntegrationProvider, ProviderDef> = {
       { key: 'appId', label: 'Meta app ID', kind: 'config', pattern: DIGITS, patternHint: 'digits only', help: 'The app you created for this shop in the Meta developer dashboard.' },
       { key: 'reportTemplate', label: 'Daily report template name', kind: 'config', default: 'daily_report', pattern: /^[a-z0-9_]{1,512}$/, patternHint: 'lower case letters, digits and underscores', help: 'The approved template the daily report is sent with.' },
       { key: 'templateLang', label: 'Template language', kind: 'config', default: 'en', pattern: /^[a-z]{2,3}(_[A-Z]{2})?$/, patternHint: 'like en or en_GB', help: 'The language the templates were approved in.' },
+      { key: 'templateGroup', label: 'Template: join the group', kind: 'config', default: 'join_group', pattern: TEMPLATE_NAME, patternHint: 'lower case letters, digits and underscores', help: 'Approved template with two variables: {{1}} the customer\'s first name, {{2}} the group link. Sent when you pick "Join the WhatsApp group" and in the welcome series.' },
+      { key: 'templateReview', label: 'Template: rate us on Google', kind: 'config', default: 'rate_us', pattern: TEMPLATE_NAME, patternHint: 'lower case letters, digits and underscores', help: 'Approved template with two variables: {{1}} the customer\'s first name, {{2}} your Google review link.' },
+      { key: 'templateLocation', label: 'Template: where to find us', kind: 'config', pattern: TEMPLATE_NAME, patternHint: 'lower case letters, digits and underscores', help: 'Optional. An approved template with no variables (the address is written in it).' },
+      { key: 'templateRange', label: 'Template: what we sell', kind: 'config', pattern: TEMPLATE_NAME, patternHint: 'lower case letters, digits and underscores', help: 'Optional. An approved template with no variables.' },
+      { key: 'autoSubscribe', label: 'Welcome people who message you', kind: 'config', input: 'toggle', default: 'false', pattern: /^(true|false)$/, patternHint: 'on or off', help: 'When on, anyone who messages your number is told they will get updates (and that STOP opts out), then receives the welcome series. Off until you turn it on.' },
+      { key: 'dailySendCap', label: 'Most template messages a day', kind: 'config', input: 'number', default: '200', pattern: /^\d{1,4}$/, patternHint: 'a number', help: 'A new Meta business can start about 250 conversations a day, so stay under that until it is verified.' },
       { key: 'accessToken', label: 'Access token', kind: 'secret', required: true, pattern: TOKEN, patternHint: 'no spaces', help: 'A permanent System User token with whatsapp_business_messaging and whatsapp_business_management.' },
       { key: 'appSecret', label: 'App secret', kind: 'secret', pattern: TOKEN, patternHint: 'no spaces', help: 'Optional. Lets the shop check that incoming events really come from Meta.' },
     ],

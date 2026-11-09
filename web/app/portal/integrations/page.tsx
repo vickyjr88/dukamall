@@ -6,7 +6,7 @@ import { portalFetch } from '../portal-api';
 import { OwnerOnlyNotice, useSession } from '../portal-session';
 
 type Field = {
-  key: string; label: string; kind: 'config' | 'secret'; required: boolean; help: string; placeholder: string | null;
+  key: string; label: string; kind: 'config' | 'secret'; input: 'text' | 'toggle' | 'number'; required: boolean; help: string; placeholder: string | null;
   value: string | null; default: string | null; set: boolean; hint: string | null;
 };
 type Connection = {
@@ -16,6 +16,7 @@ type Connection = {
 type Listing = { encryptionConfigured: boolean; connections: Connection[] };
 type Draft = { enabled: boolean; config: Record<string, string>; secrets: Record<string, string> };
 type TestResult = { ok: boolean; message: string; details?: Record<string, unknown> };
+type Webhook = { ok: boolean; message: string; url: string; verifyToken: string };
 
 async function errorOf(res: Response, fallback: string): Promise<string> {
   const data = await res.json().catch(() => null);
@@ -35,8 +36,9 @@ const GUIDES: Record<Connection['provider'], { intro: string; steps: string[] }>
       'In WhatsApp > API setup, add your business number. Copy the Phone number ID (an id, not the phone number) and the WhatsApp Business Account ID.',
       'Add a payment method to the WhatsApp Business Account. Without one, messages are accepted and then fail with “payment” errors.',
       'In business.facebook.com > Business settings > System users, add a system user, give it your WhatsApp account, and generate a token with whatsapp_business_messaging and whatsapp_business_management. Paste it here. It does not expire.',
-      'In WhatsApp Manager, create and get approved the message templates you will use. The daily report needs one named like the template name above, with 6 variables.',
+      'In WhatsApp Manager, create and get approved the message templates you will use. The daily report needs one named like the template name above, with 6 variables. The group and Google review messages each need two variables: {{1}} the first name and {{2}} the link.',
       'Press Test connection. It should show your number and its name.',
+      'To receive messages and delivery reports: in your Meta app, open WhatsApp > Configuration and subscribe the “messages” webhook field (Meta will not accept your address until you do). Then fill in the WhatsApp Business Account ID, save, and press “Connect incoming messages” below.',
     ],
   },
   FACEBOOK: {
@@ -67,10 +69,11 @@ function when(iso: string | null) {
 
 function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: Listing) => void }) {
   const [draft, setDraft] = useState<Draft>({ enabled: c.enabled, config: {}, secrets: {} });
-  const [busy, setBusy] = useState<'save' | 'test' | null>(null);
+  const [busy, setBusy] = useState<'save' | 'test' | 'hook' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [result, setResult] = useState<TestResult | null>(null);
+  const [webhook, setWebhook] = useState<Webhook | null>(null);
 
   useEffect(() => { setDraft({ enabled: c.enabled, config: {}, secrets: {} }); }, [c]);
 
@@ -109,6 +112,21 @@ function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: List
     }
   }
 
+  async function connectWebhook() {
+    setBusy('hook'); setError(null); setNotice(null); setResult(null); setWebhook(null);
+    try {
+      const res = await portalFetch('/portal/integrations/whatsapp/webhook', { method: 'POST' });
+      if (!res.ok) throw new Error(await errorOf(res, 'Could not connect incoming messages'));
+      setWebhook(await res.json());
+      const list = await portalFetch('/portal/integrations');
+      if (list.ok) onSaved(await list.json());
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const guide = GUIDES[c.provider];
   const status = !c.connected ? { label: 'Not connected', cls: 'is-muted' } : c.enabled ? { label: 'On', cls: 'is-paid' } : { label: 'Saved, switched off', cls: 'is-pending' };
 
@@ -133,6 +151,18 @@ function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: List
         {c.fields.map((f) => {
           const isSecret = f.kind === 'secret';
           const value = isSecret ? draft.secrets[f.key] ?? '' : draft.config[f.key] ?? f.value ?? '';
+          if (f.input === 'toggle') {
+            const on = (draft.config[f.key] ?? f.value ?? f.default ?? 'false') === 'true';
+            return (
+              <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                  <input type="checkbox" checked={on} style={{ width: 'auto' }} onChange={(e) => setDraft((d) => ({ ...d, config: { ...d.config, [f.key]: e.target.checked ? 'true' : 'false' } }))} />
+                  {f.label}
+                </span>
+                <span style={{ fontSize: 12, color: 'var(--p-muted)' }}>{f.help}</span>
+              </label>
+            );
+          }
           return (
             <label key={f.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
               <span style={{ fontSize: 13, fontWeight: 600 }}>
@@ -140,7 +170,7 @@ function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: List
                 {isSecret && f.set ? <span className="portal-badge is-paid" style={{ marginLeft: 8, fontWeight: 400 }}>Set {f.hint}</span> : null}
               </span>
               <input
-                type={isSecret ? 'password' : 'text'}
+                type={isSecret ? 'password' : f.input === 'number' ? 'number' : 'text'}
                 autoComplete="off"
                 value={value}
                 onChange={(e) => setDraft((d) => isSecret ? { ...d, secrets: { ...d.secrets, [f.key]: e.target.value } } : { ...d, config: { ...d.config, [f.key]: e.target.value } })}
@@ -172,6 +202,27 @@ function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: List
         </p>
       ) : null}
       {c.provider === 'THREADS' && c.tokenExpiresAt ? <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--p-muted)' }}>The login is good until {when(c.tokenExpiresAt)} and renews itself.</p> : null}
+
+      {c.provider === 'WHATSAPP' ? (
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--p-border, #e5e5e5)' }}>
+          <strong style={{ fontSize: 14 }}>Incoming messages and delivery reports</strong>
+          <span className={`portal-badge ${c.webhookConfigured ? 'is-paid' : 'is-muted'}`} style={{ marginLeft: 8 }}>{c.webhookConfigured ? 'Address made' : 'Not connected'}</span>
+          <p style={{ margin: '6px 0 8px', fontSize: 12, color: 'var(--p-muted)' }}>
+            Needed to see who messages you, to honour STOP, and to learn whether your messages arrived. This gives Meta your shop’s own address. Connecting again makes a new address and the old one stops working.
+          </p>
+          <button type="button" className="portal-btn-outline portal-btn" disabled={!c.connected || changed || busy === 'hook' || !c.fields.find((f) => f.key === 'wabaId')?.set} onClick={() => void connectWebhook()}>
+            {busy === 'hook' ? 'Connecting...' : c.webhookConfigured ? 'Connect again' : 'Connect incoming messages'}
+          </button>
+          {!c.fields.find((f) => f.key === 'wabaId')?.set ? <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--p-muted)' }}>Fill in the WhatsApp Business Account ID and save first.</span> : null}
+          {webhook ? (
+            <div className={`portal-alert ${webhook.ok ? 'is-success' : 'is-error'}`} style={{ marginTop: 10 }}>
+              {webhook.message}
+              <span style={{ display: 'block', fontSize: 12, marginTop: 6 }}>Your address (shown once): <code style={{ wordBreak: 'break-all' }}>{webhook.url}</code></span>
+              {!webhook.ok ? <span style={{ display: 'block', fontSize: 12, marginTop: 4 }}>You can paste it into your Meta app yourself (WhatsApp &gt; Configuration &gt; Callback URL), with the verify token <code style={{ wordBreak: 'break-all' }}>{webhook.verifyToken}</code>.</span> : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
         <button type="button" className="portal-btn" disabled={!changed || busy === 'save'} onClick={() => void save()}>{busy === 'save' ? 'Saving...' : 'Save'}</button>

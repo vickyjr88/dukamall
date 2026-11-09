@@ -37,10 +37,41 @@ export class WhatsAppClient {
     return digits.length >= 11 && digits.length <= 15 ? digits : null;
   }
 
-  async sendTemplate(to: string, parameters: string[]): Promise<WhatsAppSendResult> {
+  /**
+   * A plain text message. WhatsApp only allows it within 24 hours of the person's own last message, so it is for replies: the
+   * "you will get updates" notice, and the STOP and START confirmations.
+   */
+  async sendText(to: string, body: string): Promise<WhatsAppSendResult> {
     const phone = WhatsAppClient.normalisePhone(to);
     if (!phone) return { delivered: false, error: `Unusable WhatsApp number "${to}"` };
-    const { phoneNumberId, accessToken, template, language, apiVersion = 'v21.0' } = this.connection;
+    const { phoneNumberId, accessToken, apiVersion = 'v21.0' } = this.connection;
+    try {
+      const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messaging_product: 'whatsapp', to: phone, type: 'text', text: { body, preview_url: false } }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      const data = (await response.json().catch(() => ({}))) as any;
+      if (!response.ok) {
+        const message = data?.error?.message ?? `HTTP ${response.status}`;
+        logger.warn(`WhatsApp text to ${phone} failed: ${message}`);
+        return { delivered: false, error: message };
+      }
+      return { delivered: true, messageId: data?.messages?.[0]?.id };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(`WhatsApp text to ${phone} threw: ${message}`);
+      return { delivered: false, error: message };
+    }
+  }
+
+  /** `template` defaults to the connection's own (the daily report's); outreach passes the template for the message it is sending. */
+  async sendTemplate(to: string, parameters: string[], templateName?: string): Promise<WhatsAppSendResult> {
+    const phone = WhatsAppClient.normalisePhone(to);
+    if (!phone) return { delivered: false, error: `Unusable WhatsApp number "${to}"` };
+    const { phoneNumberId, accessToken, language, apiVersion = 'v21.0' } = this.connection;
+    const template = templateName ?? this.connection.template;
 
     try {
       const response = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {

@@ -5,5 +5,6 @@ import { PortalCustomerController } from './portal-customer.controller';
 @Module({
   controllers: [PortalCustomerController],
   providers: [PortalCustomerService],
+  exports: [PortalCustomerService],
 })
 export class PortalCustomerModule {}

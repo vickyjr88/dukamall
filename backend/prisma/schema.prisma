@@ -122,6 +122,9 @@ model Shop {
   mediaAssets        MediaAsset[]
   staff         UserShop[]
   integrations  ShopIntegration[]
+  whatsappContacts   WhatsappContact[]
+  whatsappOutreach   WhatsappOutreach[]
+  whatsappStatuses   WhatsappMessageStatus[]
   products      Product[]
   categories    ProductCategory[]
   customers     Customer[]
@@ -790,11 +793,17 @@ model DailyReportRun {
   status     String
   attempts   Int      @default(0)
   error      String?
+  /// WhatsApp only: Meta's id for the message, and what Meta later reported about it (sent, delivered, read, failed). SENT only means
+  /// Meta accepted it; `delivery` says whether it arrived.
+  messageId     String?
+  delivery      String?
+  deliveryError String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   @@unique([shopId, reportDate, channel, recipient])
   @@index([shopId, reportDate])
+  @@index([messageId])
 }
 
 /// One image in a shop's media library. The file lives in the object store under `objectKey` ("{shopId}/{uuid}.ext"); this
@@ -913,4 +922,83 @@ model PlatformIntegration {
   lastError     String?
   updatedBy     String              @default("system")
   updatedAt     DateTime            @updatedAt
+}
+
+/// A person who has messaged the shop's WhatsApp number (usually from an ad). The first message subscribes them: they are told they will
+/// receive updates and that STOP opts out, then they get the onboarding messages. STOP unsubscribes them for good (until START).
+model WhatsappContact {
+  id          String  @id @default(cuid())
+  shopId      String
+  shop        Shop    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// Digits with the country code, as WhatsApp reports it: 254712345678.
+  phone       String
+  name        String?
+  /// The click-to-WhatsApp ad that brought them, from the details Meta attaches to their first message.
+  adSourceId  String?
+  adHeadline  String?
+  adClickId   String?
+  subscribed  Boolean @default(true)
+  /// Why they are not subscribed: STOP (they replied STOP, or the owner unsubscribed them).
+  unsubscribedReason String?
+  subscribedAt       DateTime  @default(now())
+  unsubscribedAt     DateTime?
+  /// When the "you will get updates, reply STOP to opt out" message was sent. Sent once.
+  noticeSentAt       DateTime?
+  /// Which onboarding message is next (an index into the shop's sequence; equal to its length means finished) and when it is due.
+  nextStep           Int       @default(0)
+  nextStepAt         DateTime?
+  failures           Int       @default(0)
+  firstMessageAt     DateTime  @default(now())
+  lastMessageAt      DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([shopId, phone])
+  @@index([shopId, subscribed, nextStepAt])
+  @@index([shopId, createdAt])
+}
+
+/// Every template message the shop sent a person from the portal or the onboarding sequence. `delivery` is what Meta reported later.
+model WhatsappOutreach {
+  id            String   @id @default(cuid())
+  shopId        String
+  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// The customer list's key for the person ("c_<id>", "e_<email>", "p_<digits>"), when it was sent from the portal.
+  customerKey   String?
+  name          String?
+  phone         String
+  /// GROUP | REVIEW | LOCATION | RANGE
+  kind          String
+  template      String
+  /// SENT means Meta accepted it, FAILED means it did not.
+  status        String
+  error         String?
+  messageId     String?
+  delivery      String?
+  deliveryError String?
+  contactId     String?
+  triggeredBy   String
+  createdAt     DateTime @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([shopId, phone, kind])
+  @@index([messageId])
+}
+
+/// What Meta reported about a message the shop sent: sent, delivered, read, or failed with a reason.
+model WhatsappMessageStatus {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  messageId  String
+  recipient  String
+  status     String
+  errorCode  String?
+  errorTitle String?
+  occurredAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([shopId, messageId, status])
+  @@index([messageId])
+  @@index([shopId, createdAt])
 }

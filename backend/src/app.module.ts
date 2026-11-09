@@ -14,6 +14,7 @@ import { SecretsModule } from './secrets/secrets.module';
 import { TrialModule } from './trial/trial.module';
 import { DailyReportModule } from './daily-report/daily-report.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { ShopPageModule } from './shop-page/shop-page.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { ProductFeedModule } from './product-feed/product-feed.module';
@@ -59,6 +60,7 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     TrialModule,
     DailyReportModule,
     IntegrationsModule,
+    WhatsappModule,
     ShopPageModule,
     StorefrontModule,
     ProductFeedModule,
