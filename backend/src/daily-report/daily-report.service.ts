@@ -27,10 +27,6 @@ export type DeliveryResult = {
 
 const num = (value: Prisma.Decimal | number | null | undefined) => Number(value ?? 0);
 
-/** The shops that get the scheduled report, from DAILY_REPORT_SHOPS (comma-separated slugs). */
-export const reportShopSlugs = () =>
-  (process.env.DAILY_REPORT_SHOPS ?? 'nairobigents').split(',').map((s) => s.trim()).filter(Boolean);
-
 @Injectable()
 export class DailyReportService {
   private readonly logger = new Logger(DailyReportService.name);
@@ -54,19 +50,21 @@ export class DailyReportService {
   }
 
   async getSettings(shopId: string) {
-    const [row, shop] = await Promise.all([
+    const [row, wa] = await Promise.all([
       this.prisma.dailyReportSetting.findUnique({ where: { shopId } }),
-      this.prisma.shop.findUniqueOrThrow({ where: { id: shopId }, select: { slug: true } }),
+      this.whatsapp.statusFor(shopId),
     ]);
     return {
       enabled: row?.enabled ?? true,
       emailRecipients: row ? row.emailRecipients : await this.defaultRecipients(shopId),
       whatsappRecipients: row ? row.whatsappRecipients : [],
       isCustomised: Boolean(row),
-      /** False means this shop is not in DAILY_REPORT_SHOPS, so nothing is sent on a schedule (the manual send works). */
-      scheduled: reportShopSlugs().includes(shop.slug),
-      whatsappConfigured: this.whatsapp.isConfigured,
-      whatsappTemplate: this.whatsapp.templateName,
+      /** A shop is on the morning schedule once its settings have been saved with the report switched on. Until then only the manual send works. */
+      scheduled: row?.enabled === true,
+      whatsappConfigured: wa.configured,
+      /** Whose WhatsApp number the report goes from: the shop's own, the operator's default, or none. */
+      whatsappSource: wa.source,
+      whatsappTemplate: wa.template,
     };
   }
 
@@ -298,18 +296,19 @@ export class DailyReportService {
     }
 
     const parameters = whatsappParams(report);
+    const client = settings.whatsappRecipients.length ? await this.whatsapp.forOwnerNotices(shopId) : null;
     for (const recipient of settings.whatsappRecipients) {
       if (!(await this.claim(shopId, dateKey, 'WHATSAPP', recipient, force))) {
         result.whatsapp.push({ recipient, status: await this.skippedStatus(shopId, dateKey, 'WHATSAPP', recipient) });
         continue;
       }
-      if (!this.whatsapp.isConfigured) {
-        const why = 'WhatsApp is not set up on the server (WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN).';
+      if (!client) {
+        const why = 'WhatsApp is not connected for this shop. Connect it in Portal > Connections.';
         await this.finish(shopId, dateKey, 'WHATSAPP', recipient, 'SKIPPED', why);
         result.whatsapp.push({ recipient, status: 'SKIPPED', error: why });
         continue;
       }
-      const sent = await this.whatsapp.sendTemplate(recipient, parameters);
+      const sent = await client.sendTemplate(recipient, parameters);
       await this.finish(shopId, dateKey, 'WHATSAPP', recipient, sent.delivered ? 'SENT' : 'FAILED', sent.error);
       result.whatsapp.push({ recipient, status: sent.delivered ? 'SENT' : 'FAILED', error: sent.error });
     }

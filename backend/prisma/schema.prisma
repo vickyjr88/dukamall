@@ -121,6 +121,7 @@ model Shop {
   dailyReportRuns    DailyReportRun[]
   mediaAssets        MediaAsset[]
   staff         UserShop[]
+  integrations  ShopIntegration[]
   products      Product[]
   categories    ProductCategory[]
   customers     Customer[]
@@ -863,4 +864,53 @@ model AdSpend {
   createdAt DateTime @default(now())
 
   @@index([shopId, day])
+}
+
+/// The outside services a shop connects: WhatsApp, a Facebook Page, Threads. Each shop brings its own Meta app, number, Page and
+/// Threads account, so every id and secret is stored here, per shop, and edited by the owner in the portal. Nothing here is read
+/// from environment variables. `secrets` is one encrypted JSON string (common/secrets.ts); `config` is plain.
+enum IntegrationProvider {
+  WHATSAPP
+  FACEBOOK
+  THREADS
+}
+
+model ShopIntegration {
+  id             String              @id @default(cuid())
+  shopId         String
+  shop           Shop                @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  provider       IntegrationProvider
+  /// Off until the owner has connected it and switched it on.
+  enabled        Boolean             @default(false)
+  /// The id the provider calls this connection by: the WhatsApp phone number id, the Facebook Page id, the Threads user id.
+  /// Unique per provider, so one number or Page belongs to one shop, and an incoming event can be matched to its shop.
+  externalId     String?
+  config         Json                @default("{}")
+  /// encryptSecret(JSON.stringify({ accessToken, appSecret, ... })).
+  secrets        String?
+  /// sha256 of the secret in this shop's webhook address, so a request is matched to its shop by lookup. Null until generated.
+  webhookKey     String?             @unique
+  tokenExpiresAt DateTime?
+  lastCheckedAt  DateTime?
+  lastError      String?
+  updatedBy      String              @default("system")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([shopId, provider])
+  @@unique([provider, externalId])
+  @@index([shopId])
+}
+
+/// What belongs to the operator rather than to a shop. Today: the WhatsApp sender used for owner notices (the daily report) by shops
+/// that have not connected their own number. A shop's customers never get a message from it.
+model PlatformIntegration {
+  provider      IntegrationProvider @id
+  enabled       Boolean             @default(false)
+  config        Json                @default("{}")
+  secrets       String?
+  lastCheckedAt DateTime?
+  lastError     String?
+  updatedBy     String              @default("system")
+  updatedAt     DateTime            @updatedAt
 }

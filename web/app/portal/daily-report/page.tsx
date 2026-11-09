@@ -1,12 +1,13 @@
 "use client";
 
+import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { portalFetch } from '../portal-api';
 import { OwnerOnlyNotice, useSession } from '../portal-session';
 
 type Settings = {
   enabled: boolean; emailRecipients: string[]; whatsappRecipients: string[];
-  isCustomised: boolean; scheduled: boolean; whatsappConfigured: boolean; whatsappTemplate: string;
+  isCustomised: boolean; scheduled: boolean; whatsappConfigured: boolean; whatsappSource: 'shop' | 'platform' | null; whatsappTemplate: string;
 };
 type Run = { id: string; reportDate: string; channel: 'EMAIL' | 'WHATSAPP'; recipient: string; status: string; attempts: number; error?: string | null; updatedAt: string };
 type Preview = { report: { label: string; shopName: string }; email: { subject: string }; whatsappParameters: string[] };
@@ -158,10 +159,11 @@ export default function DailyReportPage() {
         </div>
         <p style={{ margin: '10px 0 0', fontSize: 13, color: 'var(--p-muted)' }}>
           Sent each morning at 07:00 (Nairobi time) with yesterday&apos;s sales, how they compare, and what needs doing.
-          {!settings.isCustomised ? ' Nothing has been saved here yet, so the shop notification email (or the owners) is used. Saving replaces it.' : ''}
+          {!settings.isCustomised ? ' Nothing has been saved here yet, so the shop notification email (or the owners) would be used. Saving starts the morning report and replaces that.' : ''}
         </p>
-        {!settings.scheduled ? <div className="portal-alert is-warn" style={{ marginTop: 12 }}>This shop is not on the server&apos;s morning schedule, so nothing is sent automatically. “Send now” below still works.</div> : null}
-        {!settings.whatsappConfigured ? <div className="portal-alert is-warn" style={{ marginTop: 12 }}>WhatsApp is not connected on this server, so WhatsApp recipients are skipped. Email still goes.</div> : null}
+        {!settings.scheduled ? <div className="portal-alert is-warn" style={{ marginTop: 12 }}>The morning report is not switched on for this shop, so nothing is sent automatically. Save these settings with “Send the report every morning” ticked to start it. “Send now” below works either way.</div> : null}
+        {!settings.whatsappConfigured ? <div className="portal-alert is-warn" style={{ marginTop: 12 }}>WhatsApp is not connected, so WhatsApp recipients are skipped (email still goes). Connect your number under <Link href="/portal/integrations">Connections</Link>.</div> : null}
+        {settings.whatsappSource === 'platform' ? <div className="portal-alert is-warn" style={{ marginTop: 12 }}>WhatsApp reports are sent from the platform’s number until you connect your own under <Link href="/portal/integrations">Connections</Link>.</div> : null}
 
         <RecipientList label="WhatsApp" hint={`Numbers in any usual format, for example 0712 345 678. Sent with the approved template “${settings.whatsappTemplate}”.`}
           values={draft.whatsappRecipients} onChange={(next) => setDraft({ ...draft, whatsappRecipients: next })} placeholder="0712 345 678" type="tel" />

@@ -4,6 +4,7 @@ import { PlatformSettingsService } from './platform-settings.service';
 import { PlatformSettingsController } from './platform-settings.controller';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
 import { EmailModule } from '../email/email.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 
 // Same self-contained JwtModule + AdminJwtGuard provider pattern as
 // AdminModule/AdminAnalyticsModule -- AdminJwtGuard needs a JwtService
@@ -14,6 +15,7 @@ import { EmailModule } from '../email/email.module';
       secret: process.env.JWT_SECRET || 'dev-secret-change-me',
     }),
     EmailModule,
+    IntegrationsModule,
   ],
   controllers: [PlatformSettingsController],
   providers: [PlatformSettingsService, AdminJwtGuard],

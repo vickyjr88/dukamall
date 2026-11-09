@@ -13,6 +13,7 @@ import { ShopModule } from './shop/shop.module';
 import { SecretsModule } from './secrets/secrets.module';
 import { TrialModule } from './trial/trial.module';
 import { DailyReportModule } from './daily-report/daily-report.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { ShopPageModule } from './shop-page/shop-page.module';
 import { StorefrontModule } from './storefront/storefront.module';
 import { ProductFeedModule } from './product-feed/product-feed.module';
@@ -57,6 +58,7 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     SecretsModule,
     TrialModule,
     DailyReportModule,
+    IntegrationsModule,
     ShopPageModule,
     StorefrontModule,
     ProductFeedModule,

@@ -1,80 +1,35 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { IntegrationsService } from '../integrations/integrations.service';
+import { WhatsAppClient, WhatsAppSendResult } from '../integrations/whatsapp-client';
 
-export type WhatsAppSendResult = { delivered: boolean; messageId?: string; error?: string };
+export type { WhatsAppSendResult };
 
 /**
- * WhatsApp Business Cloud API. A message to someone who has not written to the business in the last 24 hours must be
- * an approved template, so this only ever sends a template: the report's own text is the template's parameters.
+ * The WhatsApp sender for notices to a shop's OWNER (the daily report). A report is sent from the shop's own connected number when it
+ * has one switched on; otherwise from the operator's sender in the admin settings; otherwise it is not sent and the screen says why.
+ * Nothing is read from environment variables: the ids and the token come from the credential store (integrations/).
  *
- * Needs, from developers.facebook.com > the app's WhatsApp > API setup:
- *   WHATSAPP_PHONE_NUMBER_ID   the sending number's id (not the phone number itself)
- *   WHATSAPP_ACCESS_TOKEN      a permanent System User token with whatsapp_business_messaging
- *   WHATSAPP_REPORT_TEMPLATE   the approved template's name (default daily_report)
- *   WHATSAPP_TEMPLATE_LANG     its language code (default en)
- *
- * Like the other senders it never throws: unconfigured, it reports "not delivered" so a report run is not aborted.
+ * It is never used for a message a customer sees. Those are sent only from the shop's own connection.
  */
 @Injectable()
 export class WhatsAppService {
-  private readonly logger = new Logger(WhatsAppService.name);
+  constructor(private readonly integrations: IntegrationsService) {}
 
-  private readonly phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID || '';
-  private readonly accessToken = process.env.WHATSAPP_ACCESS_TOKEN || '';
-  private readonly template = process.env.WHATSAPP_REPORT_TEMPLATE || 'daily_report';
-  private readonly language = process.env.WHATSAPP_TEMPLATE_LANG || 'en';
-  private readonly apiVersion = process.env.WHATSAPP_API_VERSION || 'v21.0';
-
-  get isConfigured() {
-    return Boolean(this.phoneNumberId && this.accessToken);
+  /** A client for this shop's owner notices, or null when no sender is connected. */
+  async forOwnerNotices(shopId: string): Promise<WhatsAppClient | null> {
+    const c = await this.integrations.resolve(shopId, 'WHATSAPP', { allowPlatform: true });
+    if (!c) return null;
+    return new WhatsAppClient({
+      phoneNumberId: c.config.phoneNumberId,
+      accessToken: c.secrets.accessToken,
+      template: c.config.reportTemplate || 'daily_report',
+      language: c.config.templateLang || 'en',
+    });
   }
 
-  get templateName() {
-    return this.template;
-  }
-
-  /** The Cloud API wants digits only, with the country code: 254722000000. */
-  normalisePhone(raw: string): string | null {
-    const digits = (raw || '').replace(/\D/g, '');
-    if (!digits) return null;
-    if (digits.startsWith('254') && digits.length === 12) return digits;
-    if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
-    if (digits.length === 9) return `254${digits}`;
-    // Another country's number, already with its code.
-    return digits.length >= 11 && digits.length <= 15 ? digits : null;
-  }
-
-  async sendTemplate(to: string, parameters: string[]): Promise<WhatsAppSendResult> {
-    const phone = this.normalisePhone(to);
-    if (!phone) return { delivered: false, error: `Unusable WhatsApp number "${to}"` };
-    if (!this.isConfigured) return { delivered: false, error: 'WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN not configured' };
-
-    try {
-      const response = await fetch(`https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${this.accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: phone,
-          type: 'template',
-          template: {
-            name: this.template,
-            language: { code: this.language },
-            components: [{ type: 'body', parameters: parameters.map((text) => ({ type: 'text', text })) }],
-          },
-        }),
-        signal: AbortSignal.timeout(20_000),
-      });
-      const body = (await response.json().catch(() => ({}))) as any;
-      if (!response.ok) {
-        const message = body?.error?.message ?? `HTTP ${response.status}`;
-        this.logger.warn(`WhatsApp to ${phone} failed: ${message}`);
-        return { delivered: false, error: message };
-      }
-      return { delivered: true, messageId: body?.messages?.[0]?.id };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`WhatsApp to ${phone} threw: ${message}`);
-      return { delivered: false, error: message };
-    }
+  /** For the Daily Report screen: is there a sender, whose is it, and which template does it use. */
+  async statusFor(shopId: string): Promise<{ configured: boolean; source: 'shop' | 'platform' | null; template: string }> {
+    const c = await this.integrations.resolve(shopId, 'WHATSAPP', { allowPlatform: true });
+    return { configured: Boolean(c), source: c?.source ?? null, template: c?.config.reportTemplate || 'daily_report' };
   }
 }

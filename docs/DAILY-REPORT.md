@@ -26,14 +26,15 @@ Owner-only portal API: `GET/PUT /portal/daily-report/settings`.
 ```
 
 Until settings are saved, the report goes to the shop's notification email, else to its owners. Changes apply to the next send; no deploy needed.
-Which shops are scheduled is the server setting `DAILY_REPORT_SHOPS` (default `nairobigents`); `settings.scheduled` says whether a shop is on it.
+**A shop is on the morning schedule once its settings have been saved with `enabled: true`** (`settings.scheduled`); there is no list of shops on the server any more.
+Saving creates the row, so when the first WhatsApp number is added the shop's current email recipients are saved with it (a row with an empty email list would stop the email).
 
 ## Changing it in the portal
 
 Portal > **Daily report** (owner only). It shows who gets the report on WhatsApp and by email, with add and remove, an on/off
 switch, **Preview yesterday's report** (nothing is sent), **Send now** (asks first, shows the result for each recipient, and offers
 "Send again anyway" if someone already had it), and the list of what was sent. It says when the shop is not on the server's
-morning schedule (`DAILY_REPORT_SHOPS`) or WhatsApp is not connected. Until a list is saved the shop notification email (else the
+morning schedule or WhatsApp is not connected, and whose number the report goes from. Until a list is saved the shop notification email (else the
 owners) is used and the screen says so; saving replaces it, and a saved empty list means nobody on that channel. No WhatsApp number
 is set by default: add one here.
 
@@ -63,13 +64,15 @@ can serve Drip Emporium's report):
    > Daily report for {{1}} ({{2}}): {{3}} paid orders, {{4}} revenue, {{5}} vs the day before. To act on: {{6}}. Full report is in your email.
 
    Example values for the approval form: `Nairobi Gents`, `Wed 4 Nov 2026`, `12`, `KES 54,000`, `+8%`, `3 items`.
-3. Create a System User token with `whatsapp_business_messaging` and set `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_ACCESS_TOKEN` in the server `.env`
-   (and `WHATSAPP_REPORT_TEMPLATE` / `WHATSAPP_TEMPLATE_LANG` if named differently).
-4. Add numbers under `whatsappRecipients` and redeploy.
+3. Create a System User token with `whatsapp_business_messaging` and enter the phone number ID and token under **Portal > Connections > WhatsApp**
+   (the owner does this for their own shop), or under **Admin > Settings > WhatsApp sender for owner notices** (the operator, for shops that
+   have no number of their own). Nothing is set in the server environment. See `docs/INTEGRATIONS.md`.
+4. Add numbers under `whatsappRecipients`. No deploy is needed.
 
-Until 1-3 are done, WhatsApp recipients are recorded as `SKIPPED` and the email still goes out.
+The report goes from the shop's own connected number when it has one switched on, otherwise from the operator's sender, otherwise it is not
+sent: WhatsApp recipients are recorded as `SKIPPED` with the reason and the email still goes out.
 
 ## Tests
 
 `cd backend && npx jest test/unit/daily-report.spec.ts` covers day boundaries, revenue rules, comparisons, best sellers, splits, stock warnings,
-escaping and WhatsApp number handling.
+escaping and WhatsApp number handling. `test/integration/integrations.int-spec.ts` covers which sender a report uses and how shops are scheduled.

@@ -20,6 +20,7 @@ const LINKS = [
   { href: '/portal/storefront', label: 'Store info' },
   { href: '/portal/pages', label: 'Pages' },
   { href: '/portal/domain', label: 'Domain' },
+  { href: '/portal/integrations', label: 'Connections' },
   { href: '/portal/settings', label: 'Settings' },
   { href: '/portal/profile', label: 'My profile' },
 ];

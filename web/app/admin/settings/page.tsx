@@ -108,6 +108,7 @@ export default function AdminSettingsPage() {
         </form>
       </div>
 
+      <WhatsappSenderCard />
       <TrialPolicyCard />
       <TestEmailCard />
     </div>
@@ -238,6 +239,123 @@ function TrialPolicyCard() {
         <div style={{ display: 'flex', gap: 10 }}>
           <button type="submit" className="admin-btn" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
           <button type="button" className="admin-btn-outline admin-btn" disabled={running} onClick={onRun}>{running ? 'Running...' : 'Run the check now'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+
+type SenderField = { key: string; label: string; kind: 'config' | 'secret'; required: boolean; help: string; placeholder: string | null; value: string | null; default: string | null; set: boolean; hint: string | null };
+type Sender = { encryptionConfigured: boolean; enabled: boolean; connected: boolean; fields: SenderField[]; lastCheckedAt: string | null; lastError: string | null; updatedBy: string | null };
+
+// The one WhatsApp number a shop without its own may use for notices to its OWNER (the daily report). A shop's customers never get a
+// message from it: customer-facing messages are sent only from the shop's own connection (Portal > Connections). Its token is stored
+// encrypted and never shown again, only that it is set.
+function WhatsappSenderCard() {
+  const [sender, setSender] = useState<Sender | null>(null);
+  const [config, setConfig] = useState<Record<string, string>>({});
+  const [secrets, setSecrets] = useState<Record<string, string>>({});
+  const [enabled, setEnabled] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'test' | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function load() {
+    const res = await adminFetch('/admin/platform-settings/integrations/whatsapp');
+    if (!res.ok) return;
+    const data: Sender = await res.json();
+    setSender(data);
+    setEnabled(data.enabled);
+    setConfig({});
+    setSecrets({});
+  }
+  useEffect(() => { load(); }, []);
+
+  async function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy('save'); setError(null); setNotice(null); setResult(null);
+    try {
+      const typedConfig = Object.fromEntries(Object.entries(config).filter(([k, v]) => v !== (sender?.fields.find((f) => f.key === k)?.value ?? '')));
+      const typedSecrets = Object.fromEntries(Object.entries(secrets).filter(([, v]) => v.trim() !== ''));
+      const res = await adminFetch('/admin/platform-settings/integrations/whatsapp', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, config: typedConfig, secrets: typedSecrets }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data?.message) ? data.message.join(' ') : data?.message || 'Could not save');
+      await load();
+      setNotice('Saved.');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onTest() {
+    setBusy('test'); setError(null); setNotice(null); setResult(null);
+    try {
+      const res = await adminFetch('/admin/platform-settings/integrations/whatsapp/test', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(Array.isArray(data?.message) ? data.message.join(' ') : data?.message || 'Could not test');
+      setResult({ ok: data.ok, message: data.message });
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const changed = Boolean(sender) && (enabled !== sender!.enabled
+    || Object.entries(config).some(([k, v]) => v !== (sender!.fields.find((f) => f.key === k)?.value ?? ''))
+    || Object.values(secrets).some((v) => v.trim() !== ''));
+
+  return (
+    <div className="admin-card" style={{ maxWidth: 480, marginTop: 20 }}>
+      <h4>WhatsApp sender for owner notices</h4>
+      <p style={{ fontSize: 13, color: 'var(--a-muted)', marginBottom: 16 }}>
+        A shop that has not connected its own WhatsApp number gets its daily report from this one. Customers never receive a message from it.
+        The token is stored encrypted and is never shown again.
+      </p>
+      {sender && !sender.encryptionConfigured ? <div className="admin-alert is-error">SECRETS_ENCRYPTION_KEY is not set on the server, so this token would be stored unencrypted.</div> : null}
+      <form onSubmit={onSave}>
+        {sender?.fields.map((f) => {
+          const isSecret = f.kind === 'secret';
+          return (
+            <div className="admin-field" key={f.key}>
+              <label>
+                {f.label}{f.required ? ' *' : ''}
+                {isSecret ? (f.set ? <span className="admin-badge is-active" style={{ marginLeft: 6 }}>Set {f.hint}</span> : <span className="admin-badge is-trial" style={{ marginLeft: 6 }}>Not set</span>) : null}
+              </label>
+              <input
+                type={isSecret ? 'password' : 'text'}
+                autoComplete="off"
+                value={isSecret ? secrets[f.key] ?? '' : config[f.key] ?? f.value ?? ''}
+                onChange={(e) => isSecret ? setSecrets((s) => ({ ...s, [f.key]: e.target.value })) : setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
+                placeholder={isSecret ? (f.set ? 'Leave blank to keep the current one' : '') : f.placeholder ?? f.default ?? ''}
+              />
+              <span style={{ fontSize: 12, color: 'var(--a-muted)' }}>{f.help}</span>
+            </div>
+          );
+        })}
+        <div className="admin-field" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <input type="checkbox" id="wa-sender-on" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} style={{ width: 'auto' }} />
+          <label htmlFor="wa-sender-on" style={{ marginBottom: 0 }}>Switched on</label>
+        </div>
+        {sender?.lastCheckedAt && !result ? (
+          <p style={{ fontSize: 13, color: sender.lastError ? '#b42318' : 'var(--a-muted)' }}>
+            {sender.lastError ? `Last check failed: ${sender.lastError}` : 'Last check: working.'}{sender.updatedBy ? ` Last changed by ${sender.updatedBy}.` : ''}
+          </p>
+        ) : sender?.updatedBy && !result ? <p style={{ fontSize: 13, color: 'var(--a-muted)' }}>Last changed by {sender.updatedBy}.</p> : null}
+        {notice ? <div className="admin-alert is-success">{notice}</div> : null}
+        {result ? <div className={`admin-alert ${result.ok ? 'is-success' : 'is-error'}`}>{result.message}</div> : null}
+        {error ? <div className="admin-alert is-error">{error}</div> : null}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="submit" className="admin-btn" disabled={busy === 'save' || !changed}>{busy === 'save' ? 'Saving...' : 'Save'}</button>
+          <button type="button" className="admin-btn" disabled={busy === 'test' || changed || !sender?.connected} onClick={() => void onTest()}>{busy === 'test' ? 'Checking...' : 'Test connection'}</button>
         </div>
       </form>
     </div>

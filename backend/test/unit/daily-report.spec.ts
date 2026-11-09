@@ -2,7 +2,7 @@ import { classifyStock, compare, formatChange, pctChange, soldVariants, splitBy,
 import { renderEmail, whatsappParams } from '../../src/daily-report/daily-report.render';
 import { shiftDateKey, windowForDate, yesterdayKey } from '../../src/daily-report/daily-report.window';
 import type { DailyReport } from '../../src/daily-report/daily-report.types';
-import { WhatsAppService } from '../../src/daily-report/whatsapp.service';
+import { WhatsAppClient } from '../../src/integrations/whatsapp-client';
 
 const line = (variantId: string, productName: string, quantity: number, lineTotal: number) => ({ variantId, sku: `SKU-${variantId}`, productName, quantity, lineTotal });
 const order = (status: string, total: number, lines: OrderFact['lines'] = [], over: Partial<OrderFact> = {}): OrderFact => ({
@@ -136,10 +136,9 @@ describe('email', () => {
 
 describe('WhatsApp numbers', () => {
   it('are normalised to country-code digits', () => {
-    const w = new WhatsAppService();
-    expect(w.normalisePhone('0722 000 111')).toBe('254722000111');
-    expect(w.normalisePhone('+254 722-000-111')).toBe('254722000111');
-    expect(w.normalisePhone('722000111')).toBe('254722000111');
-    expect(w.normalisePhone('abc')).toBeNull();
+    expect(WhatsAppClient.normalisePhone('0722 000 111')).toBe('254722000111');
+    expect(WhatsAppClient.normalisePhone('+254 722-000-111')).toBe('254722000111');
+    expect(WhatsAppClient.normalisePhone('722000111')).toBe('254722000111');
+    expect(WhatsAppClient.normalisePhone('abc')).toBeNull();
   });
 });

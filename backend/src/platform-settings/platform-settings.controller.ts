@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsEmail, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IntegrationsService } from '../integrations/integrations.service';
+import { SaveIntegrationDto } from '../integrations/dto';
 import { PlatformSettingsService } from './platform-settings.service';
 import { TrialService } from '../trial/trial.service';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
@@ -39,7 +41,7 @@ class SendTestEmailDto {
 @NoShopScope()
 @UseGuards(AdminJwtGuard)
 export class PlatformSettingsController {
-  constructor(private platformSettingsService: PlatformSettingsService, private trials: TrialService) {}
+  constructor(private platformSettingsService: PlatformSettingsService, private trials: TrialService, private integrations: IntegrationsService) {}
 
   @Get('smtp')
   getSmtp() {
@@ -75,5 +77,23 @@ export class PlatformSettingsController {
   async testSmtp(@Req() req: any, @Body() dto: SendTestEmailDto) {
     const to = dto.to ?? (await this.platformSettingsService.adminEmail(req.adminId));
     return { to, ...(await this.platformSettingsService.sendTestEmail(req.adminId, to)) };
+  }
+
+  // The WhatsApp sender shops without their own number use for notices to their owner. Secrets are never returned, only whether
+  // they are set and their last four characters. Field names (never values) go to the audit log.
+  @Get('integrations/whatsapp')
+  getWhatsappSender() {
+    return this.integrations.listPlatform();
+  }
+
+  @Put('integrations/whatsapp')
+  async saveWhatsappSender(@Req() req: any, @Body() dto: SaveIntegrationDto) {
+    return this.integrations.savePlatform(dto, { id: req.adminId, email: await this.platformSettingsService.adminEmail(req.adminId) });
+  }
+
+  @RateLimit(12, 60)
+  @Post('integrations/whatsapp/test')
+  async testWhatsappSender(@Req() req: any) {
+    return this.integrations.testPlatform({ id: req.adminId, email: await this.platformSettingsService.adminEmail(req.adminId) });
   }
 }

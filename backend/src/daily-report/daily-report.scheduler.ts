@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DailyReportService, reportShopSlugs } from './daily-report.service';
+import { DailyReportService } from './daily-report.service';
 import { EAT_OFFSET_MINUTES, yesterdayKey } from './daily-report.window';
 
 const TICK_MS = 5 * 60_000;
@@ -50,7 +50,8 @@ export class DailyReportScheduler implements OnApplicationBootstrap, OnApplicati
     if (localHour < this.sendHour) return;
     const dateKey = yesterdayKey(now);
 
-    const shops = await this.prisma.shop.findMany({ where: { slug: { in: reportShopSlugs() }, status: { not: 'SUSPENDED' } }, select: { id: true, slug: true } });
+    // The shops that have saved their report settings with the report switched on. (Once this was a list of slugs in the server settings.)
+    const shops = await this.prisma.shop.findMany({ where: { dailyReportSetting: { is: { enabled: true } }, status: { not: 'SUSPENDED' } }, select: { id: true, slug: true } });
     for (const shop of shops) {
       const memo = `${shop.id}:${dateKey}`;
       if (this.settled.has(memo)) continue;
