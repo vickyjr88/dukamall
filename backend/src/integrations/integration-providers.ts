@@ -22,8 +22,8 @@ export type FieldDef = {
   /** The id Meta calls this connection by; stored in its own unique column so events can be matched to the shop. */
   externalId?: boolean;
   default?: string;
-  /** How the screen shows it: a text box (the default), an on/off switch (value "true" or "false") or a number box. */
-  input?: 'text' | 'toggle' | 'number';
+  /** How the screen shows it: a text box (the default), a larger text area, an on/off switch (value "true" or "false") or a number box. */
+  input?: 'text' | 'toggle' | 'number' | 'textarea';
 };
 
 export type ProviderDef = {
@@ -34,6 +34,7 @@ export type ProviderDef = {
 
 const DIGITS = /^\d{5,25}$/;
 const TEMPLATE_NAME = /^[a-z0-9_]{1,512}$/;
+const REPLY_TEXT = /^[\s\S]{1,1000}$/;
 const TOKEN = /^\S{16,1000}$/;
 
 export const PROVIDERS: Record<IntegrationProvider, ProviderDef> = {
@@ -63,6 +64,11 @@ export const PROVIDERS: Record<IntegrationProvider, ProviderDef> = {
       { key: 'pageId', label: 'Page ID', kind: 'config', required: true, externalId: true, pattern: DIGITS, patternHint: 'digits only', help: 'Your Page > About > Page transparency, or Meta Business Suite > Settings > Pages.' },
       { key: 'appId', label: 'Meta app ID', kind: 'config', pattern: DIGITS, patternHint: 'digits only', help: 'The app you created for this shop in the Meta developer dashboard.' },
       { key: 'pageUrl', label: 'Page link', kind: 'config', pattern: /^https:\/\/\S{4,300}$/, patternHint: 'a link starting with https://', placeholder: 'https://www.facebook.com/yourpage', help: 'Optional. Shown to people who message you.' },
+      { key: 'commentReplies', label: 'Reply to people who comment on your Page', kind: 'config', input: 'toggle', default: 'false', pattern: /^(true|false)$/, patternHint: 'on or off', help: 'When on, everyone who comments on a Page post or ad gets one private Messenger message from your Page, then a short public reply. Off until you turn it on.' },
+      { key: 'publicReply', label: 'Also reply publicly under the comment', kind: 'config', input: 'toggle', default: 'true', pattern: /^(true|false)$/, patternHint: 'on or off', help: 'Needs the pages_manage_engagement permission. If it is missing the private message still goes and the failure is shown on the Facebook page.' },
+      { key: 'replyDailyCap', label: 'Most private messages a day', kind: 'config', input: 'number', default: '200', pattern: /^\d{1,4}$/, patternHint: 'a number', help: 'A safety limit on how many people your Page messages in a day.' },
+      { key: 'privateReplyText', label: 'Private message wording', kind: 'config', input: 'textarea', pattern: REPLY_TEXT, patternHint: 'up to 1000 characters', help: 'Optional. Leave blank for the standard message. You can use {name}, {shop}, {whatsapp}, {page}, {site} and {location}; a line whose link you do not have is left out.' },
+      { key: 'publicReplyText', label: 'Public reply wording', kind: 'config', input: 'textarea', pattern: REPLY_TEXT, patternHint: 'up to 1000 characters', help: 'Optional. Leave blank for the standard reply. Same placeholders as above.' },
       { key: 'pageAccessToken', label: 'Page access token', kind: 'secret', required: true, pattern: TOKEN, patternHint: 'no spaces', help: 'The Page\'s own token, taken from a System User token with pages_messaging, pages_read_engagement, pages_manage_metadata, pages_manage_engagement and pages_manage_posts.' },
       { key: 'appSecret', label: 'App secret', kind: 'secret', pattern: TOKEN, patternHint: 'no spaces', help: 'Optional. Lets the shop check that incoming events really come from Meta.' },
     ],

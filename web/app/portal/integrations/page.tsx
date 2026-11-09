@@ -6,7 +6,7 @@ import { portalFetch } from '../portal-api';
 import { OwnerOnlyNotice, useSession } from '../portal-session';
 
 type Field = {
-  key: string; label: string; kind: 'config' | 'secret'; input: 'text' | 'toggle' | 'number'; required: boolean; help: string; placeholder: string | null;
+  key: string; label: string; kind: 'config' | 'secret'; input: 'text' | 'toggle' | 'number' | 'textarea'; required: boolean; help: string; placeholder: string | null;
   value: string | null; default: string | null; set: boolean; hint: string | null;
 };
 type Connection = {
@@ -16,7 +16,7 @@ type Connection = {
 type Listing = { encryptionConfigured: boolean; connections: Connection[] };
 type Draft = { enabled: boolean; config: Record<string, string>; secrets: Record<string, string> };
 type TestResult = { ok: boolean; message: string; details?: Record<string, unknown> };
-type Webhook = { ok: boolean; message: string; url: string; verifyToken: string };
+type Webhook = { ok: boolean; message: string; url: string; verifyToken: string; subscribedPage?: boolean };
 
 async function errorOf(res: Response, fallback: string): Promise<string> {
   const data = await res.json().catch(() => null);
@@ -48,7 +48,8 @@ const GUIDES: Record<Connection['provider'], { intro: string; steps: string[] }>
       'In business.facebook.com > Business settings > System users, give a system user your Page (full control) and your app, and generate a token with pages_show_list, pages_read_engagement, pages_messaging, pages_manage_metadata, pages_manage_engagement and pages_manage_posts. A permission that is missing from the list is not enabled on your app: add it under the app’s Use cases first.',
       'Turn that into the Page’s own token: in the Graph API Explorer, with the system user token, request /YOUR_PAGE_ID?fields=access_token. Paste the access_token it returns here. It does not expire.',
       'Until your app has Advanced Access (App Review), Facebook only works for people who have a role on the app. Test with them.',
-      'Press Test connection. It should show your Page’s name and say whether comments are being sent to your shop.',
+      'Press Test connection. It should show your Page’s name.',
+      'To have comments sent to your shop, press “Connect comments” below. It subscribes your Page to your app and gives you your shop’s own address. Paste that address and verify token into your Meta app under Webhooks > Page, and subscribe to “feed”. Then switch on “Reply to people who comment on your Page”.',
     ],
   },
   THREADS: {
@@ -115,7 +116,7 @@ function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: List
   async function connectWebhook() {
     setBusy('hook'); setError(null); setNotice(null); setResult(null); setWebhook(null);
     try {
-      const res = await portalFetch('/portal/integrations/whatsapp/webhook', { method: 'POST' });
+      const res = await portalFetch(`/portal/integrations/${c.provider.toLowerCase()}/webhook`, { method: 'POST' });
       if (!res.ok) throw new Error(await errorOf(res, 'Could not connect incoming messages'));
       setWebhook(await res.json());
       const list = await portalFetch('/portal/integrations');
@@ -169,13 +170,23 @@ function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: List
                 {f.label}{f.required ? ' *' : ''}
                 {isSecret && f.set ? <span className="portal-badge is-paid" style={{ marginLeft: 8, fontWeight: 400 }}>Set {f.hint}</span> : null}
               </span>
-              <input
-                type={isSecret ? 'password' : f.input === 'number' ? 'number' : 'text'}
-                autoComplete="off"
-                value={value}
-                onChange={(e) => setDraft((d) => isSecret ? { ...d, secrets: { ...d.secrets, [f.key]: e.target.value } } : { ...d, config: { ...d.config, [f.key]: e.target.value } })}
-                placeholder={isSecret ? (f.set ? 'Paste a new value to replace it' : f.placeholder ?? '') : f.placeholder ?? f.default ?? ''}
-              />
+              {f.input === 'textarea' ? (
+                <textarea
+                  rows={4}
+                  value={value}
+                  onChange={(e) => setDraft((d) => ({ ...d, config: { ...d.config, [f.key]: e.target.value } }))}
+                  placeholder={f.placeholder ?? 'Leave blank to use the standard wording'}
+                  style={{ width: '100%', fontFamily: 'inherit' }}
+                />
+              ) : (
+                <input
+                  type={isSecret ? 'password' : f.input === 'number' ? 'number' : 'text'}
+                  autoComplete="off"
+                  value={value}
+                  onChange={(e) => setDraft((d) => isSecret ? { ...d, secrets: { ...d.secrets, [f.key]: e.target.value } } : { ...d, config: { ...d.config, [f.key]: e.target.value } })}
+                  placeholder={isSecret ? (f.set ? 'Paste a new value to replace it' : f.placeholder ?? '') : f.placeholder ?? f.default ?? ''}
+                />
+              )}
               <span style={{ fontSize: 12, color: 'var(--p-muted)' }}>{f.help}</span>
             </label>
           );
@@ -221,6 +232,27 @@ function ConnectionCard({ c, onSaved }: { c: Connection; onSaved: (listing: List
               {!webhook.ok ? <span style={{ display: 'block', fontSize: 12, marginTop: 4 }}>You can paste it into your Meta app yourself (WhatsApp &gt; Configuration &gt; Callback URL), with the verify token <code style={{ wordBreak: 'break-all' }}>{webhook.verifyToken}</code>.</span> : null}
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {c.provider === 'FACEBOOK' ? (
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--p-border, #e5e5e5)' }}>
+          <strong style={{ fontSize: 14 }}>Comments from your Page</strong>
+          <span className={`portal-badge ${c.webhookConfigured ? 'is-paid' : 'is-muted'}`} style={{ marginLeft: 8 }}>{c.webhookConfigured ? 'Address made' : 'Not connected'}</span>
+          <p style={{ margin: '6px 0 8px', fontSize: 12, color: 'var(--p-muted)' }}>
+            Needed to answer people who comment on your posts and ads. This subscribes your Page to your Meta app and makes your shop’s own address, which you then paste into the app (Webhooks &gt; Page). Connecting again makes a new address and the old one stops working.
+          </p>
+          <button type="button" className="portal-btn-outline portal-btn" disabled={!c.connected || changed || busy === 'hook'} onClick={() => void connectWebhook()}>
+            {busy === 'hook' ? 'Connecting...' : c.webhookConfigured ? 'Connect again' : 'Connect comments'}
+          </button>
+          {webhook ? (
+            <div className={`portal-alert ${webhook.subscribedPage ? 'is-success' : 'is-error'}`} style={{ marginTop: 10 }}>
+              {webhook.message}
+              <span style={{ display: 'block', fontSize: 12, marginTop: 6 }}>Callback address (shown once): <code style={{ wordBreak: 'break-all' }}>{webhook.url}</code></span>
+              <span style={{ display: 'block', fontSize: 12, marginTop: 4 }}>Verify token: <code style={{ wordBreak: 'break-all' }}>{webhook.verifyToken}</code></span>
+            </div>
+          ) : null}
+          {c.enabled ? <p style={{ margin: '10px 0 0', fontSize: 13 }}>What happened to each comment is on the <Link href="/portal/facebook">Facebook</Link> page.</p> : null}
         </div>
       ) : null}
 

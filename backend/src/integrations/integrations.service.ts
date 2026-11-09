@@ -320,6 +320,37 @@ export class IntegrationsService implements OnApplicationBootstrap {
     }
   }
 
+  /**
+   * Subscribes the shop's Page to its Meta app's `feed` (so comments are sent to the app), using the shop's own Page token, and makes a new
+   * webhook address for them. Facebook's callback address belongs to the APP and can only be set in the app dashboard, so the address is
+   * returned (once) to be pasted there with its verify token: Meta app > Webhooks > Page > Callback URL, and subscribe the `feed` field.
+   * `subscribedPage` says whether the Page subscription itself went through; the address still has to be pasted either way.
+   */
+  async connectFacebookWebhook(shopId: string, actor: Actor): Promise<{ ok: boolean; subscribedPage: boolean; message: string; url: string; verifyToken: string }> {
+    const row = await this.prisma.shopIntegration.findUnique({ where: { shopId_provider: { shopId, provider: 'FACEBOOK' } } });
+    if (!row) throw new NotFoundException('Facebook has not been set up yet.');
+    const s = this.toStored(row);
+    if (!s.config.pageId || !s.secrets.pageAccessToken) throw new BadRequestException('Fill in the Page ID and the Page access token and save before connecting comments.');
+    const { secret } = await this.rotateWebhookSecret(shopId, 'FACEBOOK', actor);
+    const url = `${publicApiBase()}/facebook/webhook/${secret}`;
+    let subscribedPage = false;
+    let message: string;
+    try {
+      const r = await fetch(`${GRAPH}/${s.config.pageId}/subscribed_apps?subscribed_fields=feed`, {
+        method: 'POST', headers: { Authorization: `Bearer ${s.secrets.pageAccessToken}` }, signal: AbortSignal.timeout(20_000),
+      });
+      const data = (await r.json().catch(() => ({}))) as any;
+      subscribedPage = r.status < 300 && data?.success !== false;
+      message = subscribedPage ? 'Your Page is subscribed to your app.' : this.failure({ status: r.status, data });
+    } catch (error) {
+      message = error instanceof Error ? error.message : 'Could not reach Facebook.';
+    }
+    return {
+      ok: subscribedPage, subscribedPage, url, verifyToken: secret,
+      message: `${message} One step is left in your Meta app: open Webhooks, choose Page, set the callback address and verify token below, and subscribe to “feed”.`,
+    };
+  }
+
   /** The shop an incoming event belongs to, from the secret in the address it was sent to. A wrong secret finds nothing. */
   async findByWebhookSecret(provider: IntegrationProvider, secret: string) {
     if (!secret || secret.length < 16) return null;
