@@ -1,3 +1,5 @@
+import type { ShopMessaging } from '../marketing/marketing-summary.service';
+
 export type DaySummary = {
   /** Orders placed that day, whatever became of them. */
   placed: number;
@@ -49,5 +51,7 @@ export type DailyReport = {
   demand: { abandonedCarts: number; abandonedValue: number; whatsappOrderLeads: number; newCustomers: number };
   bySource: Split[];
   byPayment: Split[];
+  /** What the shop's WhatsApp, Page comments and posting did that day, and what needs a person. Absent for a shop that uses none of it. */
+  messaging?: ShopMessaging | null;
   catalogue: { activeProducts: number; missingPhoto: number; feedItems: number; noStockAnywhere: number; syncedAwaitingStock: number };
 };

@@ -13,6 +13,7 @@ Built for Nairobi Gents; any shop can be added to `DAILY_REPORT_SHOPS`.
 | Orders placed that day (first 15), best sellers, revenue by order source and by payment method | `Order`, `OrderLine` |
 | Restock: sizes that **sold** that day and are now sold out or have 3 or fewer left | `ProductVariant.stockOnHand` |
 | Carts left behind, WhatsApp order requests, new customer accounts | `CartLead`, `Customer` |
+| Messaging and posting (email only, only for a shop that uses it): WhatsApp sent, delivered and failed, new people, Page comments answered, posts made, Status pictures, and what needs a person | `WhatsappOutreach`, `FacebookCommentReply`, `SocialPost`, `ShopIntegration`; see `MESSAGING-OVERVIEW.md` |
 | Catalogue: live products, products with no photo (they cannot appear in the Meta/TikTok feeds), sizes in the feeds, **products copied from Drip Emporium that still have no stock** (customers cannot buy them) | `Product`, `syncSourceId` |
 
 Not included: website visits, ad spend and Search Console figures (they live in Google, Meta and TikTok).

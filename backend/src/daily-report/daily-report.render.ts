@@ -1,4 +1,5 @@
 import { formatChange, formatMoney } from './daily-report.metrics';
+import type { ShopMessaging } from '../marketing/marketing-summary.service';
 import type { DailyReport } from './daily-report.types';
 
 const INK = '#1a1a1a';
@@ -75,6 +76,8 @@ export function renderEmail(r: DailyReport): { subject: string; html: string } {
     parts.push(h3('Needs your attention'), `<ul style="margin:0;padding-left:20px;font-size:14px;">${items.join('')}</ul>`);
   }
 
+  if (r.messaging) parts.push(...messagingSection(r.messaging));
+
   if (r.orders.length) {
     parts.push(
       h3('Orders placed'),
@@ -125,6 +128,34 @@ export function renderEmail(r: DailyReport): { subject: string; html: string } {
 <p style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:0.04em;margin:0 0 16px;">${esc(r.shopName)}</p>
 ${parts.join('\n')}
 </div>` };
+}
+
+
+/**
+ * What the shop's WhatsApp, Page comments and posting did that day, and what needs a person. Only for a shop that uses any of it, and only the lines that
+ * apply: a shop that never connected Threads is not told that Threads posted nothing.
+ */
+function messagingSection(m: ShopMessaging): string[] {
+  const parts: string[] = [h3('Messaging and posting')];
+  if (m.attention.length) {
+    parts.push(`<ul style="margin:0 0 12px;padding-left:20px;font-size:14px;">${m.attention.map((a) => `<li style="margin-bottom:4px;${a.severity === 'problem' ? `color:${BAD};` : ''}">${esc(a.text)}</li>`).join('')}</ul>`);
+  }
+  const rows: string[][] = [];
+  const w = m.whatsappActivity;
+  if (m.whatsapp.present || w.sent + w.failed > 0) {
+    const note = `${w.delivered} delivered${w.failed ? `, ${w.failed} failed` : ''}`;
+    rows.push(['WhatsApp messages sent', `${w.sent}`, `<span style="color:${w.failed ? BAD : MUTED};font-size:12px;">${esc(note)}</span>`]);
+  }
+  if (w.newPeople || w.optOuts || m.features.welcomeSeries) rows.push(['People who messaged you', `${w.newPeople} new`, w.optOuts ? `${w.optOuts} opted out` : '']);
+  const c = m.comments;
+  if (m.features.commentReplies || c.sent + c.failed > 0) rows.push(['Page comments answered', `${c.sent}`, c.failed ? `<span style="color:${BAD};font-size:12px;">${c.failed} failed</span>` : '']);
+  for (const [label, on, p] of [['Facebook Page posts', m.features.postFacebook, m.posts.facebook], ['Threads posts', m.features.postThreads, m.posts.threads]] as const) {
+    if (on || p.posted + p.failed > 0) rows.push([label, `${p.posted}`, p.failed ? `<span style="color:${BAD};font-size:12px;">${p.failed} failed</span>` : '']);
+  }
+  if (m.status.prepared) rows.push(['WhatsApp Status pictures', `${m.status.prepared} ready`, `${m.status.posted} posted by hand`]);
+  if (rows.length) parts.push(table(rows));
+  if (!m.attention.length) parts.push(`<p style="font-size:13px;color:${GOOD};margin:8px 0 0;">Nothing here needs you.</p>`);
+  return parts;
 }
 
 const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();

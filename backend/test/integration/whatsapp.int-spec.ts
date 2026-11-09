@@ -1,3 +1,4 @@
+import { MarketingSummaryService } from '../../src/marketing/marketing-summary.service';
 import { createHmac } from 'crypto';
 import { NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { DailyReportService } from '../../src/daily-report/daily-report.service';
@@ -278,7 +279,7 @@ describe('what Meta reports about a message', () => {
     const a = await connectedShop(PHONE_ID_A);
     const b = await connectedShop(PHONE_ID_B);
     await prisma.dailyReportSetting.create({ data: { shopId: a.id, enabled: true, emailRecipients: [], whatsappRecipients: ['0722000111'], updatedBy: 'test' } });
-    const reports = new DailyReportService(prisma, { sendDetailed: jest.fn(async () => ({ ok: true })) } as any, new WhatsAppService(integrations));
+    const reports = new DailyReportService(prisma, { sendDetailed: jest.fn(async () => ({ ok: true })) } as any, new WhatsAppService(integrations), new MarketingSummaryService(prisma));
     await reports.deliver(a.id, '2026-11-04', { force: true });
     const run = await prisma.dailyReportRun.findFirstOrThrow({ where: { shopId: a.id, channel: 'WHATSAPP' } });
     expect(run.messageId).toMatch(/^wamid\.OUT/);

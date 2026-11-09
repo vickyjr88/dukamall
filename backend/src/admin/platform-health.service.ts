@@ -3,6 +3,7 @@ import * as os from 'os';
 import { PrismaService } from '../prisma/prisma.service';
 import { MediaService } from '../media/media.service';
 import { EmailService } from '../email/email.service';
+import { MarketingSummaryService } from '../marketing/marketing-summary.service';
 import { isEncrypted, secretsKeyConfigured } from '../common/secrets';
 import { adminTwoFactorEnabled, adminTwoFactorRequired } from '../common/feature-flags';
 
@@ -21,11 +22,11 @@ const DAY_MS = 24 * HOUR_MS;
  */
 @Injectable()
 export class PlatformHealthService {
-  constructor(private prisma: PrismaService, private media: MediaService, private email: EmailService) {}
+  constructor(private prisma: PrismaService, private media: MediaService, private email: EmailService, private marketing: MarketingSummaryService) {}
 
   async check() {
     const checks = await Promise.all([
-      this.database(), this.storage(), this.mail(), this.payments(), this.secrets(), this.adminSecurity(), this.trials(),
+      this.database(), this.storage(), this.mail(), this.payments(), this.secrets(), this.adminSecurity(), this.trials(), this.messaging(),
     ].map((p, i) => p.catch((err: Error): HealthCheck => ({ key: `check-${i}`, label: 'Check', status: 'fail', summary: `The check itself failed: ${err.message}` }))));
 
     const overall: HealthStatus = checks.some((c) => c.status === 'fail') ? 'fail' : checks.some((c) => c.status === 'warn') ? 'warn' : 'ok';
@@ -128,6 +129,18 @@ export class PlatformHealthService {
     if (!enabled) return { key: 'security', label: 'Admin security', status: 'ok', summary: 'Two-factor sign-in is switched off (ADMIN_2FA_ENABLED); admins sign in with a password only', details };
     if (without > 0) return { key: 'security', label: 'Admin security', status: 'warn', summary: `${without} of ${admins.length} platform admin(s) do not use two-factor sign-in${required ? ' (required, so they are locked to setup)' : ''}`, details };
     return { key: 'security', label: 'Admin security', status: 'ok', summary: `All ${admins.length} platform admin(s) use two-factor sign-in`, details };
+  }
+
+  /**
+   * Shops whose WhatsApp, Page comments or posting has something wrong in the last day: a login that ended, a feature on with nothing connected, a high
+   * share of failed messages. Never a hard failure of the platform (it is one shop's own setup), so at worst a warning that points at the page with the detail.
+   */
+  private async messaging(): Promise<HealthCheck> {
+    const o = await this.marketing.overview(1);
+    const t = o.totals;
+    const details = { shopsConnected: t.withConnections, shopsWithProblems: t.withProblems, shopsWithWarnings: t.withWarnings, whatsappFailedLast24h: t.whatsappFailed, postsFailedLast24h: t.postsFailed };
+    if (t.withProblems > 0) return { key: 'messaging', label: 'Shops\' WhatsApp and posting', status: 'warn', summary: `${t.withProblems} shop${t.withProblems === 1 ? ' has' : 's have'} a messaging or posting problem`, details };
+    return { key: 'messaging', label: 'Shops\' WhatsApp and posting', status: 'ok', summary: t.withConnections ? `${t.withConnections} shop${t.withConnections === 1 ? '' : 's'} connected, no problems${t.withWarnings ? ` (${t.withWarnings} with a warning)` : ''}` : 'No shop has connected WhatsApp, Facebook or Threads yet', details };
   }
 
   private async trials(): Promise<HealthCheck> {

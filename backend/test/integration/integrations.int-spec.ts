@@ -1,3 +1,4 @@
+import { MarketingSummaryService } from '../../src/marketing/marketing-summary.service';
 import { DailyReportScheduler } from '../../src/daily-report/daily-report.scheduler';
 import { DailyReportService } from '../../src/daily-report/daily-report.service';
 import { WhatsAppService } from '../../src/daily-report/whatsapp.service';
@@ -146,7 +147,7 @@ describe('the platform sender stands in only for notices to the owner', () => {
 describe('the daily report sends from the connection the shop is entitled to', () => {
   const sent: Array<{ url: string; auth: string }> = [];
   const email = { sendDetailed: jest.fn(async () => ({ ok: true })) };
-  const reports = new DailyReportService(prisma, email as any, new WhatsAppService(service));
+  const reports = new DailyReportService(prisma, email as any, new WhatsAppService(service), new MarketingSummaryService(prisma));
 
   beforeEach(() => {
     sent.length = 0;

@@ -29,7 +29,7 @@ A shop's connection is used only when it is complete **and switched on**. Everyt
 - **Webhook addresses** (incoming WhatsApp messages and delivery reports, and Facebook Page comments): each shop gets its own address, `/whatsapp/webhook/<secret>` or `/facebook/webhook/<secret>`, with its
   own secret. Only a hash of the secret is stored, so the address is shown once when it is made (Portal > Connections > WhatsApp > **Connect incoming messages**, which also registers it with
   the shop's WhatsApp Business Account); a new one replaces the old one. A wrong secret is a 404. If the shop saved its Meta **app secret**, Meta's signature on every event is checked, and an event
-  for a different number or Page than the shop's own is ignored. See `docs/WHATSAPP.md` and `docs/FACEBOOK.md`; posting to the Page and Threads is in `docs/SOCIAL.md`.
+  for a different number or Page than the shop's own is ignored. See `docs/WHATSAPP.md` and `docs/FACEBOOK.md`; posting to the Page and Threads is in `docs/SOCIAL.md`. What each shop's messaging did and what needs a person is in `docs/MESSAGING-OVERVIEW.md`.
 - A test (`test/unit/integrations-no-env.spec.ts`) fails the build if any code outside the one-time import reads a `WHATSAPP_`, `FACEBOOK_`, `THREADS_`, `META_`, `MAUTIC_` or `OUTREACH_` variable.
 
 ## What a shop owner needs, per connection

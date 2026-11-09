@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { MarketingSummaryService } from '../marketing/marketing-summary.service';
 import { WhatsAppService } from './whatsapp.service';
 import { classifyStock, compare, label, OrderFact, soldVariants, splitBy, summariseDay, topSellers } from './daily-report.metrics';
 import { renderEmail, whatsappParams } from './daily-report.render';
@@ -35,6 +36,7 @@ export class DailyReportService {
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
     private readonly whatsapp: WhatsAppService,
+    private readonly marketing: MarketingSummaryService,
   ) {}
 
   // --- settings ---------------------------------------------------------------
@@ -166,6 +168,8 @@ export class DailyReportService {
       this.actionOrders({ shopId, status: 'PENDING', createdAt: { lt: unpaidCutoff, gte: unpaidFloor } }, now),
     ]);
 
+    const messaging = await this.marketing.forShop(shopId, { start: w.start, end: w.end, dayKey: dateKey }, now);
+
     const sold = soldVariants(day.paid.facts);
     const variants = sold.length
       ? await this.prisma.productVariant.findMany({ where: { id: { in: sold.map((s) => s.variantId) } }, select: { id: true, stockOnHand: true } })
@@ -217,6 +221,7 @@ export class DailyReportService {
       },
       bySource: splitBy(day.paid.facts, 'source'),
       byPayment: splitBy(day.paid.facts, 'method'),
+      messaging: messaging.used ? messaging : null,
       catalogue: {
         activeProducts: products.length,
         missingPhoto: products.filter((p) => !hasPhoto(p)).length,

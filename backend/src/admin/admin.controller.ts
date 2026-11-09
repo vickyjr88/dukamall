@@ -4,6 +4,7 @@ import { IsBoolean, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, 
 import { BillingPlan, ShopRole, ShopStatus } from '@prisma/client';
 import type { Response } from 'express';
 import { AdminService, AdminShopListQuery, SHOP_SORTS } from './admin.service';
+import { MarketingSummaryService } from '../marketing/marketing-summary.service';
 import { PlatformHealthService } from './platform-health.service';
 import { toCsv } from '../common/csv';
 import { AdminJwtGuard } from '../admin-auth/admin-jwt.guard';
@@ -94,7 +95,7 @@ class SetSuperAdminDto {
 @NoShopScope()
 @UseGuards(AdminJwtGuard)
 export class AdminController {
-  constructor(private adminService: AdminService, private health: PlatformHealthService) {}
+  constructor(private adminService: AdminService, private health: PlatformHealthService, private marketing: MarketingSummaryService) {}
 
   @Get('shops')
   listShops(@Query() q: Record<string, string | undefined>) {
@@ -189,6 +190,13 @@ export class AdminController {
   @Delete('shops/:id/staff/:userId')
   removeStaff(@Req() req: any, @Param('id') id: string, @Param('userId') userId: string) {
     return this.adminService.removeStaff(id, req.adminId, userId);
+  }
+
+  // Every shop's WhatsApp, Page comments and posting at a glance: what is connected and on, what happened in the last day or week, and what needs
+  // a person, worst first. Read-only, and it never returns a secret.
+  @Get('messaging')
+  messaging(@Query('days') days?: string) {
+    return this.marketing.overview(days === '7' ? 7 : 1);
   }
 
   // Is the platform healthy? Database, storage, email, payments, secrets, admin

@@ -18,12 +18,14 @@ const WORD: Record<Status, string> = { ok: 'Healthy', warn: 'Needs attention', f
 const FIX_LINK: Record<string, { href: string; label: string }> = {
   mail: { href: '/admin/emails', label: 'Open the email log' },
   trials: { href: '/admin/shops', label: 'See the shops' },
+  messaging: { href: '/admin/messaging', label: 'See which shops' },
   security: { href: '/admin/users?admin=true', label: 'See platform admins' },
 };
 const DETAIL_LABEL: Record<string, string> = {
   responseMs: 'Response (ms)', latestMigration: 'Latest migration', sentLast24h: 'Sent (24h)', failedLast24h: 'Failed (24h)',
   notSentLast24h: 'Not sent (24h)', lastSuccessfulSend: 'Last successful send', stuckOrders: 'Unconfirmed orders', shopsAffected: 'Shops affected',
   keyConfigured: 'Key configured', storedSecrets: 'Stored secrets', storedAsPlaintext: 'Unencrypted', admins: 'Platform admins',
+  shopsConnected: 'Shops connected', shopsWithProblems: 'With a problem', shopsWithWarnings: 'With a warning', whatsappFailedLast24h: 'WhatsApp failed (24h)', postsFailedLast24h: 'Posts failed (24h)',
   adminsWithTwoFactor: 'With two-factor', twoFactorRequired: 'Two-factor required', apiDocsPublic: 'API docs public',
   trialsPastEndDate: 'Past end date', shopsOnTrialWithNoEndDate: 'No end date', autoSuspend: 'Auto-close on', lastReminderSent: 'Last reminder sent',
 };
