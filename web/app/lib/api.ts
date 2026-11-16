@@ -152,6 +152,8 @@ export type ShopInfo = {
   name: string; whatsappNumber: string | null; currency: string;
   /** Flat delivery charge and the order amount (after any discount) at which it is waived. Display only -- checkout recomputes. */
   deliveryFeeKes?: number; freeDeliveryOverKes?: number | null;
+  /** Whether checkout takes payment online. When false, "Place order" sends the order to the shop, which confirms it and arranges payment. */
+  onlinePayments?: boolean;
   // Storefront copy the merchant controls; null/absent means "don't render it".
   tagline?: string | null; announcement?: string | null; seoDescription?: string | null;
   contactEmail?: string | null; contactPhone?: string | null; address?: string | null; openingHours?: string | null;

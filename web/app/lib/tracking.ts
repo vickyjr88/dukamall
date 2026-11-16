@@ -14,7 +14,7 @@ import { useShopId } from './shop-id-context';
 const SESSION_KEY = 'ng_sid';
 const STARTED_KEY = 'ng_started';
 
-export type TrackType = 'SESSION_START' | 'VIEW_PRODUCT' | 'ADD_TO_CART' | 'BEGIN_CHECKOUT' | 'WHATSAPP_CLICK' | 'SEARCH';
+export type TrackType = 'SESSION_START' | 'VIEW_PRODUCT' | 'ADD_TO_CART' | 'VIEW_CART' | 'BEGIN_CHECKOUT' | 'WHATSAPP_CLICK' | 'CALL_CLICK' | 'SEARCH';
 
 /** The same shape the backend accepts (storefront-events SESSION_ID): letters and digits, 12 to 40 of them. */
 function makeId(): string {

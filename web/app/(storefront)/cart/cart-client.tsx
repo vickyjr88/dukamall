@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/app/lib/cart';
 import { useShopStyle } from '@/app/lib/style-context';
 import { ShopInfo } from '@/app/lib/api';
@@ -10,6 +10,7 @@ import { useCustomerFetch } from '@/app/lib/use-customer-fetch';
 import { WhatsAppIcon } from '@/app/whatsapp-icon';
 import { fireAdEvent, getSessionId, useTracker } from '@/app/lib/tracking';
 import { rememberOrder } from './order-memory';
+import { telHref } from '@/app/lib/contact-taps';
 
 export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const cart = useCart();
@@ -32,6 +33,17 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   useEffect(() => {
     if (customer) setForm((f) => ({ ...f, email: f.email || customer.email }));
   }, [customer]);
+
+  // Opening the cart is the step between "added" and "placed the order": recording it shows whether carts are never opened or opened and left, and
+  // tells the ad platforms a shopper reached checkout. Once per visit to this page, and only for a cart with something in it.
+  const cartViewed = useRef(false);
+  useEffect(() => {
+    if (!cart.ready || cart.lines.length === 0 || cartViewed.current) return;
+    cartViewed.current = true;
+    track('VIEW_CART');
+    fireAdEvent('checkout', { ids: cart.payableLines.map((l) => l.sku).filter(Boolean), value: cart.subtotal, quantity: cart.count });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart.ready, cart.lines.length]);
 
   if (!cart.ready) return null;
   if (cart.lines.length === 0) {
@@ -146,9 +158,18 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const total = afterDiscount + delivery;
   const untilFree = deliveryFee > 0 && freeOver > 0 && !deliveryWaived ? freeOver - afterDiscount : 0;
 
+  /** What is missing from the form, in plain words, before anything is sent (the server's own messages read like field names). */
+  function missingDetail(): string | null {
+    if (!form.firstName.trim() || !form.lastName.trim()) return 'Please add your first and last name.';
+    if (!form.phone.trim() && !form.email.trim()) return 'Please add a phone number so we can confirm your order and arrange delivery.';
+    return null;
+  }
+
   async function onCheckout() {
+    const missing = missingDetail();
+    if (missing) { setError(missing); return; }
+    // The ad platforms were told a shopper reached checkout when the cart opened (see above), so pressing the button is only recorded here.
     track('BEGIN_CHECKOUT');
-    fireAdEvent('checkout', { ids: cart.payableLines.map((l) => l.sku).filter(Boolean), value: total, quantity: cart.count });
     setSubmitting(true);
     setError(null);
     try {
@@ -160,8 +181,8 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
           lines: cart.payableLines.map((l) => ({ variantId: l.variantId, quantity: l.quantity })),
           firstName: form.firstName,
           lastName: form.lastName,
-          email: form.email,
-          phone: form.phone,
+          email: form.email.trim() || undefined,
+          phone: form.phone.trim() || undefined,
           shippingAddress: buildShippingAddress(),
           discountCode: appliedDiscount?.code,
         }),
@@ -271,12 +292,12 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
               <input id="cart-last-name" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
             </div>
             <div className="form-field">
-              <label htmlFor="cart-email">Email</label>
-              <input id="cart-email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+              <label htmlFor="cart-email">Email <span style={{ textTransform: 'none', letterSpacing: 'normal', fontWeight: 400 }}>(optional, for your receipt)</span></label>
+              <input id="cart-email" type="email" inputMode="email" autoComplete="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
             </div>
             <div className="form-field">
               <label htmlFor="cart-phone">Phone</label>
-              <input id="cart-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+              <input id="cart-phone" type="tel" inputMode="tel" autoComplete="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
             </div>
             <div className="form-field">
               <label htmlFor="cart-delivery-address">Delivery address</label>
@@ -301,13 +322,24 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
           {error ? <p style={{ color: 'var(--shop-danger)', fontSize: 'var(--shop-text-sm)', marginBottom: 'var(--shop-space-3)' }}>{error}</p> : null}
 
           <button className="btn btn-primary btn-block" disabled={submitting} onClick={onCheckout} style={{ marginTop: 'var(--shop-space-3)' }}>
-            {submitting ? 'Processing...' : `Pay KES ${total.toLocaleString()}`}
+            {submitting ? 'Processing...' : shopInfo.onlinePayments ? `Pay KES ${total.toLocaleString()}` : `Place order \u00b7 KES ${total.toLocaleString()}`}
           </button>
+          {/* Right under the button, where the hesitation is, and true of this shop: whether anything is paid now, and that no account is needed. */}
+          <p className="checkout-reassure">
+            {shopInfo.onlinePayments
+              ? 'Pay securely online, by card or mobile money through Paystack. No account needed.'
+              : 'Nothing to pay now. We will contact you to confirm your order and arrange payment and delivery. No account needed.'}
+          </p>
 
           {shopInfo.whatsappNumber ? (
             <button type="button" className="btn btn-accent btn-block" onClick={onWhatsapp} style={{ marginTop: 'var(--shop-space-3)' }}>
-              <WhatsAppIcon /> Buy via WhatsApp instead
+              <WhatsAppIcon /> Order on WhatsApp instead
             </button>
+          ) : null}
+          {telHref(shopInfo.contactPhone) ? (
+            <p className="checkout-reassure">
+              Questions? <a href={telHref(shopInfo.contactPhone) as string} data-source="cart">Call {shopInfo.contactPhone}</a>
+            </p>
           ) : null}
         </div>
       </div>

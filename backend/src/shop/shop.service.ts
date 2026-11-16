@@ -77,6 +77,9 @@ export class ShopService {
       // recomputes it (see deliveryFeeFor), so these are for display only.
       deliveryFeeKes: Number(shop.deliveryFeeKes),
       freeDeliveryOverKes: shop.freeDeliveryOverKes === null ? null : Number(shop.freeDeliveryOverKes),
+      // Whether checkout takes payment online (the shop has a Paystack key), so the cart can say what its button really does: "Pay" when it
+      // does, "Place order" when the shop confirms and takes payment itself. A boolean only: the key never leaves the server.
+      onlinePayments: Boolean(shop.paystackSecretKey),
       tagline: shop.tagline,
       announcement: shop.announcement,
       seoDescription: shop.seoDescription,

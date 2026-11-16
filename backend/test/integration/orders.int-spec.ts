@@ -18,7 +18,7 @@ beforeEach(() => { email.send.mockClear(); notifications.newOrder.mockClear(); }
 afterAll(async () => { await cleanup(); await close(); });
 
 describe('storefront checkout: what the customer is charged', () => {
-  const dto = (variantId: string, quantity: number, extra: any = {}) => ({ lines: [{ variantId, quantity }], firstName: 'A', lastName: 'B', ...extra });
+  const dto = (variantId: string, quantity: number, extra: any = {}) => ({ lines: [{ variantId, quantity }], firstName: 'A', lastName: 'B', phone: '0722000111', ...extra });
 
   it('prices lines from the catalogue and adds the flat delivery fee below the threshold', async () => {
     const shop = await makeShop({ deliveryFeeKes: 300, freeDeliveryOverKes: 5000 });

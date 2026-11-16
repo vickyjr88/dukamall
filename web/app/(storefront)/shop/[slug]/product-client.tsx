@@ -10,6 +10,9 @@ import { FavoriteButton } from '@/app/favorite-button';
 import { ShareButton } from '@/app/share-button';
 import { ProductCard } from '@/app/product-card';
 import { WhatsAppIcon } from '@/app/whatsapp-icon';
+import { PhoneIcon } from '@/app/phone-icon';
+import { telHref } from '@/app/lib/contact-taps';
+import { assurances, trustChips } from '@/app/lib/trust';
 import { fireAdEvent, useTracker } from '@/app/lib/tracking';
 import { useShopStyle } from '@/app/lib/style-context';
 
@@ -75,6 +78,9 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
   const [zoom, setZoom] = useState(false);
   const [zoomOrigin, setZoomOrigin] = useState('50% 50%');
   const touchStart = useRef<number | null>(null);
+  // The buy bar shows (on a phone) while the page's own buttons are out of view: below the fold on arrival, above it once scrolled past.
+  const actionsRef = useRef<HTMLDivElement>(null);
+  const [barOn, setBarOn] = useState(false);
   // Populated client-side only (see buildEnquiry's comment) -- null on the
   // server and on the client's very first paint, set immediately after via
   // this effect.
@@ -128,6 +134,34 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
   const addLabel = added
     ? (luxe ? 'Added to bag' : 'Added to cart')
     : chosen ? (luxe ? 'Add to bag' : 'Add to cart') : sized ? 'Select a size' : 'Select an option';
+
+  useEffect(() => {
+    // Decided from where the real buttons are, on load, scroll and resize (not from an observer, which can be late to report after the layout
+    // settles). The bar's own height is the margin: it stays until the real buttons have risen clear of it, so they are never half behind it.
+    // One rect read per event, and setState does nothing when the answer has not changed, so this is cheap enough to run on every scroll.
+    const check = () => {
+      const element = actionsRef.current;
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      setBarOn(rect.top > window.innerHeight - 84 || rect.bottom < 0);
+    };
+    check();
+    window.addEventListener('scroll', check, { passive: true });
+    window.addEventListener('resize', check);
+    // Photos and fonts finishing move the buttons without any scroll.
+    const settle = window.setTimeout(check, 800);
+    return () => {
+      window.removeEventListener('scroll', check);
+      window.removeEventListener('resize', check);
+      window.clearTimeout(settle);
+    };
+  }, []);
+
+  // Lets the page's floating WhatsApp button step aside while the bar holds the same actions (see globals.css).
+  useEffect(() => {
+    document.body.classList.toggle('has-buybar', barOn);
+    return () => document.body.classList.remove('has-buybar');
+  }, [barOn]);
 
   const shareUrl = origin ? `${origin}/shop/${product.slug}` : `/shop/${product.slug}`;
   const shareText = `${product.name}${product.brand ? ` by ${product.brand}` : ''}${chosen ? ` — KES ${Number(chosen.priceKes).toLocaleString()}` : ''}`;
@@ -272,9 +306,11 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
             </div>
           ) : null}
 
-          {condition ? <p className="pdp-condition"><span className="sale-badge">{condition}</span></p> : null}
+          <ul className="pdp-chips" aria-label="Why buy here">
+            {trustChips(shopInfo).map((chip) => <li key={chip}>{chip}</li>)}
+          </ul>
 
-          {product.description && !luxe ? <p className="pdp-description">{product.description}</p> : null}
+          {condition ? <p className="pdp-condition"><span className="sale-badge">{condition}</span></p> : null}
 
           {groups.length > 0 ? (
             groups.map((group) => (
@@ -320,6 +356,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
               </div>
             </div>
           ) : null}
+          {chosen && chosen.stockOnHand > 0 ? <p className="pdp-stock-note">In stock</p> : null}
           {chosen && chosen.stockOnHand <= 0 ? (
             <p className="pdp-preorder-note">Available to Order -- message us on WhatsApp for lead time.</p>
           ) : null}
@@ -361,7 +398,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
           </div>
           ) : null}
 
-          <div className="pdp-actions">
+          <div className="pdp-actions" ref={actionsRef}>
             <button className="btn btn-primary btn-block" disabled={!chosen} onClick={addChosenToCart}>
               {addLabel}
             </button>
@@ -385,7 +422,12 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
                   fireAdEvent('contact', { ids: chosen?.sku ? [chosen.sku] : undefined, name: product.name, value: chosen ? Number(chosen.priceKes) : undefined });
                 }}
               >
-                <WhatsAppIcon /> {chosen ? 'Order this on WhatsApp' : sized ? 'Ask about sizes on WhatsApp' : 'Ask on WhatsApp'}
+                <WhatsAppIcon /> {chosen ? 'Order on WhatsApp' : sized ? 'Ask about sizes on WhatsApp' : 'Ask on WhatsApp'}
+              </a>
+            ) : null}
+            {telHref(shopInfo.contactPhone) ? (
+              <a className="btn btn-outline btn-block pdp-call-btn" href={telHref(shopInfo.contactPhone) as string} data-source="product-page">
+                <PhoneIcon /> Call {shopInfo.contactPhone}
               </a>
             ) : null}
           </div>
@@ -416,21 +458,22 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
                 <summary>Delivery &amp; help</summary>
                 <div className="pdp-acc-body">
                   <ul>
-                    {shopInfo.deliveryFeeKes ? <li>Delivery from KES {Number(shopInfo.deliveryFeeKes).toLocaleString()}.</li> : null}
-                    {shopInfo.freeDeliveryOverKes ? <li>Complimentary delivery on orders over KES {Number(shopInfo.freeDeliveryOverKes).toLocaleString()}.</li> : null}
-                    {whatsappHref ? <li>Not sure of your size, or want to see more photos? Message us on WhatsApp.</li> : null}
-                    <li>Pay securely at checkout.</li>
+                    {assurances(shopInfo).map((line) => <li key={line}>{line}</li>)}
                   </ul>
                 </div>
               </details>
             </div>
           ) : null}
 
-          <div className="trust-row">
-            <span>Secure checkout</span>
-            <span>Fast local delivery</span>
-            <span>WhatsApp support</span>
-          </div>
+          {/* The description sits under the buttons, not between the price and the sizes: a shopper who has decided should not scroll past a
+              paragraph to reach them. */}
+          {product.description && !luxe ? <p className="pdp-description pdp-description-below">{product.description}</p> : null}
+
+          {luxe ? null : (
+            <ul className="pdp-assurances">
+              {assurances(shopInfo).map((line) => <li key={line}>{line}</li>)}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -461,10 +504,45 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
         </section>
       ) : null}
 
-      {luxe && chosen ? (
-        <div className="pdp-stickybar">
-          <div className="price"><small>{shortSize(variantLabel(chosen))}</small>KES {Number(chosen.priceKes).toLocaleString()}</div>
-          <button type="button" className="btn btn-primary" onClick={addChosenToCart}>{added ? 'Added' : 'Add to bag'}</button>
+      {/* Phones only (see globals.css). The same actions as the buttons above, kept in reach while those are out of view. */}
+      {barOn ? (
+        <div className="buybar" role="region" aria-label="Buy this item">
+          {added || cart.count > 0 ? (
+            <Link href="/cart" className="buybar-strip">
+              <span>{added ? (luxe ? 'Added to your bag' : 'Added to your cart') : `${cart.count} item${cart.count === 1 ? '' : 's'} in your ${luxe ? 'bag' : 'cart'}`}</span>
+              <strong>Checkout &rarr;</strong>
+            </Link>
+          ) : null}
+          <div className="buybar-row">
+            <div className="buybar-price">
+              <strong>{chosen ? `KES ${Number(chosen.priceKes).toLocaleString()}` : 'Select an option'}</strong>
+              {chosen && sized ? <span>Size {shortSize(variantLabel(chosen))}</span> : null}
+            </div>
+            <button type="button" className="buybar-add btn btn-primary" disabled={!chosen} onClick={addChosenToCart}>
+              {added ? 'Added' : chosen ? (luxe ? 'Add to bag' : 'Add to cart') : sized ? 'Select a size' : 'Select an option'}
+            </button>
+            {whatsappHref ? (
+              <a
+                className="buybar-icon buybar-wa"
+                href={whatsappHref}
+                suppressHydrationWarning
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Order on WhatsApp"
+                onClick={() => {
+                  track('WHATSAPP_CLICK', { productSlug: product.slug, detail: 'product-bar' });
+                  fireAdEvent('contact', { ids: chosen?.sku ? [chosen.sku] : undefined, name: product.name, value: chosen ? Number(chosen.priceKes) : undefined });
+                }}
+              >
+                <WhatsAppIcon />
+              </a>
+            ) : null}
+            {telHref(shopInfo.contactPhone) ? (
+              <a className="buybar-icon buybar-call" href={telHref(shopInfo.contactPhone) as string} data-source="product-bar" aria-label={`Call ${shopInfo.contactPhone}`}>
+                <PhoneIcon />
+              </a>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </main>

@@ -59,6 +59,24 @@ describe('the visits-to-orders funnel, against the real database', () => {
     expect(result.orders).toMatchObject({ placed: 3, linkedToVisits: 2 });
   });
 
+  it('counts opening the cart and tapping a call, once per visit, by source and device', async () => {
+    const shop = await makeShop();
+    // A phone visit from an ad: adds, opens the cart (twice, still one visit), then calls.
+    await events.record(shop.id, { sessionId: 'gggggggggggg07', events: [{ type: 'SESSION_START', utmSource: 'facebook', utmMedium: 'cpc' }, { type: 'VIEW_PRODUCT', productSlug: 'a' }, { type: 'ADD_TO_CART', productSlug: 'a' }, { type: 'VIEW_CART' }, { type: 'VIEW_CART' }, { type: 'CALL_CLICK', detail: 'product-bar', productSlug: 'a' }, { type: 'CALL_CLICK', detail: 'cart' }] }, phone);
+    // A desktop visit that adds and never opens the cart.
+    await events.record(shop.id, { sessionId: 'hhhhhhhhhhhh08', events: [{ type: 'SESSION_START' }, { type: 'VIEW_PRODUCT', productSlug: 'a' }, { type: 'ADD_TO_CART', productSlug: 'a' }] }, desktop);
+    // Another shop's call must not leak in.
+    const other = await makeShop();
+    await events.record(other.id, { sessionId: 'iiiiiiiiiiii09', events: [{ type: 'SESSION_START' }, { type: 'CALL_CLICK' }] }, phone);
+
+    const result = await funnel.funnel(shop.id, window().from, window().to);
+    expect(result.totals).toMatchObject({ sessions: 2, addedToCart: 2, viewedCart: 1, tappedCall: 1 });
+    expect(result.bySource.find((s) => s.source === 'Facebook')).toMatchObject({ viewedCart: 1, tappedCall: 1 });
+    expect(result.bySource.find((s) => s.source === 'Direct')).toMatchObject({ viewedCart: 0, tappedCall: 0 });
+    expect(result.byDevice.find((d) => d.device === 'mobile')).toMatchObject({ viewedCart: 1, tappedCall: 1 });
+    expect(result.byDevice.find((d) => d.device === 'desktop')).toMatchObject({ viewedCart: 0, tappedCall: 0 });
+  });
+
   it('records a session start only once, however often the browser repeats it', async () => {
     const shop = await makeShop();
     const start = { sessionId: 'eeeeeeeeeeee05', events: [{ type: 'SESSION_START', utmSource: 'facebook' }] };

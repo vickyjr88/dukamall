@@ -1229,3 +1229,91 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .shop-prose ul, .shop-prose ol { padding-left: 1.25em; display: flex; flex-direction: column; gap: var(--shop-space-2); }
 .shop-prose a { color: var(--shop-primary); text-decoration: underline; text-underline-offset: 2px; }
 .shop-footer-text { color: var(--shop-muted); }
+
+
+/* -----------------------------------------------------------------------
+   Conversion: trust beside the price, the cart's reassurance, and the buy bar on phones
+   -------------------------------------------------------------------- */
+/* Reasons to buy, in a line beside the price (the words come from the shop's own settings; see lib/trust.ts). */
+.pdp-chips {
+  list-style: none;
+  margin: calc(var(--shop-space-3) * -1) 0 var(--shop-space-5);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--shop-text-xs);
+  color: var(--shop-ink-soft);
+}
+.pdp-chips li { display: inline-flex; align-items: center; gap: 6px; }
+.pdp-chips li::before { content: '\2713'; color: var(--shop-accent); font-weight: 700; }
+.pdp-stock-note { margin: calc(var(--shop-space-3) * -1) 0 var(--shop-space-4); font-size: var(--shop-text-xs); color: var(--shop-muted); }
+.pdp-assurances {
+  list-style: none;
+  margin: var(--shop-space-5) 0 0;
+  padding: var(--shop-space-4) 0 0;
+  border-top: 1px solid var(--shop-line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--shop-text-xs);
+  color: var(--shop-muted);
+}
+
+/* Right under the cart's order button, where the hesitation is. */
+.checkout-reassure { margin: var(--shop-space-2) 0 0; font-size: var(--shop-text-xs); line-height: 1.5; color: var(--shop-muted); text-align: center; }
+.checkout-reassure a { text-decoration: underline; text-underline-offset: 2px; color: var(--shop-ink); font-weight: 600; }
+
+/* The buy bar: phones only. It holds the page's own actions (add, WhatsApp, call) while those are out of view, and says when something is already in the cart. */
+.buybar { display: none; }
+@media (max-width: 860px) {
+  .buybar {
+    display: block;
+    position: fixed;
+    z-index: 70;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--shop-raised);
+    border-top: 1px solid var(--shop-line-strong);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.08);
+  }
+  .buybar-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--shop-space-3);
+    padding: 9px var(--shop-space-4);
+    background: var(--shop-surface);
+    border-bottom: 1px solid var(--shop-line);
+    font-size: var(--shop-text-xs);
+  }
+  .buybar-strip strong { text-decoration: underline; text-underline-offset: 3px; }
+  .buybar-row { display: flex; align-items: center; gap: 10px; padding: 10px var(--shop-space-4); }
+  .buybar-price { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+  .buybar-price strong { font-size: var(--shop-text-base); white-space: nowrap; }
+  .buybar-price span { font-size: 11px; color: var(--shop-muted); white-space: nowrap; }
+  .buybar-add { flex: 1; min-height: 48px; padding-inline: 12px; }
+  .buybar-icon {
+    flex: 0 0 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--shop-line-strong);
+    border-radius: var(--shop-radius-sm);
+    background: var(--shop-raised);
+    color: var(--shop-ink);
+  }
+  .buybar-icon svg { width: 22px; height: 22px; }
+  .buybar-wa { background: #25d366; border-color: #25d366; color: #fff; }
+  /* The floating WhatsApp button would sit on the bar, which already has WhatsApp; the page leaves room so the footer is not hidden behind it. */
+  body.has-buybar .whatsapp-float { display: none; }
+  body.has-buybar { padding-bottom: 76px; }
+  /* A shorter photo, so the name, price, trust points and sizes are on the first screen. */
+  .pdp-gallery-main { aspect-ratio: 5 / 4; }
+  .pdp-info h1 { font-size: var(--shop-text-xl); margin-bottom: var(--shop-space-2); }
+  .pdp-price { margin-bottom: var(--shop-space-4); }
+}
+.pdp-description-below { margin: var(--shop-space-5) 0 0; }

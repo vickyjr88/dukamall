@@ -54,7 +54,7 @@ describe('cost is kept on the order line', () => {
   it('a product\'s cost is copied onto each order line at checkout, so editing it later does not rewrite history', async () => {
     const shop = await makeShop();
     const p = await product(shop.id, 'Puma Roma', { cost: 2600 });
-    const { order } = await checkout.start(shop.id, { lines: [{ variantId: p.variantId, quantity: 1 }], firstName: 'A', lastName: 'B' } as any, null);
+    const { order } = await checkout.start(shop.id, { lines: [{ variantId: p.variantId, quantity: 1 }], firstName: 'A', lastName: 'B', phone: '0722000111' } as any, null);
     await products.update(shop.id, p.id, { costKes: 3300 } as any);
     const line = await prisma.orderLine.findFirstOrThrow({ where: { orderId: order.id } });
     expect(Number(line.unitCostKes)).toBe(2600);

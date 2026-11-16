@@ -447,7 +447,7 @@
   [data-luxe] .pdp-rail { display: none; }
   [data-luxe] .pdp-gallery > div:last-child { position: static; }
   [data-luxe] .pdp-arrow { display: none; }
-  [data-luxe] .pdp-stage { cursor: default; }
+  [data-luxe] .pdp-stage { cursor: default; aspect-ratio: 1 / 1; }
   [data-luxe] .pdp-counter { display: none; }
   [data-luxe] .pdp-dots { display: flex; justify-content: center; gap: 8px; }
   [data-luxe] .pdp-dots button { width: 7px; height: 7px; padding: 0; border-radius: 50%; border: 1px solid var(--shop-ink); background: transparent; }
@@ -495,29 +495,27 @@
 [data-luxe] .related-products { border-top: 1px solid var(--shop-line); margin-top: clamp(72px, 9vw, 128px); padding-top: clamp(48px, 6vw, 88px); }
 [data-luxe] .related-products h2 { font-size: clamp(1.75rem, 3vw, 2.4rem); text-align: center; margin-bottom: clamp(28px, 4vw, 56px); }
 
-/* A phone's add-to-bag bar stays in reach while the page scrolls. */
-[data-luxe] .pdp-stickybar { display: none; }
+/* The buy bar (see globals.css) in the luxury styles: the page colour, ink buttons, no green. */
 @media (max-width: 860px) {
-  [data-luxe] .pdp-stickybar {
-    display: flex;
-    position: fixed;
-    z-index: 70;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    align-items: center;
-    gap: 14px;
-    padding: 12px var(--lux-gutter) calc(12px + env(safe-area-inset-bottom));
-    background: color-mix(in srgb, var(--shop-paper) 96%, transparent);
-    border-top: 1px solid var(--shop-line);
-    backdrop-filter: blur(12px);
-  }
-  [data-luxe] .pdp-stickybar .price { font-size: 1rem; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; line-height: 1.2; }
-  [data-luxe] .pdp-stickybar .price small { display: block; font-size: 0.625rem; letter-spacing: 0.18em; color: var(--shop-muted); text-transform: uppercase; }
-  [data-luxe] .pdp-stickybar .btn { flex: 1; min-height: 52px; padding-inline: 16px; }
-  body:has(.pdp-stickybar) .whatsapp-float { bottom: calc(88px + env(safe-area-inset-bottom)); }
-  [data-luxe] .pdp-main { padding-bottom: 96px; }
+  [data-luxe] .buybar { background: color-mix(in srgb, var(--shop-paper) 96%, transparent); backdrop-filter: blur(12px); border-top-color: var(--shop-line); box-shadow: none; }
+  [data-luxe] .buybar-strip { background: var(--shop-surface); font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; }
+  [data-luxe] .buybar-row { padding-inline: var(--lux-gutter); }
+  [data-luxe] .buybar-price strong { font-size: 1rem; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; font-weight: 500; }
+  [data-luxe] .buybar-price span { font-size: 0.625rem; letter-spacing: 0.18em; text-transform: uppercase; }
+  [data-luxe] .buybar-add { min-height: 52px; padding-inline: 10px; letter-spacing: 0.14em; white-space: nowrap; }
+  [data-luxe] .buybar-icon { height: 52px; flex-basis: 52px; background: transparent; }
+  [data-luxe] .buybar-wa { background: var(--shop-ink); border-color: var(--shop-ink); color: var(--shop-on-ink); }
+  [data-luxe] .pdp-main { padding-top: 28px; padding-bottom: 24px; }
 }
+
+/* Trust beside the price, and the call button. */
+[data-luxe] .pdp-chips { margin: calc(var(--shop-space-3) * -1) 0 var(--shop-space-6); gap: 6px 18px; font-size: 0.625rem; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--shop-muted); }
+[data-luxe] .pdp-chips li::before { content: ''; width: 5px; height: 5px; background: var(--shop-gold); transform: rotate(45deg); flex-shrink: 0; font-size: 0; }
+[data-luxe] .pdp-stock-note { font-size: 0.6875rem; letter-spacing: 0.14em; text-transform: uppercase; }
+[data-luxe] .pdp-call-btn { background: transparent; color: var(--shop-ink); border-color: var(--shop-line-strong); }
+[data-luxe] .pdp-call-btn:hover { background: var(--shop-ink); color: var(--shop-on-ink); border-color: var(--shop-ink); }
+[data-luxe] .checkout-reassure { font-size: 0.75rem; }
+[data-luxe] .checkout-reassure a { color: var(--shop-ink); }
 
 /* ----- cart and forms -------------------------------------------------------------------------------------------- */
 [data-luxe] .cart-line img { width: 96px; height: 120px; }
@@ -591,3 +589,7 @@
   min-width: 0;
 }
 [data-luxe] .summary-card input:focus, [data-luxe] .summary-card select:focus, [data-luxe] .summary-card textarea:focus { outline: none; border-bottom-color: var(--shop-ink); }
+
+/* In the cart the order button is the primary action; WhatsApp is the alternative, so it is an outline. */
+[data-luxe] .summary-card .btn-accent { background: transparent; color: var(--shop-ink); border-color: var(--shop-line-strong); }
+[data-luxe] .summary-card .btn-accent:hover { background: var(--shop-ink); color: var(--shop-on-ink); border-color: var(--shop-ink); }

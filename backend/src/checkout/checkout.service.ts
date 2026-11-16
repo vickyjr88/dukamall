@@ -24,6 +24,11 @@ export class CheckoutService {
   ) {}
 
   async start(shopId: string, dto: CheckoutDto, customerId: string | null) {
+    // Either way of reaching the shopper will do (a phone is how most of this platform's shops follow an order up, an email is how a receipt is
+    // sent), but with neither the order could not be confirmed or delivered, so it is refused before anything is created.
+    if (!dto.phone && !dto.email) {
+      throw new BadRequestException('Please add a phone number so we can confirm your order and arrange delivery.');
+    }
     const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
 
     // A customerId comes only from a verified JWT (see OptionalCustomer),

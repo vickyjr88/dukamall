@@ -120,7 +120,9 @@ export default async function HomePage({ searchParams }: { searchParams: HomeSea
       ? { title: 'Delivery', text: `Complimentary on orders over KES ${freeOver.toLocaleString()}` }
       : deliveryFee > 0 ? { title: 'Delivery', text: `To your door from KES ${deliveryFee.toLocaleString()}` } : null,
     shopInfo.whatsappNumber ? { title: 'Concierge', text: 'Personal help with sizing and styling on WhatsApp' } : null,
-    { title: 'Secure checkout', text: 'Pay safely online, your order confirmed at once' },
+    shopInfo.onlinePayments
+      ? { title: 'Secure checkout', text: 'Pay safely online, your order confirmed at once' }
+      : { title: 'Confirmed with you', text: 'We confirm every order by phone or WhatsApp before anything is paid' },
   ].filter((p): p is { title: string; text: string } => Boolean(p));
 
   return (
