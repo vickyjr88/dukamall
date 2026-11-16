@@ -7,6 +7,7 @@ import { ImagePicker } from '../media/image-picker';
 type ThemeOptions = {
   fontPairings: { key: string; label: string }[];
   layoutPresets: { key: string; label: string }[];
+  stylePresets: { key: string; label: string; description: string }[];
 };
 
 type Theme = {
@@ -20,7 +21,48 @@ type Theme = {
   heroButtonLabel: string | null;
   fontPairing: string;
   layoutPreset: string;
+  stylePreset?: string;
 };
+
+/**
+ * A small picture of each style for the picker: the page colour, the ink, and the accent. Only for display; the storefront's own definitions are in
+ * app/lib/style-presets.ts. An unknown key (a style added to the API before this list) just shows no picture.
+ */
+const STYLE_SWATCHES: Record<string, { paper: string; ink: string; accent: string; line: string; luxe: boolean }> = {
+  classic: { paper: '#ffffff', ink: '#17181c', accent: '#2438a8', line: '#e7e7ea', luxe: false },
+  maison: { paper: '#f8f5ef', ink: '#17130e', accent: '#a1803f', line: '#e3dccf', luxe: true },
+  noir: { paper: '#0e0d0b', ink: '#f2ede4', accent: '#c9a96e', line: '#2b2822', luxe: true },
+};
+
+function StyleCard({ preset, selected, onSelect }: { preset: { key: string; label: string; description: string }; selected: boolean; onSelect: () => void }) {
+  const sw = STYLE_SWATCHES[preset.key];
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      style={{
+        display: 'flex', gap: 14, alignItems: 'stretch', textAlign: 'left', width: '100%', padding: 12, cursor: 'pointer',
+        background: 'var(--p-paper)', border: selected ? '2px solid var(--p-ink)' : '1px solid var(--p-line)', borderRadius: 'var(--p-radius-sm)',
+      }}
+    >
+      {sw ? (
+        <span aria-hidden="true" style={{ flex: '0 0 96px', height: 72, background: sw.paper, border: `1px solid ${sw.line}`, padding: 8, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <span style={{ height: 3, width: '60%', background: sw.ink }} />
+          <span style={{ display: 'flex', gap: 4, alignItems: 'flex-end' }}>
+            <span style={{ width: 18, height: 26, background: sw.line }} />
+            <span style={{ width: 18, height: 26, background: sw.line }} />
+            <span style={{ height: 2, flex: 1, background: sw.accent }} />
+          </span>
+        </span>
+      ) : null}
+      <span style={{ minWidth: 0 }}>
+        <strong style={{ display: 'block', marginBottom: 2 }}>{preset.label}</strong>
+        <span className="hint" style={{ display: 'block', margin: 0 }}>{preset.description}</span>
+      </span>
+    </button>
+  );
+}
 
 export default function ThemePage() {
   const [options, setOptions] = useState<ThemeOptions | null>(null);
@@ -57,6 +99,7 @@ export default function ThemePage() {
         heroButtonLabel: theme.heroButtonLabel || null,
         fontPairing: theme.fontPairing,
         layoutPreset: theme.layoutPreset,
+        stylePreset: theme.stylePreset || 'classic',
       }),
     });
     if (!res.ok) {
@@ -100,6 +143,21 @@ export default function ThemePage() {
           Pick colors, a font pairing and a layout style. Changes apply to your storefront as soon as you save.
         </p>
         <form onSubmit={onSave}>
+          <fieldset style={{ border: 0, padding: 0, margin: '0 0 20px' }}>
+            <legend style={{ fontWeight: 600, marginBottom: 8 }}>Style</legend>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {options.stylePresets.map((preset) => (
+                <StyleCard key={preset.key} preset={preset} selected={(theme.stylePreset || 'classic') === preset.key} onSelect={() => setTheme({ ...theme, stylePreset: preset.key })} />
+              ))}
+            </div>
+            {STYLE_SWATCHES[theme.stylePreset || 'classic']?.luxe ? (
+              <span className="hint" style={{ display: 'block', marginTop: 8 }}>
+                The luxury styles set the page colours, type and layout for you. They pair best with the Cormorant or Bodoni font pairing below, and use your primary colour only for fine details
+                (underlines and accents). Leave it on the default blue to use the style&apos;s own gold.
+              </span>
+            ) : null}
+          </fieldset>
+
           <div className="portal-field">
             <label>Primary color</label>
             <div style={{ display: 'flex', gap: 8 }}>

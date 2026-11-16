@@ -27,6 +27,18 @@ export const FONT_PAIRINGS: Record<string, { display: string; body: string; goog
     body: "'Work Sans', -apple-system, sans-serif",
     googleFontsHref: 'https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Work+Sans:wght@400;500;600;700&display=swap',
   },
+  // Luxury pairings: a high-contrast display face with a quiet geometric (Jost) or neo-grotesque (Hanken Grotesk) body, for the Maison and
+  // Noir styles. Both display faces are thin at small sizes, so the luxury CSS only sets them large.
+  'cormorant-jost': {
+    display: "'Cormorant Garamond', 'Times New Roman', serif",
+    body: "'Jost', -apple-system, sans-serif",
+    googleFontsHref: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500;600&display=swap',
+  },
+  'bodoni-hanken': {
+    display: "'Bodoni Moda', 'Times New Roman', serif",
+    body: "'Hanken Grotesk', -apple-system, sans-serif",
+    googleFontsHref: 'https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;1,6..96,400&family=Hanken+Grotesk:wght@300;400;500;600&display=swap',
+  },
   'unbounded-sans': {
     display: "'Unbounded', -apple-system, sans-serif",
     body: "'Sora', -apple-system, sans-serif",

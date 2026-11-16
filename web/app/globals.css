@@ -25,6 +25,18 @@
   --shop-surface: #f7f7f8;
   --shop-danger: #b3261e;
 
+  /* Surface and text-on-surface tokens. The defaults are exactly what was hard-coded before, so a classic storefront looks identical; a luxury style
+     (app/lib/style-presets.ts) replaces them as a set. */
+  --shop-raised: #ffffff;      /* cards, menus, popovers */
+  --shop-field: #ffffff;       /* inputs, selects, chips */
+  --shop-on-ink: #ffffff;      /* text on an ink-coloured button or badge */
+  --shop-header-bg: rgba(255, 255, 255, 0.92);
+  --shop-announce-bg: var(--shop-ink);
+  --shop-announce-ink: #ffffff;
+  --shop-footer-bg: var(--shop-surface);
+  --shop-footer-ink: var(--shop-ink);
+  --shop-gold: var(--shop-primary); /* fine details in the luxury styles; ThemeInjector sets it */
+
   /* Type scale -- a real ratio (1.25, major third) instead of ad-hoc sizes,
      so every heading/body relationship in the theme is consistent. */
   --shop-text-xs: 0.75rem;
@@ -152,8 +164,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
    Header
    -------------------------------------------------------------------- */
 .shop-announcement {
-  background: var(--shop-ink);
-  color: #fff;
+  background: var(--shop-announce-bg);
+  color: var(--shop-announce-ink);
   text-align: center;
   font-size: var(--shop-text-xs);
   font-weight: 600;
@@ -171,7 +183,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   gap: var(--shop-space-5);
   height: var(--shop-header-h);
   padding: 0 var(--shop-space-5);
-  background: rgba(255, 255, 255, 0.92);
+  background: var(--shop-header-bg);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--shop-line);
 }
@@ -301,7 +313,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   gap: var(--shop-space-2);
   padding: 14px 28px;
   background: var(--shop-ink);
-  color: #fff;
+  color: var(--shop-on-ink);
   border: 1px solid var(--shop-ink);
   border-radius: var(--shop-radius);
   font-size: var(--shop-text-sm);
@@ -326,7 +338,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   color: var(--shop-ink);
   border-color: var(--shop-line-strong);
 }
-.btn-outline:hover { background: var(--shop-ink); color: #fff; border-color: var(--shop-ink); }
+.btn-outline:hover { background: var(--shop-ink); color: var(--shop-on-ink); border-color: var(--shop-ink); }
 
 .btn-block { display: flex; width: 100%; }
 .btn-sm { padding: 10px 18px; font-size: var(--shop-text-xs); }
@@ -338,7 +350,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   width: 42px;
   height: 42px;
   padding: 0;
-  background: #fff;
+  background: var(--shop-raised);
   color: var(--shop-ink);
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
@@ -401,7 +413,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   padding: 10px 12px;
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
-  background: #fff;
+  background: var(--shop-field);
   font-size: var(--shop-text-sm);
   color: var(--shop-ink);
   text-transform: none;
@@ -426,14 +438,14 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   padding: 6px 14px;
   font-size: var(--shop-text-sm);
   font-weight: 600;
-  background: #fff;
+  background: var(--shop-field);
   border: 1px solid var(--shop-line-strong);
   border-radius: 999px;
   cursor: pointer;
   transition: border-color 0.15s var(--shop-ease), background 0.15s var(--shop-ease), color 0.15s var(--shop-ease);
 }
 .pf-chip:hover { border-color: var(--shop-ink); }
-.pf-chip.is-on { background: var(--shop-ink); color: #fff; border-color: var(--shop-ink); }
+.pf-chip.is-on { background: var(--shop-ink); color: var(--shop-on-ink); border-color: var(--shop-ink); }
 
 .pf-foot {
   display: flex;
@@ -467,7 +479,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   padding: 10px 14px;
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
-  background: #fff;
+  background: var(--shop-field);
   font-size: var(--shop-text-sm);
   box-sizing: border-box;
 }
@@ -481,7 +493,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   z-index: 60;
   max-height: 380px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--shop-raised);
   border: 1px solid var(--shop-line);
   border-radius: var(--shop-radius-sm);
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
@@ -600,7 +612,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   left: var(--shop-space-3);
   z-index: 1;
   background: var(--shop-ink);
-  color: #fff;
+  color: var(--shop-on-ink);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -631,7 +643,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .product-card-overlay-actions .share-btn {
   width: 34px;
   height: 34px;
-  background: #fff;
+  background: var(--shop-raised);
 }
 
 .product-card-brand {
@@ -701,7 +713,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .product-card-size-picker {
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
-  background: #fff;
+  background: var(--shop-raised);
   padding: 10px;
 }
 .product-card-size-picker-head {
@@ -843,19 +855,19 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   text-align: center;
   font-size: var(--shop-text-sm);
   font-weight: 600;
-  background: #fff;
+  background: var(--shop-field);
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
   cursor: pointer;
   transition: border-color 0.15s var(--shop-ease), background 0.15s var(--shop-ease), color 0.15s var(--shop-ease);
 }
 .size-swatch:hover { border-color: var(--shop-ink); }
-.size-swatch.is-selected { background: var(--shop-ink); color: #fff; border-color: var(--shop-ink); }
+.size-swatch.is-selected { background: var(--shop-ink); color: var(--shop-on-ink); border-color: var(--shop-ink); }
 /* Never disabled/struck-through -- a zero-stock size is still pickable and
    orderable, just visually quieter than an in-stock one so the difference
    is legible without reading as "you can't have this." */
 .size-swatch.is-preorder { color: var(--shop-muted); border-style: dashed; }
-.size-swatch.is-preorder.is-selected { color: #fff; border-style: solid; }
+.size-swatch.is-preorder.is-selected { color: var(--shop-on-ink); border-style: solid; }
 
 /* Option values are words ("128GB", "Space Black"), wider than a shoe size. */
 .size-grid.is-options { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
@@ -901,7 +913,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   padding: 12px 14px;
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
-  background: #fff;
+  background: var(--shop-field);
 }
 .manual-size-block input:focus { outline: none; border-color: var(--shop-ink); }
 
@@ -930,7 +942,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   width: 42px;
   height: 42px;
   padding: 0;
-  background: #fff;
+  background: var(--shop-raised);
   color: var(--shop-ink);
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
@@ -1044,7 +1056,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
   padding: 12px 14px;
   border: 1px solid var(--shop-line-strong);
   border-radius: var(--shop-radius-sm);
-  background: #fff;
+  background: var(--shop-field);
 }
 .form-field input:focus { outline: none; border-color: var(--shop-ink); }
 
@@ -1183,7 +1195,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .notfound-card {
   position: relative;
   display: block;
-  background: #fff;
+  background: var(--shop-raised);
   padding: var(--shop-space-5) var(--shop-space-5) var(--shop-space-8, 44px);
   color: inherit;
   text-decoration: none;

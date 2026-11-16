@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { storefrontOriginForShop } from '../common/storefront-origin';
 import { domainVariants } from '../common/domain-variants';
 import { UpdateStorefrontDto, UpdateThemeDto } from './storefront-content.dto';
+import { DEFAULT_STYLE_PRESET, FONT_PAIRINGS, LAYOUT_PRESETS, STYLE_PRESETS } from './theme-options';
 import { encryptSecret } from '../common/secrets';
 
 /** Blank/whitespace-only input means "clear it" -- the column stays null rather than holding an empty string. */
@@ -244,6 +245,7 @@ export class ShopService {
       heroButtonLabel: null,
       fontPairing: 'fraunces-manrope',
       layoutPreset: 'sharp',
+      stylePreset: DEFAULT_STYLE_PRESET,
     };
   }
 
@@ -272,17 +274,9 @@ export class ShopService {
   // theming" actually offers.
   themeOptions() {
     return {
-      fontPairings: [
-        { key: 'fraunces-manrope', label: 'Fraunces + Manrope (editorial serif)' },
-        { key: 'playfair-inter', label: 'Playfair Display + Inter (classic elegant)' },
-        { key: 'poppins-only', label: 'Poppins (modern, rounded)' },
-        { key: 'dm-serif-work', label: 'DM Serif + Work Sans (warm editorial)' },
-        { key: 'unbounded-sans', label: 'Unbounded + Sora (bold contemporary)' },
-      ],
-      layoutPresets: [
-        { key: 'sharp', label: 'Sharp (square corners, no rounding)' },
-        { key: 'soft', label: 'Soft (rounded corners)' },
-      ],
+      fontPairings: FONT_PAIRINGS.map(({ key, label }) => ({ key, label })),
+      layoutPresets: LAYOUT_PRESETS.map(({ key, label }) => ({ key, label })),
+      stylePresets: STYLE_PRESETS.map(({ key, label, description }) => ({ key, label, description })),
     };
   }
 
@@ -293,6 +287,7 @@ export class ShopService {
       ...(dto.accentColor ? { accentColor: dto.accentColor } : {}),
       ...(dto.fontPairing ? { fontPairing: dto.fontPairing } : {}),
       ...(dto.layoutPreset ? { layoutPreset: dto.layoutPreset } : {}),
+      ...(dto.stylePreset ? { stylePreset: dto.stylePreset } : {}),
       logoUrl: textOrNull(dto.logoUrl),
       heroImageUrl: textOrNull(dto.heroImageUrl),
       heroEyebrow: textOrNull(dto.heroEyebrow),

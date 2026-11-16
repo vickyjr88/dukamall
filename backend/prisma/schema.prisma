@@ -166,6 +166,9 @@ model ShopTheme {
   heroButtonLabel String?
   fontPairing  String @default("fraunces-manrope")
   layoutPreset String @default("sharp")
+  /// The overall look of the storefront: "classic" (the original editorial-minimal look) or a luxury style ("maison" light ivory, "noir"
+  /// black and gold). The web app maps the key to a curated set of colours and component styles; unknown keys fall back to classic.
+  stylePreset  String @default("classic")
 
   updatedAt DateTime @updatedAt
 }

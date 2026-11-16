@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useCart } from '@/app/lib/cart';
+import { useShopStyle } from '@/app/lib/style-context';
 import { ShopInfo } from '@/app/lib/api';
 import { useShopFetch } from '@/app/lib/shop-id-context';
 import { useCustomerAuth } from '@/app/lib/customer-auth';
@@ -12,6 +13,7 @@ import { rememberOrder } from './order-memory';
 
 export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
   const cart = useCart();
+  const { luxe } = useShopStyle();
   const { track } = useTracker();
   const shopFetch = useShopFetch();
   const customerFetch = useCustomerFetch();
@@ -36,7 +38,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
     return (
       <main className="shop-container shop-section">
         <div className="empty-state">
-          <h3>Your cart is empty</h3>
+          <h3>{luxe ? 'Your bag is empty' : 'Your cart is empty'}</h3>
           <p>Add something you love and it will show up here.</p>
           <a href="/" className="btn btn-primary">Continue shopping</a>
         </div>
@@ -186,7 +188,7 @@ export function CartClient({ shopInfo }: { shopInfo: ShopInfo }) {
       <div className="shop-section-head">
         <div>
           <span className="eyebrow">{cart.count} item{cart.count === 1 ? '' : 's'}</span>
-          <h1>Your cart</h1>
+          <h1>{luxe ? 'Your bag' : 'Your cart'}</h1>
         </div>
       </div>
 

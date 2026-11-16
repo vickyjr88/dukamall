@@ -79,8 +79,8 @@ export function StorefrontFooter({ shopInfo, pages }: { shopInfo: ShopInfo; page
               <li><Link href="/cart">Cart</Link></li>
               <li><Link href="/account">My account</Link></li>
               {/* Plain links: the portal and the admin console are separate apps with their own layouts and sign-in. */}
-              <li><a href="/portal/login">Merchant portal</a></li>
-              <li><a href="/admin/login">Admin login</a></li>
+              <li className="shop-footer-staff"><a href="/portal/login">Merchant portal</a></li>
+              <li className="shop-footer-staff"><a href="/admin/login">Admin login</a></li>
             </ul>
           </div>
           {footerPages.length > 0 ? (

@@ -11,6 +11,7 @@ import { WhatsAppIcon } from './whatsapp-icon';
 import { useCart } from './lib/cart';
 import { hasSize, optionEntries, variantLabel } from './lib/variant-options';
 import { fireAdEvent, useTracker } from './lib/tracking';
+import { useShopStyle } from './lib/style-context';
 
 /**
  * The variant whose price the card shows. Cheapest in-stock variant, or
@@ -48,6 +49,9 @@ function sizeRange(sizes: string[]) {
 export function ProductCard({ product }: { product: ShopProduct }) {
   const cart = useCart();
   const { track } = useTracker();
+  const { luxe } = useShopStyle();
+  // The second photo is fetched only once the card is hovered: a grid of 100+ cards must not download every product's second image up front.
+  const [warm, setWarm] = useState(false);
   const variant = currentPrice(product);
   const isOnSale = variant?.wasPriceKes && Number(variant.wasPriceKes) > Number(variant.priceKes);
   // Never a dead end: a product with nothing on the shelf is still shown as
@@ -111,6 +115,119 @@ export function ProductCard({ product }: { product: ShopProduct }) {
         ].join('\n'),
       )}`
     : null;
+
+  const whatsappLink = whatsappHref ? (
+    // suppressHydrationWarning: href depends on `origin`, only known after mount -- see product-client.tsx's buildEnquiry comment.
+    <a
+      className="product-card-whatsapp"
+      href={whatsappHref}
+      suppressHydrationWarning
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => {
+        e.stopPropagation();
+        track('WHATSAPP_CLICK', { productSlug: product.slug, detail: 'card' });
+        fireAdEvent('contact', { ids: variant?.sku ? [variant.sku] : undefined, name: product.name, value: variant ? Number(variant.priceKes) : undefined });
+      }}
+    >
+      <WhatsAppIcon /> <span><span className="lux-sm-hide">Order on </span>WhatsApp</span>
+    </a>
+  ) : null;
+
+  // The luxury styles: the photo in a fixed frame with the actions laid over it (revealed on hover, or a small "+" on a phone), and under it only the
+  // brand, the name and the price. Same data, same cart and WhatsApp behaviour as the classic card.
+  if (luxe) {
+    return (
+      <article className={`product-card is-luxe${needsOrder ? ' is-preorder' : ''}`} onMouseEnter={() => setWarm(true)}>
+        <div className="product-card-visual">
+          <Link href={`/shop/${product.slug}`} className="product-card-media" aria-label={product.name}>
+            {product.imageUrls[0] ? (
+              <Image
+                src={product.imageUrls[0]}
+                alt={product.name}
+                fill
+                sizes="(max-width: 700px) 50vw, (max-width: 1100px) 33vw, 360px"
+                style={{ objectFit: 'cover' }}
+              />
+            ) : (
+              <div className="product-card-placeholder">{product.name.charAt(0)}</div>
+            )}
+            {warm && product.imageUrls[1] ? (
+              <Image
+                className="product-card-alt"
+                src={product.imageUrls[1]}
+                alt=""
+                fill
+                sizes="(max-width: 700px) 50vw, (max-width: 1100px) 33vw, 360px"
+                style={{ objectFit: 'cover' }}
+              />
+            ) : null}
+            {needsOrder ? (
+              <span className="product-card-badge is-preorder">To order</span>
+            ) : isOnSale ? (
+              <span className="product-card-badge is-sale">Sale</span>
+            ) : null}
+          </Link>
+
+          <div className="product-card-overlay-actions">
+            <FavoriteButton productId={product.id} />
+          </div>
+
+          {product.variants.length > 0 ? (
+            <div className={`product-card-quickadd${pickingSize ? ' is-open' : ''}`}>
+              {pickingSize ? (
+                <div className="product-card-size-picker" onClick={(e) => e.stopPropagation()}>
+                  <div className="product-card-size-picker-head">
+                    <span>{sized ? 'Select size' : 'Choose one'}</span>
+                    <button type="button" onClick={() => setPickingSize(false)} aria-label="Cancel">×</button>
+                  </div>
+                  <div className="product-card-size-picker-grid">
+                    {product.variants.map((v) => (
+                      <button key={v.id} type="button" className="pf-chip" onClick={() => addVariant(v)}>
+                        {variantLabel(v).replace('EUR ', '')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className={`btn btn-outline btn-sm product-card-add-btn${added ? ' is-added' : ''}`}
+                  aria-label={`Add ${product.name} to bag`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    if (product.variants.length === 1) addVariant(product.variants[0]);
+                    else setPickingSize(true);
+                  }}
+                >
+                  {added ? 'Added' : 'Quick add'}
+                </button>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="product-card-body">
+          {product.brand ? <p className="product-card-brand">{product.brand}</p> : null}
+          <h3 className="name"><Link href={`/shop/${product.slug}`}>{product.name}</Link></h3>
+          {variant ? (
+            <div className="price">
+              {isOnSale ? <span className="was">KES {Number(variant.wasPriceKes).toLocaleString()}</span> : null}
+              <span className="cur">KES</span>{Number(variant.priceKes).toLocaleString()}
+            </div>
+          ) : null}
+          {sized && sizesInStock.length ? (
+            <p className="product-card-sizes">
+              <span>Sizes</span>
+              <em>{sizeRange(sizesInStock)}</em>
+            </p>
+          ) : null}
+          {whatsappLink}
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className={`product-card${needsOrder ? ' is-preorder' : ''}`}>

@@ -13,8 +13,8 @@ const present = (_: unknown, v: unknown) => v !== '' && v !== null;
 
 const HTTP_URL = { protocols: ['http', 'https'], require_protocol: true, require_tld: false };
 
-export const FONT_PAIRING_KEYS = ['fraunces-manrope', 'playfair-inter', 'poppins-only', 'dm-serif-work', 'unbounded-sans'];
-export const LAYOUT_PRESET_KEYS = ['sharp', 'soft'];
+import { FONT_PAIRING_KEYS, LAYOUT_PRESET_KEYS, STYLE_PRESET_KEYS } from './theme-options';
+export { FONT_PAIRING_KEYS, LAYOUT_PRESET_KEYS, STYLE_PRESET_KEYS };
 
 /** What a shop owner edits under "Store info" -- the words and links around the catalogue. */
 export class UpdateStorefrontDto {
@@ -104,4 +104,5 @@ export class UpdateThemeDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(30) heroButtonLabel?: string | null;
   @ApiPropertyOptional() @IsOptional() @IsIn(FONT_PAIRING_KEYS) fontPairing?: string;
   @ApiPropertyOptional() @IsOptional() @IsIn(LAYOUT_PRESET_KEYS) layoutPreset?: string;
+  @ApiPropertyOptional() @IsOptional() @IsIn(STYLE_PRESET_KEYS) stylePreset?: string;
 }

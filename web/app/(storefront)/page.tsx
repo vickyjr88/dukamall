@@ -6,6 +6,8 @@ import { currentOrigin, OG_IMAGE_SIZE } from '@/app/lib/seo';
 import { homePreviewImageUrl } from '@/app/lib/home-preview';
 import { JsonLd, organizationJsonLd, websiteJsonLd } from '@/app/lib/structured-data';
 import { StorefrontSearch } from './storefront-search';
+import { ProductCard } from '@/app/product-card';
+import { stylePresetFor } from '@/app/lib/style-presets';
 
 type HomeSearchParams = { category?: string; brand?: string; size?: string; search?: string; sort?: string; minPrice?: string; maxPrice?: string };
 
@@ -86,6 +88,7 @@ export default async function HomePage({ searchParams }: { searchParams: HomeSea
     getFilters(),
   ]);
 
+  const luxe = stylePresetFor(theme.stylePreset).luxe;
   const origin = currentOrigin();
   // The biggest brand and model pages, from the unfiltered catalogue (the query above may be a search or a category).
   const popular = isFilteredView(searchParams)
@@ -98,10 +101,58 @@ export default async function HomePage({ searchParams }: { searchParams: HomeSea
     ? `Browse ${category.name.toLowerCase()} at ${shopInfo.name}.`
     : theme.heroSubtitle || 'Shop the latest drop -- new pieces added regularly, while stock lasts.';
 
+  // The luxury styles open the plain home page as an editorial landing; a category or filtered view stays a clean, compact listing.
+  const landing = luxe && !category && !isFilteredView(searchParams);
+  const tiles = landing
+    ? categories
+        .map((c) => {
+          const inCategory = products.filter((p) => p.category?.slug === c.slug);
+          return { category: c, count: inCategory.length, image: inCategory.find((p) => p.imageUrls[0])?.imageUrls[0] ?? null };
+        })
+        .filter((t) => t.image)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 4)
+    : [];
+  const freeOver = shopInfo.freeDeliveryOverKes ? Number(shopInfo.freeDeliveryOverKes) : 0;
+  const deliveryFee = shopInfo.deliveryFeeKes ? Number(shopInfo.deliveryFeeKes) : 0;
+  const pillars = [
+    freeOver > 0
+      ? { title: 'Delivery', text: `Complimentary on orders over KES ${freeOver.toLocaleString()}` }
+      : deliveryFee > 0 ? { title: 'Delivery', text: `To your door from KES ${deliveryFee.toLocaleString()}` } : null,
+    shopInfo.whatsappNumber ? { title: 'Concierge', text: 'Personal help with sizing and styling on WhatsApp' } : null,
+    { title: 'Secure checkout', text: 'Pay safely online, your order confirmed at once' },
+  ].filter((p): p is { title: string; text: string } => Boolean(p));
+
   return (
     <main>
       {category ? null : <JsonLd data={organizationJsonLd(shopInfo, theme, origin)} />}
       {category ? null : <JsonLd data={websiteJsonLd(shopInfo, origin)} />}
+      {luxe ? (
+        landing ? (
+          <section className={`shop-hero lux-hero${theme.heroImageUrl ? ' has-media' : ''}`}>
+            {theme.heroImageUrl ? (
+              <div className="shop-hero-media">
+                <img src={theme.heroImageUrl} alt="" />
+              </div>
+            ) : null}
+            <div className="shop-hero-content">
+              <span className="eyebrow">{theme.heroEyebrow || 'New arrivals'}</span>
+              <h1>{headline}</h1>
+              <p>{subtitle}</p>
+              <div className="lux-hero-actions">
+                <a href="#new" className="btn btn-primary">{theme.heroButtonLabel || 'Discover the collection'}</a>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="shop-section" style={{ paddingBottom: 0 }}>
+            <div className="shop-container">
+              <span className="eyebrow">{category ? 'Collection' : 'Search'}</span>
+              <h1 style={{ marginTop: 14 }}>{category ? category.name : searchParams.search ? `\u201C${searchParams.search}\u201D` : 'The collection'}</h1>
+            </div>
+          </section>
+        )
+      ) : (
       <section className={`shop-hero${theme.heroImageUrl ? ' has-media' : ''}`}>
         {theme.heroImageUrl ? (
           <div className="shop-hero-media">
@@ -120,6 +171,49 @@ export default async function HomePage({ searchParams }: { searchParams: HomeSea
           <a href="#catalog" className="btn btn-primary">{theme.heroButtonLabel || 'Shop now'}</a>
         </div>
       </section>
+      )}
+
+      {landing && tiles.length >= 2 ? (
+        <section className="shop-section" aria-label="Shop by category">
+          <div className="shop-container">
+            <div className="lux-head">
+              <div><span className="eyebrow">The edit</span><h2>Shop by category</h2></div>
+            </div>
+            <div className="lux-cats" data-count={tiles.length} style={{ ['--cols' as string]: tiles.length }}>
+              {tiles.map((t) => (
+                <Link key={t.category.slug} href={`/?category=${t.category.slug}#catalog`} className="lux-cat">
+                  <img src={t.image as string} alt="" loading="lazy" />
+                  <span className="lux-cat-label"><strong>{t.category.name}</strong><span>Shop now</span></span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {landing && products.length >= 4 ? (
+        <section className="shop-section" id="new" aria-label="New arrivals" style={{ paddingTop: 0 }}>
+          <div className="shop-container">
+            <div className="lux-head">
+              <div><span className="eyebrow">Just in</span><h2>New arrivals</h2></div>
+              <Link href="/#catalog" className="lux-link">View all</Link>
+            </div>
+            <div className="product-grid">
+              {products.slice(0, 8).map((product) => <ProductCard key={product.id} product={product} />)}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {landing && pillars.length > 0 ? (
+        <section className="lux-pillars" aria-label="Our promise">
+          <div className="shop-container">
+            <div className="lux-pillars-grid">
+              {pillars.map((p) => <div key={p.title} className="lux-pillar"><strong>{p.title}</strong><span>{p.text}</span></div>)}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <StorefrontSearch initialProducts={products} categories={categories} filters={filters} />
 

@@ -32,6 +32,8 @@ export type ShopTheme = {
   heroButtonLabel?: string | null;
   fontPairing: string;
   layoutPreset: string;
+  /** The overall look (classic, maison, noir). Absent on an API that predates styles, which means classic. */
+  stylePreset?: string;
 };
 
 export type ShopVariant = {

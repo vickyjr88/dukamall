@@ -17,6 +17,10 @@ import { fireAdEvent, useTracker } from '@/app/lib/tracking';
 import { ProductSearch } from '@/app/product-search';
 import { ShopCategory, ShopFilters, ShopProduct } from '@/app/lib/api';
 import { useShopFetch } from '@/app/lib/shop-id-context';
+import { useShopStyle } from '@/app/lib/style-context';
+
+/** Pieces shown at first, and added by each "Show more", in the luxury styles. A multiple of 2, 3 and 4 so no row is ever left short. */
+const LUXE_PAGE = 24;
 
 export function StorefrontSearch({
   initialProducts,
@@ -28,6 +32,7 @@ export function StorefrontSearch({
   filters: ShopFilters;
 }) {
   const router = useRouter();
+  const { luxe } = useShopStyle();
   const params = useSearchParams();
   const shopFetch = useShopFetch();
   const { track } = useTracker();
@@ -92,6 +97,100 @@ export function StorefrontSearch({
   const setParam = useCallback((key: string, value: string) => setParams({ [key]: value }), [setParams]);
 
   const hasFilters = Boolean(category || brand || size || search || sort || minPrice || maxPrice);
+  // Luxury styles: the refine panel (brand, size, sort) opens by itself when any of those is already applied, so a shared link never hides its own filter.
+  const [refineOpen, setRefineOpen] = useState(Boolean(brand || size || sort));
+  // Luxury styles show the collection a page at a time: a hundred-plus photos at once is slow to load and no way to browse.
+  const [shown, setShown] = useState(LUXE_PAGE);
+  useEffect(() => setShown(LUXE_PAGE), [category, brand, size, search, sort]);
+  const tabHref = (slug: string) => {
+    const next = new URLSearchParams(params.toString());
+    if (slug) next.set('category', slug); else next.delete('category');
+    return next.toString() ? `/?${next.toString()}#catalog` : '/#catalog';
+  };
+
+  if (luxe) {
+    return (
+      <section className="shop-section" id="catalog" style={hasFilters ? { paddingTop: 'clamp(28px, 4vw, 56px)' } : undefined}>
+        <div className="shop-container">
+          {!hasFilters ? (
+            <div className="lux-head">
+              <div><span className="eyebrow">Browse</span><h2>The collection</h2></div>
+            </div>
+          ) : null}
+          {search ? <p className="lux-searching">Results for &ldquo;{search}&rdquo; <Link href={tabHref(category)}>Clear</Link></p> : null}
+
+          {categories.length > 0 ? (
+            <nav className="lux-tabs" aria-label="Categories">
+              <Link href={tabHref('')} className={category ? undefined : 'is-on'}>All</Link>
+              {categories.map((c) => <Link key={c.slug} href={tabHref(c.slug)} className={category === c.slug ? 'is-on' : undefined}>{c.name}</Link>)}
+            </nav>
+          ) : null}
+
+          <div className="lux-toolbar">
+            {filters.brands.length > 0 || filters.sizes.length > 0 ? (
+              <button type="button" aria-expanded={refineOpen} onClick={() => setRefineOpen((o) => !o)}>Refine {refineOpen ? '\u2212' : '+'}</button>
+            ) : <span />}
+            <span className="pf-count">{loading ? 'Loading...' : `${products.length} piece${products.length === 1 ? '' : 's'}`}</span>
+          </div>
+
+          {refineOpen ? (
+            <div className="pf-bar lux-refine" aria-label="Refine the collection">
+              <div className="pf-row">
+                <label>
+                  <span>Brand</span>
+                  <select value={brand} onChange={(e) => setParam('brand', e.target.value)}>
+                    <option value="">All brands</option>
+                    {filters.brands.map((b) => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </label>
+                <label>
+                  <span>Sort</span>
+                  <select value={sort} onChange={(e) => setParam('sort', e.target.value)}>
+                    <option value="">Newest</option>
+                    <option value="price-asc">Price: low to high</option>
+                    <option value="price-desc">Price: high to low</option>
+                    <option value="name">Name</option>
+                  </select>
+                </label>
+              </div>
+              {filters.sizes.length > 0 ? (
+                <div className="pf-sizes">
+                  <span>Size</span>
+                  <div className="pf-size-chips">
+                    <button type="button" className={`pf-chip${size ? '' : ' is-on'}`} onClick={() => setParam('size', '')}>Any</button>
+                    {filters.sizes.map((s) => (
+                      <button key={s} type="button" className={`pf-chip${size === s ? ' is-on' : ''}`} onClick={() => setParam('size', size === s ? '' : s)}>{s.replace('EUR ', '')}</button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {hasFilters ? <p style={{ marginTop: 16 }}><Link href="/#catalog" className="pf-clear">Clear all</Link></p> : null}
+            </div>
+          ) : null}
+
+          {products.length === 0 && !loading ? (
+            <div className="empty-state">
+              <h3>Nothing matches</h3>
+              <p>Try a different search, or clear the filters to see everything.</p>
+              <Link href="/#catalog" className="btn btn-primary">Clear filters</Link>
+            </div>
+          ) : (
+            <>
+              <div className="product-grid">
+                {products.slice(0, shown).map((product) => <ProductCard key={product.id} product={product} />)}
+              </div>
+              {products.length > shown ? (
+                <div className="lux-more">
+                  <p>Showing {shown} of {products.length}</p>
+                  <button type="button" className="btn btn-outline" onClick={() => setShown((n) => n + LUXE_PAGE)}>Show more</button>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="shop-section" id="catalog">

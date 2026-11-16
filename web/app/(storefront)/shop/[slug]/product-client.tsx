@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { OptionGroup, ShopInfo, ShopProduct } from '@/app/lib/api';
 import { hasSize, optionEntries, variantLabel } from '@/app/lib/variant-options';
 import { useCart } from '@/app/lib/cart';
@@ -11,6 +11,7 @@ import { ShareButton } from '@/app/share-button';
 import { ProductCard } from '@/app/product-card';
 import { WhatsAppIcon } from '@/app/whatsapp-icon';
 import { fireAdEvent, useTracker } from '@/app/lib/tracking';
+import { useShopStyle } from '@/app/lib/style-context';
 
 /**
  * Builds a structured WhatsApp enquiry for one product/size, the same shape
@@ -55,6 +56,9 @@ function buildEnquiry(product: ShopProduct, chosen: ShopProduct['variants'][numb
   return lines.join('\n');
 }
 
+/** The luxury styles drop the repeated "EUR" from a size ("EUR 42" becomes "42"); the label above the sizes says which scale it is. */
+const shortSize = (label: string) => label.replace(/^EUR\s+/i, '');
+
 /** brandPage: the shop's landing page for this product's brand, when it has one (links shoppers and crawlers there). */
 export function ProductClient({ product, shopInfo, brandPage }: { product: ShopProduct; shopInfo: ShopInfo; brandPage?: { href: string; label: string } }) {
   const cart = useCart();
@@ -66,6 +70,11 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
   const [manualSize, setManualSize] = useState('');
   const [added, setAdded] = useState(false);
   const [image, setImage] = useState(0);
+  const { luxe } = useShopStyle();
+  // Luxury gallery: click to zoom (a mouse), swipe to change photo (a phone).
+  const [zoom, setZoom] = useState(false);
+  const [zoomOrigin, setZoomOrigin] = useState('50% 50%');
+  const touchStart = useRef<number | null>(null);
   // Populated client-side only (see buildEnquiry's comment) -- null on the
   // server and on the client's very first paint, set immediately after via
   // this effect.
@@ -100,6 +109,26 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
   const condition = picked.condition && !/^(brand )?new$/i.test(picked.condition) ? picked.condition : null;
   const isOnSale = chosen?.wasPriceKes && Number(chosen.wasPriceKes) > Number(chosen.priceKes);
 
+  function addChosenToCart() {
+    if (!chosen) return;
+    cart.add({
+      variantId: chosen.id,
+      productSlug: product.slug,
+      name: product.name,
+      size: variantLabel(chosen),
+      sku: chosen.sku,
+      priceKes: Number(chosen.priceKes),
+      imageUrl: product.imageUrls[0] || null,
+    });
+    setAdded(true);
+    window.setTimeout(() => setAdded(false), 2000);
+  }
+  const photoCount = product.imageUrls.length;
+  const go = (delta: number) => { if (photoCount > 1) { setImage((i) => (i + delta + photoCount) % photoCount); setZoom(false); } };
+  const addLabel = added
+    ? (luxe ? 'Added to bag' : 'Added to cart')
+    : chosen ? (luxe ? 'Add to bag' : 'Add to cart') : sized ? 'Select a size' : 'Select an option';
+
   const shareUrl = origin ? `${origin}/shop/${product.slug}` : `/shop/${product.slug}`;
   const shareText = `${product.name}${product.brand ? ` by ${product.brand}` : ''}${chosen ? ` — KES ${Number(chosen.priceKes).toLocaleString()}` : ''}`;
 
@@ -109,8 +138,79 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
     : null;
 
   return (
-    <main className="shop-container shop-section">
+    <main className={`shop-container shop-section${luxe ? ' pdp-main' : ''}`}>
+      {luxe ? (
+        <nav className="pdp-crumbs" aria-label="Breadcrumb">
+          <Link href="/">Home</Link>
+          {product.category ? <><span aria-hidden="true">/</span><Link href={`/?category=${product.category.slug}#catalog`}>{product.category.name}</Link></> : null}
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{product.name}</span>
+        </nav>
+      ) : null}
       <div className="pdp-layout">
+        {luxe ? (
+          <div className={`pdp-gallery${photoCount > 1 ? '' : ' is-single'}`}>
+            {photoCount > 1 ? (
+              <div className="pdp-rail">
+                {product.imageUrls.map((url, index) => (
+                  <button key={url} type="button" className={index === image ? 'is-on' : undefined} onClick={() => { setImage(index); setZoom(false); }} aria-label={`View image ${index + 1}`}>
+                    <Image src={url} alt="" fill sizes="84px" style={{ objectFit: 'cover' }} />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div>
+              <div
+                className={`pdp-stage${zoom ? ' is-zoom' : ''}`}
+                tabIndex={0}
+                onClick={() => { if (window.matchMedia('(hover: hover)').matches) setZoom((z) => !z); }}
+                onMouseMove={(e) => {
+                  if (!zoom) return;
+                  const box = e.currentTarget.getBoundingClientRect();
+                  setZoomOrigin(`${((e.clientX - box.left) / box.width) * 100}% ${((e.clientY - box.top) / box.height) * 100}%`);
+                }}
+                onMouseLeave={() => setZoom(false)}
+                onKeyDown={(e) => { if (e.key === 'ArrowRight') go(1); if (e.key === 'ArrowLeft') go(-1); }}
+                onTouchStart={(e) => { touchStart.current = e.touches[0].clientX; }}
+                onTouchEnd={(e) => {
+                  if (touchStart.current === null) return;
+                  const delta = e.changedTouches[0].clientX - touchStart.current;
+                  touchStart.current = null;
+                  if (Math.abs(delta) > 40) go(delta < 0 ? 1 : -1);
+                }}
+              >
+                {product.imageUrls[image] ? (
+                  <Image
+                    src={product.imageUrls[image]}
+                    alt={product.name}
+                    fill
+                    sizes="(max-width: 860px) 100vw, 760px"
+                    style={{ objectFit: 'cover', transformOrigin: zoomOrigin }}
+                    priority
+                  />
+                ) : (
+                  <div className="product-card-placeholder" style={{ fontSize: 'var(--shop-text-3xl)' }}>{product.name.charAt(0)}</div>
+                )}
+                {photoCount > 1 ? (
+                  <>
+                    <button type="button" className="pdp-arrow is-prev" aria-label="Previous photo" onClick={(e) => { e.stopPropagation(); go(-1); }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 5-7 7 7 7" /></svg>
+                    </button>
+                    <button type="button" className="pdp-arrow is-next" aria-label="Next photo" onClick={(e) => { e.stopPropagation(); go(1); }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 5 7 7-7 7" /></svg>
+                    </button>
+                    <span className="pdp-counter">{image + 1} / {photoCount}</span>
+                  </>
+                ) : null}
+              </div>
+              {photoCount > 1 ? (
+                <div className="pdp-dots" aria-hidden="true">
+                  {product.imageUrls.map((url, index) => <button key={url} type="button" tabIndex={-1} className={index === image ? 'is-on' : undefined} onClick={() => setImage(index)} />)}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : (
         <div className="pdp-gallery">
           <div className="pdp-gallery-main">
             {product.imageUrls[image] ? (
@@ -142,9 +242,16 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
             </div>
           ) : null}
         </div>
+        )}
 
         <div className="pdp-info">
-          {product.category ? <span className="eyebrow">{product.category.name}</span> : null}
+          {luxe ? (
+            (brandPage || product.brand) ? (
+              brandPage
+                ? <Link href={brandPage.href} className="pdp-brand">{product.brand ?? brandPage.label}</Link>
+                : <span className="pdp-brand">{product.brand}</span>
+            ) : null
+          ) : product.category ? <span className="eyebrow">{product.category.name}</span> : null}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
             <h1>{product.name}</h1>
             <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
@@ -153,7 +260,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
             </div>
           </div>
 
-          {brandPage ? (
+          {brandPage && !luxe ? (
             <p style={{ margin: 0, fontSize: 'var(--shop-text-sm)' }}><Link href={brandPage.href}>{brandPage.label}</Link></p>
           ) : null}
 
@@ -167,7 +274,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
 
           {condition ? <p className="pdp-condition"><span className="sale-badge">{condition}</span></p> : null}
 
-          {product.description ? <p className="pdp-description">{product.description}</p> : null}
+          {product.description && !luxe ? <p className="pdp-description">{product.description}</p> : null}
 
           {groups.length > 0 ? (
             groups.map((group) => (
@@ -193,8 +300,8 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
           ) : product.variants.length > 1 || (product.variants.length === 1 && sized) ? (
             <div>
               <div className="pdp-field-label">
-                <span>{sized ? 'Size' : 'Option'}</span>
-                {chosen ? <span className="selected-value">{variantLabel(chosen)}</span> : null}
+                <span>{sized ? (luxe && product.variants.some((v) => /^EUR\s/i.test(variantLabel(v))) ? 'Size (EU)' : 'Size') : 'Option'}</span>
+                {chosen ? <span className="selected-value">{luxe ? shortSize(variantLabel(chosen)) : variantLabel(chosen)}</span> : null}
               </div>
               <div className="size-grid">
                 {/* Never disabled: a zero-stock size is still orderable, it
@@ -207,7 +314,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
                     className={`size-swatch${v.id === variantId ? ' is-selected' : ''}${v.stockOnHand <= 0 ? ' is-preorder' : ''}`}
                     onClick={() => setVariantId(v.id)}
                   >
-                    {variantLabel(v)}
+                    {luxe ? shortSize(variantLabel(v)) : variantLabel(v)}
                   </button>
                 ))}
               </div>
@@ -255,25 +362,8 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
           ) : null}
 
           <div className="pdp-actions">
-            <button
-              className="btn btn-primary btn-block"
-              disabled={!chosen}
-              onClick={() => {
-                if (!chosen) return;
-                cart.add({
-                  variantId: chosen.id,
-                  productSlug: product.slug,
-                  name: product.name,
-                  size: variantLabel(chosen),
-                  sku: chosen.sku,
-                  priceKes: Number(chosen.priceKes),
-                  imageUrl: product.imageUrls[0] || null,
-                });
-                setAdded(true);
-                window.setTimeout(() => setAdded(false), 2000);
-              }}
-            >
-              {added ? 'Added to cart' : chosen ? 'Add to cart' : sized ? 'Select a size' : 'Select an option'}
+            <button className="btn btn-primary btn-block" disabled={!chosen} onClick={addChosenToCart}>
+              {addLabel}
             </button>
 
             {whatsappHref ? (
@@ -300,6 +390,42 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
             ) : null}
           </div>
 
+          {luxe ? (
+            <div>
+              {product.description ? (
+                <details className="pdp-acc" open>
+                  <summary>Details</summary>
+                  <div className="pdp-acc-body"><p className="pdp-description">{product.description}</p></div>
+                </details>
+              ) : null}
+              {product.specs && product.specs.length > 0 ? (
+                <details className="pdp-acc">
+                  <summary>Specifications</summary>
+                  <div className="pdp-acc-body">
+                    <table>
+                      <tbody>
+                        {product.specs.map((row, i) => (
+                          <tr key={`${row.label}-${i}`}><th scope="row">{row.label}</th><td>{row.value}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </details>
+              ) : null}
+              <details className="pdp-acc">
+                <summary>Delivery &amp; help</summary>
+                <div className="pdp-acc-body">
+                  <ul>
+                    {shopInfo.deliveryFeeKes ? <li>Delivery from KES {Number(shopInfo.deliveryFeeKes).toLocaleString()}.</li> : null}
+                    {shopInfo.freeDeliveryOverKes ? <li>Complimentary delivery on orders over KES {Number(shopInfo.freeDeliveryOverKes).toLocaleString()}.</li> : null}
+                    {whatsappHref ? <li>Not sure of your size, or want to see more photos? Message us on WhatsApp.</li> : null}
+                    <li>Pay securely at checkout.</li>
+                  </ul>
+                </div>
+              </details>
+            </div>
+          ) : null}
+
           <div className="trust-row">
             <span>Secure checkout</span>
             <span>Fast local delivery</span>
@@ -308,7 +434,7 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
         </div>
       </div>
 
-      {product.specs && product.specs.length > 0 ? (
+      {product.specs && product.specs.length > 0 && !luxe ? (
         <section className="pdp-specs" aria-labelledby="pdp-specs-title">
           <h2 id="pdp-specs-title">Specifications</h2>
           <table>
@@ -326,13 +452,20 @@ export function ProductClient({ product, shopInfo, brandPage }: { product: ShopP
 
       {product.related && product.related.length > 0 ? (
         <section className="related-products">
-          <h2>You might also like</h2>
+          <h2>{luxe ? 'You may also like' : 'You might also like'}</h2>
           <div className="product-grid">
             {product.related.map((item) => (
               <ProductCard key={item.id} product={item} />
             ))}
           </div>
         </section>
+      ) : null}
+
+      {luxe && chosen ? (
+        <div className="pdp-stickybar">
+          <div className="price"><small>{shortSize(variantLabel(chosen))}</small>KES {Number(chosen.priceKes).toLocaleString()}</div>
+          <button type="button" className="btn btn-primary" onClick={addChosenToCart}>{added ? 'Added' : 'Add to bag'}</button>
+        </div>
       ) : null}
     </main>
   );
