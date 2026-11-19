@@ -574,8 +574,8 @@
 [data-luxe] .ps-all { background: transparent; border-top: 1px solid var(--shop-line); padding: 18px 0; font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.22em; }
 [data-luxe] .ps-all:hover { background: transparent; color: var(--lux-gold-text); }
 
-/* Staff sign-in links are not something a customer of a luxury store should meet in its footer; the pages are still at /portal and /admin. */
-[data-luxe] .shop-footer-staff { display: none; }
+/* The merchant portal and admin sign-in links stay visible in the footer, as in the classic look: staff reach /portal/login and /admin/login from here.
+   (They were hidden for a while in the luxury styles, which left no link to either page.) */
 
 /* The cart's bare inputs (discount code, delivery fields) wear the same hairline as the labelled form fields. */
 [data-luxe] .summary-card input:not([type='checkbox']):not([type='radio']),
