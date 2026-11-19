@@ -6,7 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { toCsv } from '../common/csv';
 
 const CUSTOMER_CSV_COLUMNS = ['name', 'email', 'phone', 'hasAccount', 'firstSeen', 'lastOrder', 'orders', 'paidOrders', 'lifetimeValueKes'];
-const SORTS = ['recent', 'spent', 'orders'] as const;
+const SORTS = ['recent', 'spent', 'orders', 'name', 'oldest', 'spent_asc'] as const;
 const sortOf = (v?: string) => (SORTS as readonly string[]).includes(v ?? '') ? (v as (typeof SORTS)[number]) : undefined;
 
 @ApiTags('portal-customer')

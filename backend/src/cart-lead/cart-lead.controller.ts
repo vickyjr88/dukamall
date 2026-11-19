@@ -37,8 +37,16 @@ export class PortalCartLeadController {
   constructor(private cartLeadService: CartLeadService) {}
 
   @Get()
-  list(@ShopId() shopId: string, @Query('page') page?: string, @Query('pageSize') pageSize?: string, @Query('status') status?: LeadStatus) {
-    return this.cartLeadService.list(shopId, page ? Number(page) : undefined, pageSize ? Number(pageSize) : undefined, status);
+  list(
+    @ShopId() shopId: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: LeadStatus,
+    @Query('source') source?: string,
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
+  ) {
+    return this.cartLeadService.list(shopId, { page: page ? Number(page) : undefined, pageSize: pageSize ? Number(pageSize) : undefined, status, source, search, sort });
   }
 
   @Get(':id')

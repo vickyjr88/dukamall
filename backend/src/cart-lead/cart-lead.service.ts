@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { LeadStatus } from '@prisma/client';
+import { LeadStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RecordCartLeadDto } from './cart-lead.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -37,23 +37,37 @@ export class CartLeadService {
   // the database with only the admin console's cross-shop view able to see
   // them. This is the actual "who almost bought and didn't" follow-up list
   // a shop owner would use to call or WhatsApp someone back.
-  async list(shopId: string, page = 1, pageSize = 25, status?: LeadStatus) {
-    const safePage = Math.max(1, page);
-    const safePageSize = Math.min(100, Math.max(1, pageSize));
+  async list(shopId: string, opts: { page?: number; pageSize?: number; status?: LeadStatus; source?: string; search?: string; sort?: string } = {}) {
+    const safePage = Math.max(1, opts.page ?? 1);
+    const safePageSize = Math.min(100, Math.max(1, opts.pageSize ?? 25));
     const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
     const origin = storefrontOriginForShop(shop);
-    const [rows, total] = await Promise.all([
-      this.prisma.cartLead.findMany({
-        where: { shopId, ...(status ? { status } : {}) },
-        ...LEAD_LINES,
-        orderBy: { createdAt: 'desc' },
-        skip: (safePage - 1) * safePageSize,
-        take: safePageSize,
-      }),
-      this.prisma.cartLead.count({ where: { shopId, ...(status ? { status } : {}) } }),
+
+    const source = opts.source === 'WHATSAPP_ORDER' || opts.source === 'ABANDONED_CART' ? opts.source : undefined;
+    const term = (opts.search || '').trim();
+    // Everything but the status tab, so each tab's count says what it would show with the search and source as they are.
+    const base: Prisma.CartLeadWhereInput = {
+      shopId,
+      ...(source ? { source } : {}),
+      ...(term ? { OR: [
+        { customerName: { contains: term, mode: 'insensitive' } },
+        { customerPhone: { contains: term, mode: 'insensitive' } },
+        { customerEmail: { contains: term, mode: 'insensitive' } },
+        { lines: { some: { name: { contains: term, mode: 'insensitive' } } } },
+      ] } : {}),
+    };
+    const where: Prisma.CartLeadWhereInput = { ...base, ...(opts.status ? { status: opts.status } : {}) };
+    const orderBy: Prisma.CartLeadOrderByWithRelationInput[] = opts.sort === 'oldest' ? [{ createdAt: 'asc' }] : opts.sort === 'name' ? [{ customerName: 'asc' }, { createdAt: 'desc' }] : [{ createdAt: 'desc' }];
+
+    const [rows, total, byStatus] = await Promise.all([
+      this.prisma.cartLead.findMany({ where, ...LEAD_LINES, orderBy, skip: (safePage - 1) * safePageSize, take: safePageSize }),
+      this.prisma.cartLead.count({ where }),
+      this.prisma.cartLead.groupBy({ by: ['status'], where: base, _count: { _all: true } }),
     ]);
+    const n = (status: string) => byStatus.find((r) => r.status === status)?._count._all ?? 0;
+    const counts = { all: byStatus.reduce((sum, r) => sum + r._count._all, 0), NEW: n('NEW'), CONTACTED: n('CONTACTED'), CONVERTED: n('CONVERTED'), LOST: n('LOST') };
     const leads = rows.map((lead) => ({ ...lead, followUp: leadFollowUp(lead, shop, origin) }));
-    return { leads, total, page: safePage, pageSize: safePageSize, totalPages: Math.max(1, Math.ceil(total / safePageSize)) };
+    return { leads, total, page: safePage, pageSize: safePageSize, totalPages: Math.max(1, Math.ceil(total / safePageSize)), counts };
   }
 
   async get(shopId: string, leadId: string) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { Pager, SearchField, SortHeader, useLocalList } from '../list-kit';
 import { portalFetch } from '../portal-api';
 
 type Discount = {
@@ -18,6 +19,21 @@ export default function DiscountsPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const list = useLocalList(discounts, {
+    text: (d) => d.code,
+    sort: 'newest',
+    sorts: {
+      newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
+      oldest: (a, b) => a.createdAt.localeCompare(b.createdAt),
+      code: (a, b) => a.code.localeCompare(b.code),
+      code_desc: (a, b) => b.code.localeCompare(a.code),
+      uses_desc: (a, b) => b._count.redemptions - a._count.redemptions,
+      uses_asc: (a, b) => a._count.redemptions - b._count.redemptions,
+      // A code that never expires sorts after every dated one in either direction, so "soonest" is never "never".
+      expires: (a, b) => (a.expiresAt ? Date.parse(a.expiresAt) : Infinity) - (b.expiresAt ? Date.parse(b.expiresAt) : Infinity) || 0,
+      expires_desc: (a, b) => (b.expiresAt ? Date.parse(b.expiresAt) : -Infinity) - (a.expiresAt ? Date.parse(a.expiresAt) : -Infinity) || 0,
+    },
+  });
 
   async function load() {
     const res = await portalFetch('/portal/discounts');
@@ -133,16 +149,27 @@ export default function DiscountsPage() {
       {!discounts ? <p>Loading...</p> : discounts.length === 0 ? (
         <div className="portal-empty">No discount codes yet -- create one above.</div>
       ) : (
+        <>
+        <div style={{ marginBottom: 12, maxWidth: 360 }}><SearchField value={list.q} onChange={list.setQ} placeholder="Search codes" label="Search discount codes" /></div>
+        {list.rows.length === 0 ? <div className="portal-card portal-empty">No codes match that.</div> : (
         <div className="portal-card" style={{ padding: 0, overflow: 'hidden' }}>
           <table className="portal-table">
-            <thead><tr><th>Code</th><th>Discount</th><th>Uses</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+            <thead><tr>
+              <SortHeader label="Code" asc="code" desc="code_desc" sort={list.sort} onSort={list.setSort} />
+              <th>Discount</th>
+              <SortHeader label="Uses" asc="uses_asc" desc="uses_desc" sort={list.sort} onSort={list.setSort} />
+              <SortHeader label="Expires" asc="expires" desc="expires_desc" sort={list.sort} onSort={list.setSort} />
+              <SortHeader label="Created" asc="oldest" desc="newest" sort={list.sort} onSort={list.setSort} />
+              <th>Status</th><th />
+            </tr></thead>
             <tbody>
-              {discounts.map((d) => (
+              {list.rows.map((d) => (
                 <tr key={d.id}>
                   <td style={{ fontWeight: 600 }}>{d.code}</td>
                   <td>{describe(d)}</td>
                   <td>{d._count.redemptions}{d.usageLimit ? ` / ${d.usageLimit}` : ''}</td>
                   <td>{d.expiresAt ? new Date(d.expiresAt).toLocaleDateString() : <span style={{ color: 'var(--p-muted)' }}>Never</span>}</td>
+                  <td>{new Date(d.createdAt).toLocaleDateString()}</td>
                   <td>
                     {isExpired(d) ? (
                       <span className="portal-badge is-cancelled">Expired</span>
@@ -161,6 +188,9 @@ export default function DiscountsPage() {
             </tbody>
           </table>
         </div>
+        )}
+        <Pager page={list.page} pageSize={list.size} total={list.total} totalPages={list.totalPages} onPage={list.setPage} onSize={list.setSize} />
+        </>
       )}
     </div>
   );

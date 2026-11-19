@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { portalFetch } from '../portal-api';
+import { Pager, SearchField, SortHeader, useLocalList } from '../list-kit';
 
 type Category = { id: string; name: string; slug: string; isActive: boolean; section?: string | null; _count: { products: number } };
 
@@ -16,6 +17,18 @@ export default function CategoriesPage() {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const list = useLocalList(categories, {
+    text: (c) => `${c.name} ${SECTION_LABELS.find(([k]) => k === c.section)?.[1] ?? ''}`,
+    sort: 'name',
+    sorts: {
+      name: (a, b) => a.name.localeCompare(b.name),
+      name_desc: (a, b) => b.name.localeCompare(a.name),
+      products_desc: (a, b) => b._count.products - a._count.products || a.name.localeCompare(b.name),
+      products_asc: (a, b) => a._count.products - b._count.products || a.name.localeCompare(b.name),
+      section: (a, b) => (a.section ?? '~').localeCompare(b.section ?? '~') || a.name.localeCompare(b.name),
+      section_desc: (a, b) => (b.section ?? '').localeCompare(a.section ?? '') || a.name.localeCompare(b.name),
+    },
+  });
 
   async function load() {
     const res = await portalFetch('/portal/categories');
@@ -109,11 +122,19 @@ export default function CategoriesPage() {
       {!categories ? <p>Loading...</p> : categories.length === 0 ? (
         <div className="portal-empty">No categories yet -- add one above to start organizing your products.</div>
       ) : (
+        <>
+        <div style={{ marginBottom: 12, maxWidth: 360 }}><SearchField value={list.q} onChange={list.setQ} placeholder="Search categories" label="Search categories" /></div>
+        {list.rows.length === 0 ? <div className="portal-card portal-empty" style={{ maxWidth: 820 }}>No categories match that.</div> : (
         <div className="portal-card" style={{ padding: 0, overflow: 'hidden', maxWidth: 820 }}>
           <table className="portal-table">
-            <thead><tr><th>Name</th><th>Section</th><th>Products</th><th>Status</th><th></th></tr></thead>
+            <thead><tr>
+              <SortHeader label="Name" asc="name" desc="name_desc" sort={list.sort} onSort={list.setSort} />
+              <SortHeader label="Section" asc="section" desc="section_desc" sort={list.sort} onSort={list.setSort} />
+              <SortHeader label="Products" asc="products_asc" desc="products_desc" sort={list.sort} onSort={list.setSort} />
+              <th>Status</th><th />
+            </tr></thead>
             <tbody>
-              {categories.map((cat) => (
+              {list.rows.map((cat) => (
                 <tr key={cat.id}>
                   <td>
                     {editingId === cat.id ? (
@@ -164,6 +185,9 @@ export default function CategoriesPage() {
             </tbody>
           </table>
         </div>
+        )}
+        <div style={{ maxWidth: 820 }}><Pager page={list.page} pageSize={list.size} total={list.total} totalPages={list.totalPages} onPage={list.setPage} onSize={list.setSize} /></div>
+        </>
       )}
     </div>
   );

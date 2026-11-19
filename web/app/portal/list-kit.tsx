@@ -186,3 +186,33 @@ export function useSelection() {
   const clear = useCallback(() => setIds(new Set()), []);
   return { ids, toggle, setMany, clear };
 }
+
+/**
+ * Search, sort and paging for a list the page already holds in full (discount codes, categories): the same controls and
+ * the same state as the server-backed lists, without a round trip. Searching ignores case and matches every word.
+ */
+export function useLocalList<T>(items: T[] | null, opts: { text: (item: T) => string; sorts: Record<string, (a: T, b: T) => number>; sort: string; size?: number }) {
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState(opts.sort);
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(opts.size ?? 25);
+
+  const filtered = useMemo(() => {
+    const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const kept = (items ?? []).filter((item) => { const t = opts.text(item).toLowerCase(); return words.every((w) => t.includes(w)); });
+    const compare = opts.sorts[sort] ?? Object.values(opts.sorts)[0];
+    return [...kept].sort(compare);
+  }, [items, q, sort]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / size));
+  const current = Math.min(page, totalPages);
+  const rows = filtered.slice((current - 1) * size, current * size);
+
+  return {
+    q, sort, page: current, size, rows, total: filtered.length, totalPages, all: items?.length ?? 0,
+    setQ: (v: string) => { setQ(v); setPage(1); },
+    setSort: (v: string) => { setSort(v); setPage(1); },
+    setPage,
+    setSize: (n: number) => { setSize(n); setPage(1); },
+  };
+}

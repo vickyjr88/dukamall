@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { portalFetch } from '../portal-api';
 import { FollowUp, FollowUpButton, FollowUpPreview } from '../follow-up';
+import { Chips, Pager, SearchField, SortSelect, useListState } from '../list-kit';
 
 type LeadLine = { id: string; variantId: string | null; name: string; size: string; quantity: number; priceKes: string; isCustomSize: boolean };
 type LeadStatus = 'NEW' | 'CONTACTED' | 'CONVERTED' | 'LOST';
@@ -17,36 +18,37 @@ type CartLead = {
 const SOURCE_LABEL: Record<CartLead['source'], string> = { WHATSAPP_ORDER: 'WhatsApp order', ABANDONED_CART: 'Abandoned cart' };
 const STATUS_LABEL: Record<LeadStatus, string> = { NEW: 'New', CONTACTED: 'Contacted', CONVERTED: 'Order created', LOST: 'Lost' };
 const STATUS_CLASS: Record<LeadStatus, string> = { NEW: 'is-pending', CONTACTED: 'is-info', CONVERTED: 'is-paid', LOST: 'is-muted' };
-const TABS: { value: '' | LeadStatus; label: string }[] = [
-  { value: '', label: 'All' }, { value: 'NEW', label: 'New' }, { value: 'CONTACTED', label: 'Contacted' }, { value: 'CONVERTED', label: 'Order created' }, { value: 'LOST', label: 'Lost' },
-];
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+type Counts = { all: number; NEW: number; CONTACTED: number; CONVERTED: number; LOST: number };
+const SORTS = [{ value: 'newest', label: 'Newest first' }, { value: 'oldest', label: 'Oldest first' }, { value: 'name', label: 'Name A to Z' }];
 
 // People who started a WhatsApp order or left items in their cart. This is the
 // follow-up list: contact them, mark where it stands, and turn a real enquiry
 // into an order (which also counts it toward stock, revenue and conversion).
 export default function LeadsPage() {
+  const { state, set, reset, ready, dirty } = useListState({ status: '', source: '' }, { sort: 'newest' });
   const [leads, setLeads] = useState<CartLead[] | null>(null);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [status, setStatus] = useState<'' | LeadStatus>('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [counts, setCounts] = useState<Counts | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const status = state.status as '' | LeadStatus;
 
-  async function load() {
-    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    if (status) query.set('status', status);
+  const load = useCallback(async () => {
+    const query = new URLSearchParams({ page: String(state.page), pageSize: String(state.size), sort: state.sort });
+    if (state.status) query.set('status', state.status);
+    if (state.source) query.set('source', state.source);
+    if (state.q) query.set('search', state.q);
     const res = await portalFetch(`/portal/cart-leads?${query.toString()}`);
     if (res.ok) {
       const data = await res.json();
       setLeads(data.leads);
       setTotal(data.total);
       setTotalPages(data.totalPages);
+      setCounts(data.counts);
     }
-  }
-  useEffect(() => { load(); }, [page, pageSize, status]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.page, state.size, state.sort, state.status, state.source, state.q]);
+  useEffect(() => { if (ready) void load(); }, [ready, load]);
 
   async function setLeadStatus(id: string, next: Exclude<LeadStatus, 'CONVERTED'>) {
     setError(null);
@@ -63,29 +65,39 @@ export default function LeadsPage() {
 
   return (
     <div>
-      <div className="portal-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="portal-page-head">
         <h3>Leads</h3>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--p-muted)', textTransform: 'uppercase' }}>
-          Per page
-          <select value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }} style={{ minWidth: 90 }}>
-            {PAGE_SIZE_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label>
+        <p style={{ fontSize: 13, color: 'var(--p-muted)' }}>People who started a WhatsApp order or left items in their cart. Contact them, then mark where it stands.</p>
       </div>
 
-      <div className="portal-tabs">
-        {TABS.map((t) => (
-          <button key={t.value} className={status === t.value ? 'is-active' : ''} onClick={() => { setStatus(t.value); setPage(1); }}>{t.label}</button>
-        ))}
+      <div className="portal-card" style={{ marginBottom: 14 }}>
+        <div className="lk-toolbar">
+          <SearchField value={state.q} onChange={(q) => set({ q })} placeholder="Name, phone, email or product" label="Search leads" />
+          <label className="lk-field">
+            Where from
+            <select value={state.source} onChange={(e) => set({ source: e.target.value })}>
+              <option value="">Any</option><option value="WHATSAPP_ORDER">WhatsApp order</option><option value="ABANDONED_CART">Abandoned cart</option>
+            </select>
+          </label>
+          <SortSelect value={state.sort} onChange={(sort) => set({ sort })} options={SORTS} />
+        </div>
+        <Chips
+          value={state.status}
+          onChange={(v) => set({ status: v })}
+          chips={[
+            { value: '', label: 'All', count: counts?.all },
+            { value: 'NEW', label: 'New', count: counts?.NEW, tone: 'warn' },
+            { value: 'CONTACTED', label: 'Contacted', count: counts?.CONTACTED },
+            { value: 'CONVERTED', label: 'Order created', count: counts?.CONVERTED },
+            { value: 'LOST', label: 'Lost', count: counts?.LOST },
+          ]}
+        />
+        {dirty ? <div style={{ marginTop: 10 }}><button type="button" className="portal-btn-ghost" onClick={reset}>Clear search and filters</button></div> : null}
       </div>
-
-      <p style={{ fontSize: 13, color: 'var(--p-muted)', margin: '12px 0 16px' }}>
-        People who started a WhatsApp order or left items in their cart &mdash; {total} {status ? STATUS_LABEL[status].toLowerCase() : 'in total'}.
-      </p>
       {error ? <div className="portal-alert is-error">{error}</div> : null}
 
       {!leads ? <p>Loading...</p> : leads.length === 0 ? (
-        <div className="portal-empty">{status ? 'No leads with that status.' : 'No leads yet. These show up when a shopper orders via WhatsApp or leaves items in their cart.'}</div>
+        <div className="portal-empty">{dirty ? 'No leads match that.' : 'No leads yet. These show up when a shopper orders via WhatsApp or leaves items in their cart.'}</div>
       ) : (
         <div className="portal-card" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="portal-table">
@@ -94,8 +106,8 @@ export default function LeadsPage() {
               {leads.map((lead) => {
                 const converted = lead.status === 'CONVERTED';
                 return (
-                  <>
-                    <tr key={lead.id}>
+                  <Fragment key={lead.id}>
+                    <tr>
                       <td style={{ whiteSpace: 'nowrap' }}>{new Date(lead.createdAt).toLocaleString()}</td>
                       <td><span className={`portal-badge ${lead.source === 'WHATSAPP_ORDER' ? 'is-paid' : 'is-pending'}`}>{SOURCE_LABEL[lead.source]}</span></td>
                       <td>
@@ -142,7 +154,7 @@ export default function LeadsPage() {
                         </td>
                       </tr>
                     ) : null}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -150,13 +162,7 @@ export default function LeadsPage() {
         </div>
       )}
 
-      {totalPages > 1 ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginTop: 20 }}>
-          <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
-          <span style={{ fontSize: 13, color: 'var(--p-muted)' }}>Page {page} of {totalPages}</span>
-          <button className="portal-btn-outline portal-btn portal-btn-sm" disabled={page >= totalPages} onClick={() => setPage(page + 1)}>Next</button>
-        </div>
-      ) : null}
+      <Pager page={state.page} pageSize={state.size} total={total} totalPages={totalPages} onPage={(page) => set({ page })} onSize={(size) => set({ size })} />
     </div>
   );
 }

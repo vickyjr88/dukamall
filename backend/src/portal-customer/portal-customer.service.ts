@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export type PortalCustomerListQuery = {
   search?: string;
-  sort?: 'recent' | 'spent' | 'orders';
+  sort?: 'recent' | 'spent' | 'orders' | 'name' | 'oldest' | 'spent_asc';
   page?: number;
   pageSize?: number;
 };
@@ -156,7 +156,10 @@ export class PortalCustomerService {
   private orderBy(sort?: PortalCustomerListQuery['sort']): Prisma.Sql {
     const recency = Prisma.sql`coalesce(last_order_at, first_seen) DESC, key`;
     if (sort === 'spent') return Prisma.sql`ORDER BY ltv DESC, ${recency}`;
+    if (sort === 'spent_asc') return Prisma.sql`ORDER BY ltv ASC, ${recency}`;
     if (sort === 'orders') return Prisma.sql`ORDER BY order_count DESC, ${recency}`;
+    if (sort === 'name') return Prisma.sql`ORDER BY lower(name) ASC, key`;
+    if (sort === 'oldest') return Prisma.sql`ORDER BY coalesce(last_order_at, first_seen) ASC, key`;
     return Prisma.sql`ORDER BY ${recency}`;
   }
 
