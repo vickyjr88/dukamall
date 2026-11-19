@@ -57,6 +57,12 @@ const GROUPS: { label?: string; links: { href: string; label: string }[] }[] = [
   },
 ];
 
+/** The name of the page a path belongs to, for the phone's top bar. */
+export function pageLabel(pathname: string): string {
+  const all = GROUPS.flatMap((g) => g.links);
+  return all.find((l) => pathname === l.href || pathname.startsWith(`${l.href}/`))?.label ?? '';
+}
+
 // Login/signup have no session yet -- no nav chrome (or a logout button
 // that would do nothing) makes sense on either. /portal/sso is a one-hop
 // redirect landing (see its own page.tsx) with the same reasoning.

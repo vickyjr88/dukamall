@@ -16,6 +16,12 @@ const LINKS = [
   { href: '/admin/settings', label: 'Settings' },
 ];
 
+/** The name of the page a path belongs to, for the phone's top bar. */
+export function adminPageLabel(pathname: string): string {
+  const all = [...LINKS, { href: '/admin/security', label: 'Security' }];
+  return all.find((l) => pathname === l.href || pathname.startsWith(`${l.href}/`))?.label ?? '';
+}
+
 // Login has no session yet -- no nav chrome (or a logout button that would
 // do nothing) makes sense here, mirroring portal/portal-nav.tsx.
 const NO_NAV_PATHS = ['/admin/login', '/admin/forgot-password', '/admin/reset-password'];

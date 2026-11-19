@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import './admin.css';
-import { AdminNav } from './admin-nav';
+import { AdminNav, adminPageLabel } from './admin-nav';
+import { Backdrop, CloseButton, TopBar, useDrawer } from '../mobile-drawer';
 import { adminFetch } from './admin-api';
 
 // Login renders its own full-page .admin-auth-shell (see login/page.tsx)
@@ -23,6 +24,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // about it is shown anywhere.
   const [twoFactor, setTwoFactor] = useState<TwoFactor | null>(null);
   const signedOutPage = NO_SIDEBAR_PATHS.includes(pathname);
+  const drawer = useDrawer(pathname);
 
   useEffect(() => {
     if (signedOutPage) return;
@@ -40,8 +42,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="admin-root">
       <div className="admin-shell">
-        <aside className="admin-sidebar">
-          <div className="admin-sidebar-brand">Shops Platform</div>
+        <TopBar className="admin-topbar" brand="Operator console" title={adminPageLabel(pathname)} drawerId="admin-drawer" open={drawer.open} onOpen={() => drawer.setOpen(true)} openerRef={drawer.opener} />
+        <Backdrop open={drawer.open} onClose={drawer.close} />
+        <aside id="admin-drawer" className={`admin-sidebar${drawer.open ? ' is-open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).closest('a')) drawer.close(); }}>
+          <div className="admin-sidebar-brand">Shops Platform<CloseButton onClose={drawer.close} closeRef={drawer.closer} /></div>
           <div className="admin-sidebar-tag">Operator console</div>
           <AdminNav showSecurity={Boolean(twoFactor?.available)} />
         </aside>

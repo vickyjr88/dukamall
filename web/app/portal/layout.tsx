@@ -2,7 +2,8 @@
 
 import { usePathname } from 'next/navigation';
 import './portal.css';
-import { PortalNav } from './portal-nav';
+import { PortalNav, pageLabel } from './portal-nav';
+import { Backdrop, CloseButton, TopBar, useDrawer } from '../mobile-drawer';
 import { clearCachedRole, OWNER_ONLY_PATHS, OwnerOnlyNotice, PortalSessionProvider, useSession } from './portal-session';
 
 // Login/signup render their own full-page .portal-auth-shell (see
@@ -25,6 +26,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 function PortalChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { ready, role, me } = useSession();
+  const drawer = useDrawer(pathname);
 
   if (NO_SIDEBAR_PATHS.includes(pathname)) {
     return (
@@ -50,8 +52,11 @@ function PortalChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="portal-root">
       <div className="portal-shell">
-        <aside className="portal-sidebar">
-          <div className="portal-sidebar-brand">Shops Platform</div>
+        <TopBar className="portal-topbar" brand="Shops Platform" title={pageLabel(pathname)} drawerId="portal-drawer" open={drawer.open} onOpen={() => drawer.setOpen(true)} openerRef={drawer.opener} />
+        <Backdrop open={drawer.open} onClose={drawer.close} />
+        {/* A tap on any link inside the drawer closes it, even a link to the page you are already on (which changes no path). */}
+        <aside id="portal-drawer" className={`portal-sidebar${drawer.open ? ' is-open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).closest('a')) drawer.close(); }}>
+          <div className="portal-sidebar-brand">Shops Platform<CloseButton onClose={drawer.close} closeRef={drawer.closer} /></div>
           <PortalNav />
         </aside>
         <main className="portal-content">

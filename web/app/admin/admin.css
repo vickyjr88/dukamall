@@ -112,12 +112,21 @@
 .admin-content { flex: 1; min-width: 0; padding: 32px 40px; max-width: 1320px; }
 @media (max-width: 800px) {
   .admin-shell { flex-direction: column; }
-  .admin-sidebar { width: 100%; flex-direction: row; align-items: center; padding: 12px 16px; flex-wrap: wrap; min-width: 0; }
-  .admin-sidebar-tag { padding: 0 0 0 10px; }
-  /* One swipeable row of links instead of a tall wrapped block above the page. */
-  .admin-nav { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; min-width: 0; flex: 1 1 100%; scrollbar-width: none; }
-  .admin-nav::-webkit-scrollbar { display: none; }
-  .admin-nav a, .admin-nav button { white-space: nowrap; flex-shrink: 0; }
+  /* The sidebar becomes a drawer: out of the page, off the left edge, until the menu button brings it in. */
+  .admin-sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 50;
+    width: min(300px, 86vw); max-width: none; flex-direction: column; align-items: stretch;
+    padding: calc(16px + env(safe-area-inset-top)) 14px calc(16px + env(safe-area-inset-bottom));
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    transform: translateX(-104%); visibility: hidden;
+    transition: transform 0.22s ease, visibility 0s linear 0.22s;
+    box-shadow: none;
+  }
+  .admin-sidebar.is-open { transform: translateX(0); visibility: visible; transition: transform 0.22s ease; box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35); }
+  .admin-sidebar-brand { display: flex; align-items: center; padding-bottom: 14px; }
+  .admin-nav { flex-direction: column; flex-wrap: nowrap; overflow: visible; }
+  .admin-nav a { padding: 12px 12px; font-size: 0.95rem; }
+  .admin-nav button { padding: 12px; }
   .admin-content { padding: 20px 16px; }
   /* Wide tables scroll sideways inside themselves rather than stretching the page. */
   .admin-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
