@@ -10,9 +10,8 @@ import { FunnelSection } from './funnel-section';
 import { MoneySection } from './money-section';
 import { StockSection } from './stock-section';
 import { BuyersSection } from './buyers-section';
+import { OverviewSection } from './overview-section';
 
-type Granularity = 'day' | 'week' | 'month';
-type TrendPoint = { date: string; revenueKes: number; orderCount: number };
 type BreakdownRow = { name: string; revenueKes: number; unitsSold: number };
 type LeadConversion = {
   totalLeads: number; converted: number; conversionRate: number; convertedRevenueKes: number;
@@ -29,8 +28,9 @@ type Tab = (typeof TABS)[number]['key'];
 
 const PIE_COLORS = ['#2438a8', '#0f7a40', '#a85b00', '#b3261e', '#6b7280', '#7c3aed', '#0891b2', '#be185d'];
 
+// The shop's day is a Nairobi day (UTC+3, no daylight saving): a sale at 23:30 on the 19th is the 19th's, wherever the browser is.
 function toDateInput(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  return new Date(d.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 // Reads the portal's own --p-* CSS tokens at render time rather than
@@ -57,12 +57,9 @@ export default function AnalyticsPage() {
   const today = useMemo(() => new Date(), []);
   const [from, setFrom] = useState(toDateInput(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)));
   const [to, setTo] = useState(toDateInput(today));
-  const [granularity, setGranularity] = useState<Granularity>('day');
   const [tab, setTab] = useState<Tab>('overview');
 
-  const [trend, setTrend] = useState<TrendPoint[] | null>(null);
   const [breakdown, setBreakdown] = useState<{ byCategory: BreakdownRow[]; byBrand: BreakdownRow[] } | null>(null);
-  const [repeatRate, setRepeatRate] = useState<number | null>(null);
   const [leads, setLeads] = useState<LeadConversion | null>(null);
 
   useEffect(() => {
@@ -71,19 +68,14 @@ export default function AnalyticsPage() {
     // the whole page (the analytics routes are owner-only on the API).
     const load = <T,>(path: string, set: (v: T) => void) =>
       portalFetch(path).then((r) => (r.ok ? r.json() : null)).then((v) => { if (v) set(v); }).catch(() => {});
-    load<TrendPoint[]>(`/portal/analytics/revenue-trend?${query.toString()}&granularity=${granularity}`, setTrend);
     load<{ byCategory: BreakdownRow[]; byBrand: BreakdownRow[] }>(`/portal/analytics/sales-breakdown?${query.toString()}`, setBreakdown);
-    load<{ repeatRate: number }>(`/portal/analytics/buyers?${query.toString()}`, (v) => setRepeatRate(v.repeatRate));
     load<LeadConversion>(`/portal/analytics/lead-conversion?${query.toString()}`, setLeads);
-  }, [from, to, granularity]);
-
-  const totalRevenue = trend?.reduce((sum, p) => sum + p.revenueKes, 0) ?? 0;
-  const totalOrders = trend?.reduce((sum, p) => sum + p.orderCount, 0) ?? 0;
+  }, [from, to]);
 
   function setPreset(days: number) {
     const end = new Date();
     setTo(toDateInput(end));
-    setFrom(toDateInput(new Date(end.getTime() - days * 24 * 60 * 60 * 1000)));
+    setFrom(toDateInput(new Date(end.getTime() - Math.max(0, days - 1) * 24 * 60 * 60 * 1000)));
   }
 
   return (
@@ -99,15 +91,8 @@ export default function AnalyticsPage() {
           To
           <input type="date" value={to} onChange={(e) => setTo(e.target.value)} min={from} max={toDateInput(today)} />
         </label>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--p-muted)', textTransform: 'uppercase' }}>
-          Granularity
-          <select value={granularity} onChange={(e) => setGranularity(e.target.value as Granularity)}>
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
-          </select>
-        </label>
         <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => setPreset(0)}>Today</button>
           <button type="button" className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => setPreset(7)}>7d</button>
           <button type="button" className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => setPreset(30)}>30d</button>
           <button type="button" className="portal-btn-outline portal-btn portal-btn-sm" onClick={() => setPreset(90)}>90d</button>
@@ -121,52 +106,11 @@ export default function AnalyticsPage() {
       </div>
 
       {tab === 'overview' ? (<>
-      <div className="portal-stat-row">
-        <div className="portal-stat">
-          <div className="label">Revenue in range</div>
-          <div className="value">KES {totalRevenue.toLocaleString()}</div>
-        </div>
-        <div className="portal-stat">
-          <div className="label">Paid orders</div>
-          <div className="value">{totalOrders}</div>
-        </div>
-        <div className="portal-stat">
-          <div className="label">Buyers who came back</div>
-          <div className="value">{repeatRate !== null ? `${(repeatRate * 100).toFixed(0)}%` : '–'}</div>
-        </div>
-        <div className="portal-stat">
-          <div className="label">Lead conversion</div>
-          <div className="value">{leads ? `${(leads.conversionRate * 100).toFixed(0)}%` : '–'}</div>
-        </div>
-      </div>
-
+      <OverviewSection from={from} to={to} />
       <MoneySection from={from} to={to} />
       </>) : null}
 
       {tab === 'visits' ? <FunnelSection from={from} to={to} /> : null}
-
-      {tab === 'overview' ? (<>
-
-      <div className="portal-card" style={{ marginBottom: 20 }}>
-        <h4>Revenue trend</h4>
-        {!trend ? <p>Loading...</p> : trend.length === 0 ? (
-          <p style={{ color: 'var(--p-muted)' }}>No paid orders in this range.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={trend}>
-              <CartesianGrid stroke={colors.line} strokeDasharray="3 3" />
-              <XAxis dataKey="date" fontSize={12} />
-              <YAxis fontSize={12} width={70} tickFormatter={(v) => `${Number(v).toLocaleString()}`} />
-              <Tooltip formatter={(value, name) => name === 'revenueKes' ? [`KES ${Number(value ?? 0).toLocaleString()}`, 'Revenue'] : [value, 'Orders']} />
-              <Legend />
-              <Line type="monotone" dataKey="revenueKes" name="Revenue (KES)" stroke={colors.primary} strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="orderCount" name="Orders" stroke={colors.success} strokeWidth={2} dot={false} yAxisId={0} />
-            </LineChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      </>) : null}
 
       {tab === 'stock' ? (<>
       <StockSection from={from} to={to} />

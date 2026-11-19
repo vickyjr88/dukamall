@@ -6,6 +6,8 @@ import { AdSpendInput, AdSpendService } from './ad-spend.service';
 import { MoneyService } from './money.service';
 import { StockService } from './stock.service';
 import { BuyersService } from './buyers.service';
+import { OverviewService } from './overview.service';
+import { nairobiWindow } from './overview';
 import { ShopId } from '../common/shop-context';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { parseRangeEnd } from '../common/date-range';
@@ -17,7 +19,14 @@ import { parseRangeEnd } from '../common/date-range';
 @Roles('OWNER')
 export class PortalAnalyticsController {
   constructor(private portalAnalyticsService: PortalAnalyticsService, private funnelService: FunnelService, private adSpend: AdSpendService,
-    private moneyService: MoneyService, private stockService: StockService, private buyersService: BuyersService) {}
+    private moneyService: MoneyService, private stockService: StockService, private buyersService: BuyersService, private overviewService: OverviewService) {}
+
+  /** Everything the Overview tab and the Dashboard show: this period, the one before it, and what moved. Bucket is picked from the range unless asked for. */
+  @Get('overview')
+  overview(@ShopId() shopId: string, @Query('from') from?: string, @Query('to') to?: string, @Query('bucket') bucket?: string) {
+    const w = nairobiWindow(from, to);
+    return this.overviewService.overview(shopId, w.start, w.end, bucket === 'day' || bucket === 'week' || bucket === 'month' ? bucket : undefined);
+  }
 
   @Get('revenue-trend')
   revenueTrend(
@@ -94,5 +103,21 @@ export class PortalAnalyticsController {
   buyers(@ShopId() shopId: string, @Query('from') from?: string, @Query('to') to?: string, @Query('lapseDays') lapseDays?: string) {
     const w = this.window(from, to);
     return this.buyersService.buyers(shopId, w.start, w.end, lapseDays ? Math.min(365, Math.max(14, Number(lapseDays) || 60)) : 60);
+  }
+}
+
+/**
+ * The Dashboard's "needs attention" list. Not owner-only: it is the day's work (unpaid orders, things to ship, new leads, what is
+ * running low) and carries no takings, so a cashier sees it too.
+ */
+@ApiTags('portal-dashboard')
+@ApiBearerAuth()
+@Controller('portal/dashboard')
+export class PortalDashboardController {
+  constructor(private overviewService: OverviewService) {}
+
+  @Get('attention')
+  attention(@ShopId() shopId: string) {
+    return this.overviewService.attention(shopId);
   }
 }

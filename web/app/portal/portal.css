@@ -769,3 +769,53 @@
 .pl-tag.is-offer { background: var(--p-warn-bg); border-color: transparent; color: var(--p-warn); }
 @media (max-width: 1000px) { .pl-hide-md { display: none; } }
 @media (max-width: 800px) { .pl-hide-sm { display: none; } .pl-product { min-width: 190px; } }
+
+/* Number cards with a change and a trend line (analytics/kpi.tsx), and the overview's layout */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.kpi { display: flex; flex-direction: column; gap: 3px; padding: 16px 18px 10px; background: var(--p-surface); border: 1px solid var(--p-line); border-radius: var(--p-radius); min-width: 0; color: inherit; }
+.kpi.is-link:hover { border-color: var(--p-line-strong); text-decoration: none; background: var(--p-paper); }
+.kpi-label { font-size: 0.76rem; font-weight: 600; color: var(--p-muted); }
+.kpi-value { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.015em; line-height: 1.15; }
+.kpi-hint { font-size: 0.78rem; color: var(--p-muted); }
+.kpi-spark { margin: 6px -6px 0; }
+.kpi-delta { font-size: 0.76rem; font-weight: 700; }
+.kpi-delta.is-good { color: var(--p-success); }
+.kpi-delta.is-bad { color: var(--p-danger); }
+.kpi-delta.is-flat { color: var(--p-muted); font-weight: 500; }
+.an-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.an-head h4 { margin: 0; }
+.an-note { font-size: 0.8rem; color: var(--p-muted); margin-top: 8px; }
+.an-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.an-bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.an-bars-row { display: flex; justify-content: space-between; font-size: 0.86rem; }
+.an-bar { height: 7px; border-radius: 4px; background: var(--p-paper); margin: 5px 0 3px; overflow: hidden; }
+.an-bar span { display: block; height: 100%; background: var(--p-primary); border-radius: 4px; }
+.an-sub { font-size: 0.74rem; color: var(--p-muted); }
+.an-pills { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.an-pill { display: flex; flex-direction: column; padding: 10px 12px; border-radius: var(--p-radius-sm); background: var(--p-paper); }
+.an-pill strong { font-size: 1.2rem; }
+.an-pill span { font-size: 0.76rem; font-weight: 600; }
+.an-pill em { font-style: normal; font-size: 0.74rem; color: var(--p-muted); }
+.an-pill.is-paid { background: var(--p-success-bg); }
+.an-pill.is-pending { background: var(--p-warn-bg); }
+.an-pill.is-cancelled { background: var(--p-danger-bg); }
+.an-product { display: flex; align-items: center; gap: 10px; color: var(--p-ink); }
+.an-product img, .an-noimg { width: 38px; height: 38px; border-radius: var(--p-radius-sm); object-fit: cover; background: var(--p-paper); border: 1px solid var(--p-line); flex-shrink: 0; display: block; }
+
+/* Dashboard */
+.dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+.dash-todo { list-style: none; margin: 0; padding: 0; }
+.dash-todo li + li { border-top: 1px solid var(--p-line); }
+.dash-todo a { display: flex; align-items: center; gap: 12px; padding: 10px 2px; color: var(--p-ink); font-size: 0.9rem; }
+.dash-todo a:hover { text-decoration: none; background: var(--p-paper); }
+.dash-count { min-width: 34px; text-align: center; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--p-paper); color: var(--p-ink); }
+.dash-count.is-warn { background: var(--p-warn-bg); color: var(--p-warn); }
+.dash-count.is-danger { background: var(--p-danger-bg); color: var(--p-danger); }
+.dash-go { margin-left: auto; color: var(--p-muted); }
+.dash-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dash-products { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.dash-products li { display: flex; align-items: center; gap: 12px; }
+.dash-products img, .dash-products .an-noimg { width: 42px; height: 42px; border-radius: var(--p-radius-sm); object-fit: cover; background: var(--p-paper); border: 1px solid var(--p-line); flex-shrink: 0; }
+.dash-products li > a { flex: 1; min-width: 0; color: var(--p-ink); }
+.dash-products li > span { font-size: 0.82rem; text-align: right; white-space: nowrap; }
+.dash-products em { font-style: normal; color: var(--p-muted); }
