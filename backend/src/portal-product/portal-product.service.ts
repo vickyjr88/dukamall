@@ -3,12 +3,16 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto, UpdateProductDto, VariantInputDto } from './portal-product.dto';
 import { Section, sectionByKey } from '../common/sections';
+import { filterProducts, paginate, parseFlag, parseSort, parseStockFilter, sortProducts, summarise } from './product-list';
 import { Attributes, cleanAttributes, cleanSpecs, sizeFrom, variantLabel } from '../common/variant-options';
 
 export type PortalProductListQuery = {
   search?: string;
   category?: string;
   status?: 'active' | 'inactive';
+  sort?: string;
+  stock?: string;
+  flag?: string;
   page?: number;
   pageSize?: number;
 };
@@ -59,43 +63,82 @@ export class PortalProductService {
    * card grid never had.
    */
   async list(shopId: string, query: PortalProductListQuery = {}) {
-    const { search, category, status } = query;
-    const page = Math.max(1, query.page ?? 1);
-    const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
+    const sort = parseSort(query.sort);
+    const stock = parseStockFilter(query.stock);
+    const flag = parseFlag(query.flag);
 
-    const words = (search || '').trim().split(/\s+/).filter(Boolean);
-    const wordClauses: Prisma.ProductWhereInput[] = words.map((word) => ({
-      OR: [
-        { name: { contains: word, mode: 'insensitive' } },
-        { variants: { some: { sku: { contains: word, mode: 'insensitive' } } } },
-      ],
-    }));
+    // One light query for the shop's whole catalogue (names, sizes, prices, stock), then everything else is done
+    // here: the filters, the sorts that need a product's sizes added up, the counts on the filter chips. Only the
+    // page that is shown is fetched in full. See product-list.ts for why.
+    const all = await this.prisma.product.findMany({
+      where: { shopId },
+      select: {
+        id: true, slug: true, name: true, brand: true, isActive: true, isFeatured: true, imageUrls: true, createdAt: true, updatedAt: true,
+        category: { select: { slug: true, name: true } },
+        variants: { select: { sku: true, priceKes: true, wasPriceKes: true, stockOnHand: true, isActive: true } },
+      },
+    });
 
-    const where: Prisma.ProductWhereInput = {
-      shopId,
-      ...(category ? { category: { slug: category } } : {}),
-      ...(status ? { isActive: status === 'active' } : {}),
-      ...(words.length ? { AND: wordClauses } : {}),
+    const words = (query.search || '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const matchesSearch = (p: (typeof all)[number]) => {
+      if (!words.length) return true;
+      const haystack = [p.name, p.brand ?? '', p.category?.name ?? '', ...p.variants.map((v) => v.sku)].join(' ').toLowerCase();
+      return words.every((w) => haystack.includes(w));
+    };
+    const base = all.filter((p) =>
+      (!query.category || p.category?.slug === query.category) &&
+      (!query.status || p.isActive === (query.status === 'active')) &&
+      matchesSearch(p));
+
+    // The chip counts say how many each filter would show with the search, category and status as they are now.
+    const facets = {
+      all: base.length,
+      out: filterProducts(base, { stock: 'out' }).length,
+      low: filterProducts(base, { stock: 'low' }).length,
+      noPhoto: filterProducts(base, { flag: 'no_photo' }).length,
+      onOffer: filterProducts(base, { flag: 'on_offer' }).length,
+      featured: filterProducts(base, { flag: 'featured' }).length,
     };
 
-    const [total, products] = await Promise.all([
-      this.prisma.product.count({ where }),
-      this.prisma.product.findMany({
-        where,
-        include: { variants: { orderBy: VARIANT_ORDER }, category: true },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [soldRows, viewRows] = await Promise.all([
+      this.prisma.$queryRaw<{ id: string; qty: number }[]>`
+        SELECT v."productId" AS id, SUM(l.quantity)::int AS qty
+        FROM "OrderLine" l
+        JOIN "Order" o ON o.id = l."orderId"
+        JOIN "ProductVariant" v ON v.id = l."variantId"
+        WHERE o."shopId" = ${shopId} AND o.status <> 'CANCELLED' AND o."createdAt" >= ${since}
+        GROUP BY v."productId"`,
+      this.prisma.$queryRaw<{ slug: string; n: number }[]>`
+        SELECT "productSlug" AS slug, COUNT(*)::int AS n
+        FROM "StorefrontEvent"
+        WHERE "shopId" = ${shopId} AND type = 'VIEW_PRODUCT' AND "productSlug" IS NOT NULL AND "createdAt" >= ${since}
+        GROUP BY "productSlug"`,
     ]);
+    const sold = new Map(soldRows.map((r) => [r.id, r.qty]));
+    const views = new Map(viewRows.map((r) => [r.slug, r.n]));
 
-    return {
-      products,
-      total,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    };
+    const ranked = sortProducts(filterProducts(base, { stock, flag }), sort, { sold, views });
+    const paged = paginate(ranked, query.page ?? 1, query.pageSize ?? 25);
+
+    const full = await this.prisma.product.findMany({
+      where: { shopId, id: { in: paged.items.map((p) => p.id) } },
+      include: { variants: { orderBy: VARIANT_ORDER }, category: true },
+    });
+    const byId = new Map(full.map((p) => [p.id, p]));
+    const products = paged.items.flatMap((light) => {
+      const product = byId.get(light.id);
+      return product ? [{ ...product, summary: summarise(product), sold30: sold.get(product.id) ?? 0, views30: views.get(product.slug) ?? 0 }] : [];
+    });
+
+    return { products, total: paged.total, page: paged.page, pageSize: paged.pageSize, totalPages: paged.totalPages, sort, facets };
+  }
+
+  /** Show or hide several products at once -- only this shop's own; ids that are not found are counted, not an error. */
+  async setActiveMany(shopId: string, ids: string[], isActive: boolean) {
+    const unique = Array.from(new Set(ids.filter((id) => typeof id === 'string'))).slice(0, 500);
+    const result = await this.prisma.product.updateMany({ where: { shopId, id: { in: unique } }, data: { isActive } });
+    return { updated: result.count, notFound: unique.length - result.count };
   }
 
   /** Every category this shop has, active or not -- the portal's own filter

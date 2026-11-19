@@ -22,6 +22,9 @@ export class PortalProductController {
     @Query('search') search?: string,
     @Query('category') category?: string,
     @Query('status') status?: 'active' | 'inactive',
+    @Query('sort') sort?: string,
+    @Query('stock') stock?: string,
+    @Query('flag') flag?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
@@ -29,6 +32,9 @@ export class PortalProductController {
       search,
       category,
       status,
+      sort,
+      stock,
+      flag,
       page: page ? Number(page) : undefined,
       pageSize: pageSize ? Number(pageSize) : undefined,
     });
@@ -86,6 +92,12 @@ export class PortalProductController {
   @Get('meta')
   meta(@ShopId() shopId: string) {
     return this.portalProductService.meta(shopId);
+  }
+
+  // Show or hide a selection from the list's checkboxes. Declared before PATCH :id so "bulk-active" is not read as an id.
+  @Patch('bulk-active')
+  setActiveMany(@ShopId() shopId: string, @Body() body: { ids?: string[]; isActive?: boolean }) {
+    return this.portalProductService.setActiveMany(shopId, Array.isArray(body?.ids) ? body.ids : [], body?.isActive === true);
   }
 
   @Get(':id')

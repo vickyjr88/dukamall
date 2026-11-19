@@ -14,9 +14,22 @@ export type PortalOrderListQuery = {
   search?: string;
   from?: Date;
   to?: Date;
+  sort?: string;
   page?: number;
   pageSize?: number;
 };
+
+/** What the orders list can be sorted by. Anything else is newest first; ties always fall back to newest so pages do not shuffle. */
+export function orderSortBy(sort?: string): Prisma.OrderOrderByWithRelationInput[] {
+  switch (sort) {
+    case 'oldest': return [{ createdAt: 'asc' }];
+    case 'total_desc': return [{ totalKes: 'desc' }, { createdAt: 'desc' }];
+    case 'total_asc': return [{ totalKes: 'asc' }, { createdAt: 'desc' }];
+    case 'customer': return [{ firstName: 'asc' }, { lastName: 'asc' }, { createdAt: 'desc' }];
+    case 'number': return [{ orderNumber: 'desc' }];
+    default: return [{ createdAt: 'desc' }];
+  }
+}
 
 /** Who a note is credited to; a platform-support session says so rather than posing as the owner. */
 type OrderForFollowUp = {
@@ -114,21 +127,35 @@ export class PortalOrderService {
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
 
     const where = this.buildWhere(shopId, query);
+    // The tabs' counts and the money line follow every filter except the payment tab itself, so each tab says what it would show.
+    const { status: _tab, ...withoutTab } = query;
+    const tabWhere = this.buildWhere(shopId, withoutTab);
 
-    const [orders, total] = await Promise.all([
+    const [orders, total, byStatus, toShip, shown] = await Promise.all([
       this.prisma.order.findMany({
         where,
         include: { lines: { include: { variant: { include: { product: true } } } } },
-        orderBy: { createdAt: 'desc' },
+        orderBy: orderSortBy(query.sort),
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       this.prisma.order.count({ where }),
+      this.prisma.order.groupBy({ by: ['status'], where: tabWhere, _count: { _all: true } }),
+      this.prisma.order.count({ where: { ...tabWhere, status: { not: 'CANCELLED' }, fulfilmentStatus: 'UNFULFILLED' } }),
+      this.prisma.order.aggregate({ where: { ...where, status: { not: 'CANCELLED' } }, _sum: { totalKes: true } }),
     ]);
+
+    const count = (status: string) => byStatus.find((r) => r.status === status)?._count._all ?? 0;
+    const counts = { all: byStatus.reduce((n, r) => n + r._count._all, 0), PENDING: count('PENDING'), PAID: count('PAID'), CANCELLED: count('CANCELLED'), toShip };
 
     const shop = await this.prisma.shop.findUniqueOrThrow({ where: { id: shopId } });
     const origin = storefrontOriginForShop(shop);
-    return { orders: orders.map((order) => ({ ...order, followUp: orderFollowUp(order, shop, origin) })), total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+    return {
+      orders: orders.map((order) => ({ ...order, followUp: orderFollowUp(order, shop, origin) })),
+      total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)), counts,
+      // What the orders on show add up to, not counting cancelled ones.
+      shownTotalKes: Number(shown._sum.totalKes ?? 0),
+    };
   }
 
   async get(shopId: string, orderId: string) {

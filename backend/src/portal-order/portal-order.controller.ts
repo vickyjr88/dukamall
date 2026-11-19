@@ -91,10 +91,12 @@ export class PortalOrderController {
     @Query('search') search?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('sort') sort?: string,
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     return this.portalOrderService.list(shopId, {
+      sort,
       status,
       fulfilment,
       source,
