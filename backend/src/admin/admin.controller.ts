@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsEmail, IsIn, IsISO8601, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsISO8601, IsNotEmpty, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { BillingPlan, ShopRole, ShopStatus } from '@prisma/client';
 import type { Response } from 'express';
 import { AdminService, AdminShopListQuery, SHOP_SORTS } from './admin.service';
@@ -22,6 +22,9 @@ function parseShopQuery(q: Record<string, string | undefined>): AdminShopListQue
     payments: pick(q.payments, ['ready', 'missing'] as const),
     trial: pick(q.trial, ['expiring', 'expired'] as const),
     inactiveDays: toInt(q.inactiveDays),
+    feature: q.feature || undefined,
+    featureState: q.featureState || undefined,
+    needs: pick(q.needs, ['problem', 'basics'] as const),
     sort: pick(q.sort, SHOP_SORTS),
     dir: pick(q.dir, ['asc', 'desc'] as const),
     page: toInt(q.page),
@@ -51,6 +54,17 @@ class UpdateBillingDto {
   // the database as an Invalid Date and come back as a 500.
   @ValidateIf((_, v) => v !== null) @IsOptional() @IsISO8601() trialEndsAt?: string | null;
   @IsOptional() @IsString() @MaxLength(2000) billingNotes?: string;
+}
+
+class CreateShopByOperatorDto {
+  @IsString() @IsNotEmpty() @MaxLength(80) shopName!: string;
+  @IsString() @Matches(/^[a-z0-9-]{3,40}$/, { message: 'Slug must be 3 to 40 lowercase letters, numbers and hyphens' }) slug!: string;
+  @IsEmail() ownerEmail!: string;
+  @IsString() @IsNotEmpty() @MaxLength(80) ownerFirstName!: string;
+  @IsString() @IsNotEmpty() @MaxLength(80) ownerLastName!: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) sections?: string[];
+  @IsOptional() @IsIn(['TRIAL', 'BASIC', 'PRO']) billingPlan?: BillingPlan;
+  @IsOptional() @IsInt() @Min(1) @Max(365) trialDays?: number;
 }
 
 class ChangeStaffRoleDto {
@@ -110,8 +124,14 @@ export class AdminController {
     const rows = await this.adminService.exportShopsRows(parseShopQuery(q));
     return toCsv(rows, [
       'name', 'slug', 'address', 'status', 'plan', 'trialEndsAt', 'currency', 'products', 'orders', 'customers',
-      'paidRevenue', 'lastOrderAt', 'lastLoginAt', 'paymentsReady', 'createdAt',
+      'paidRevenue', 'lastOrderAt', 'lastLoginAt', 'paymentsReady', 'basicsDone', 'extrasOn', 'problems', 'featuresOn', 'featuresWithProblems', 'createdAt',
     ]);
+  }
+
+  // Creates a shop and its owner for a merchant who asked to be set up; the owner is emailed a link to choose a password. Declared before ':id' routes.
+  @Post('shops')
+  createShop(@Req() req: any, @Body() dto: CreateShopByOperatorDto) {
+    return this.adminService.createShop(req.adminId, dto);
   }
 
   @Get('shops/:id')

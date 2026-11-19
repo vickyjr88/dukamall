@@ -8,6 +8,7 @@ import { EmailModule } from '../email/email.module';
 import { MediaModule } from '../media/media.module';
 import { PasswordResetModule } from '../password-reset/password-reset.module';
 import { MarketingModule } from '../marketing/marketing.module';
+import { OnboardingModule } from '../onboarding/onboarding.module';
 import { PlatformHealthService } from './platform-health.service';
 
 @Module({
@@ -20,6 +21,7 @@ import { PlatformHealthService } from './platform-health.service';
     MediaModule,
     PasswordResetModule,
     MarketingModule,
+    OnboardingModule,
   ],
   controllers: [AdminController],
   providers: [AdminService, AdminJwtGuard, PlatformHealthService],

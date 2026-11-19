@@ -11,6 +11,9 @@ import { storefrontOriginForShop } from '../common/storefront-origin';
 import { IMPERSONATION_TTL_SECONDS } from '../common/impersonation';
 import { findUserByEmail, normaliseEmail } from '../common/user-email';
 import { PasswordResetService } from '../password-reset/password-reset.service';
+import { OnboardingService } from '../onboarding/onboarding.service';
+import { ShopFactsService } from './shop-facts.service';
+import { Coverage, Feature, coverageSummary, featureCoverage, isFeatureKey, isFeatureState } from './shop-features';
 
 const TRIAL_EXPIRING_SOON_DAYS = 7;
 
@@ -21,7 +24,7 @@ function isTrialExpiringSoon(trialEndsAt: Date | null): boolean {
   return msUntil > 0 && msUntil <= TRIAL_EXPIRING_SOON_DAYS * 24 * 60 * 60 * 1000;
 }
 
-export const SHOP_SORTS = ['created', 'name', 'orders', 'revenue', 'lastOrder', 'lastLogin'] as const;
+export const SHOP_SORTS = ['created', 'name', 'orders', 'revenue', 'lastOrder', 'lastLogin', 'setup', 'problems'] as const;
 export type ShopSort = (typeof SHOP_SORTS)[number];
 
 export type AdminShopListQuery = {
@@ -33,6 +36,11 @@ export type AdminShopListQuery = {
   trial?: 'expiring' | 'expired';
   /** Shops that are at least this many days old and have had no order in that long. */
   inactiveDays?: number;
+  /** Only shops where this feature is in this state (feature is a key from shop-features.ts, state one of working, ready, off, setup, problem). */
+  feature?: string;
+  featureState?: string;
+  /** `problem`: shops with at least one feature that is switched on but cannot work. `basics`: shops still missing a basic (payments, products, store info). */
+  needs?: 'problem' | 'basics';
   sort?: ShopSort;
   dir?: 'asc' | 'desc';
   page?: number;
@@ -49,7 +57,10 @@ export class AdminService {
     private domainVerification: DomainVerificationService,
     private email: EmailService,
     private passwordReset?: PasswordResetService,
+    private onboarding?: OnboardingService,
   ) {}
+
+  private get factsService() { return new ShopFactsService(this.prisma); }
 
   /**
    * Every shop with the figures an operator triages by -- orders, paid revenue,
@@ -78,6 +89,7 @@ export class AdminService {
         GROUP BY us."shopId"`,
     ]);
 
+    const facts = await this.factsService.forShops(shops);
     const lastOrder = new Map(orderStats.map((r) => [r.shopId, r._max.createdAt]));
     const revenue = new Map(paidStats.map((r) => [r.shopId, Number(r._sum.totalKes ?? 0)]));
     const lastLogin = new Map(loginStats.map((r) => [r.shopId, r.last]));
@@ -105,8 +117,21 @@ export class AdminService {
       billingPlan: s.billingPlan,
       trialEndsAt: s.trialEndsAt,
       trialExpiringSoon: isTrialExpiringSoon(s.trialEndsAt),
+      features: [] as Feature[],
+      coverage: { basics: { done: 0, total: 0 }, extras: { on: 0, total: 0 }, problems: 0 } as Coverage,
     }));
+    for (const r of rows) {
+      r.features = featureCoverage(facts.get(r.id)!);
+      r.coverage = coverageSummary(r.features);
+    }
 
+    if (query.feature && isFeatureKey(query.feature)) {
+      const key = query.feature;
+      const wanted = isFeatureState(query.featureState) ? query.featureState : null;
+      rows = rows.filter((r) => { const f = r.features.find((x) => x.key === key)!; return wanted ? f.state === wanted : f.state === 'working' || f.state === 'ready'; });
+    }
+    if (query.needs === 'problem') rows = rows.filter((r) => r.coverage.problems > 0);
+    if (query.needs === 'basics') rows = rows.filter((r) => r.coverage.basics.done < r.coverage.basics.total);
     if (query.payments) rows = rows.filter((r) => r.paymentReady === (query.payments === 'ready'));
     if (query.trial === 'expiring') rows = rows.filter((r) => r.trialExpiringSoon);
     if (query.trial === 'expired') rows = rows.filter((r) => r.trialEndsAt && r.trialEndsAt.getTime() < now);
@@ -124,6 +149,9 @@ export class AdminService {
       revenue: (r) => r.paidRevenue,
       lastOrder: (r) => time(r.lastOrderAt),
       lastLogin: (r) => time(r.lastLoginAt),
+      // Least set up first when ascending: basics done, then extras on.
+      setup: (r) => r.coverage.basics.done * 100 + r.coverage.extras.on,
+      problems: (r) => r.coverage.problems,
     };
     const sort = query.sort && SHOP_SORTS.includes(query.sort) ? query.sort : 'created';
     const dir = query.dir === 'asc' ? 1 : -1;
@@ -139,7 +167,19 @@ export class AdminService {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(100, Math.max(1, query.pageSize ?? 25));
     const rows = await this.shopRows(query);
+    // The chips say how many shops each status would show with every other filter as it is now.
+    const { status: _status, ...others } = query;
+    const sameElsewhere = await this.shopRows(others);
+    const facets = {
+      all: sameElsewhere.length,
+      TRIAL: sameElsewhere.filter((r) => r.status === 'TRIAL').length,
+      ACTIVE: sameElsewhere.filter((r) => r.status === 'ACTIVE').length,
+      SUSPENDED: sameElsewhere.filter((r) => r.status === 'SUSPENDED').length,
+      problems: sameElsewhere.filter((r) => r.coverage.problems > 0).length,
+      missingBasics: sameElsewhere.filter((r) => r.coverage.basics.done < r.coverage.basics.total).length,
+    };
     return {
+      facets,
       shops: rows.slice((page - 1) * pageSize, page * pageSize),
       total: rows.length,
       page,
@@ -165,6 +205,12 @@ export class AdminService {
       lastOrderAt: r.lastOrderAt?.toISOString() ?? '',
       lastLoginAt: r.lastLoginAt?.toISOString() ?? '',
       paymentsReady: r.paymentReady ? 'yes' : 'no',
+      basicsDone: `${r.coverage.basics.done}/${r.coverage.basics.total}`,
+      extrasOn: `${r.coverage.extras.on}/${r.coverage.extras.total}`,
+      problems: r.coverage.problems,
+      // The features that are working or ready, and the ones with a problem, by name, so a spreadsheet filter can find them.
+      featuresOn: r.features.filter((f) => f.state === 'working' || f.state === 'ready').map((f) => f.label).join('; '),
+      featuresWithProblems: r.features.filter((f) => f.state === 'problem').map((f) => `${f.label}: ${f.detail}`).join('; '),
       createdAt: r.createdAt.toISOString(),
     }));
   }
@@ -199,6 +245,9 @@ export class AdminService {
       }),
     ]);
 
+    const facts = (await this.factsService.forShops([shop])).get(shop.id)!;
+    const features = featureCoverage(facts);
+
     // Strip the actual Paystack keys before returning -- this endpoint's
     // caller only ever needs to know whether they're set, never their
     // values, same reasoning as listShops's paymentReady.
@@ -208,6 +257,10 @@ export class AdminService {
       ...shopWithoutKeys,
       paymentReady: Boolean(paystackSecretKey && paystackPublicKey),
       trialExpiringSoon: isTrialExpiringSoon(shop.trialEndsAt),
+      // Where the shop actually lives (its own domain, else <slug>.<platform domain>): the page used to assume one platform domain.
+      storefrontUrl: storefrontOriginForShop(shop),
+      features,
+      coverage: coverageSummary(features),
       orderSummary: {
         orderCount,
         paidOrderCount: paid._count._all,
@@ -419,6 +472,32 @@ export class AdminService {
       access_token: this.jwtService.sign(payload, { expiresIn: IMPERSONATION_TTL_SECONDS }),
       expiresInSeconds: IMPERSONATION_TTL_SECONDS,
       shopSlug: shop.slug,
+    };
+  }
+
+  /**
+   * Creates a shop and its owner on the operator's say-so (a merchant asked to be set up). The owner is never given a password: a new account
+   * gets a random one nobody knows, and a reset link is emailed so they choose their own. An existing account (the same person's other shop)
+   * is simply given the new shop. Always logged.
+   */
+  async createShop(adminId: string, input: { shopName: string; slug: string; ownerEmail: string; ownerFirstName: string; ownerLastName: string; sections?: string[]; billingPlan?: BillingPlan; trialDays?: number }) {
+    if (!this.onboarding) throw new BadRequestException('Shop creation is not available');
+    const { shop, ownerUserId, createdUser } = await this.onboarding.createShopForOperator(input);
+    if (input.billingPlan && input.billingPlan !== 'TRIAL') {
+      await this.prisma.shop.update({ where: { id: shop.id }, data: { billingPlan: input.billingPlan, status: 'ACTIVE', trialEndsAt: null } });
+    } else if (input.trialDays && input.trialDays > 0) {
+      await this.prisma.shop.update({ where: { id: shop.id }, data: { trialEndsAt: new Date(Date.now() + Math.min(365, input.trialDays) * DAY_MS) } });
+    }
+    let reset: 'sent' | 'rate_limited' | 'email_failed' | 'not_needed' = 'not_needed';
+    if (createdUser && this.passwordReset) reset = await this.passwordReset.sendStaffResetLink({ id: ownerUserId, email: normaliseEmail(input.ownerEmail) });
+    await this.logAction(adminId, shop.id, 'shop.created', undefined, { slug: shop.slug, ownerEmail: normaliseEmail(input.ownerEmail), newAccount: createdUser, reset });
+    return {
+      id: shop.id, slug: shop.slug, name: shop.name,
+      ownerEmail: normaliseEmail(input.ownerEmail), newAccount: createdUser,
+      resetLink: reset,
+      message: createdUser
+        ? reset === 'sent' ? `Created. A link to choose a password was emailed to ${normaliseEmail(input.ownerEmail)}; it expires in 1 hour.` : 'Created, but the email with the password link could not be sent. Open the shop and send a reset link from its staff list.'
+        : `Created, and added to ${normaliseEmail(input.ownerEmail)}'s existing account.`,
     };
   }
 

@@ -109,11 +109,13 @@ export function SortSelect({ value, onChange, options }: { value: string; onChan
 }
 
 /** A column heading you can click to sort by; a second click reverses. `asc`/`desc` are the sort values this column maps to. */
-export function SortHeader({ label, asc, desc, sort, onSort, align }: { label: string; asc: string; desc: string; sort: string; onSort: (v: string) => void; align?: 'right' }) {
+export function SortHeader({ label, asc, desc, sort, onSort, align, dir }: { label: string; asc: string; desc: string; sort: string; onSort: (v: string) => void; align?: 'right'; dir?: 'asc' | 'desc' }) {
   const on = sort === asc || sort === desc;
-  const arrow = sort === asc ? '↑' : sort === desc ? '↓' : '';
+  // A heading whose two directions are one sort value (the sort and its direction are held separately) reads its arrow from `dir`.
+  const single = asc === desc && dir !== undefined;
+  const arrow = single ? (on ? (dir === 'asc' ? '↑' : '↓') : '') : sort === asc ? '↑' : sort === desc ? '↓' : '';
   return (
-    <th style={align ? { textAlign: align } : undefined} aria-sort={sort === asc ? 'ascending' : sort === desc ? 'descending' : 'none'}>
+    <th style={align ? { textAlign: align } : undefined} aria-sort={single ? (on ? (dir === 'asc' ? 'ascending' : 'descending') : 'none') : sort === asc ? 'ascending' : sort === desc ? 'descending' : 'none'}>
       <button type="button" className={`lk-sort${on ? ' is-on' : ''}`} onClick={() => onSort(sort === asc ? desc : asc)}>
         {label}<span aria-hidden="true">{arrow || '↕'}</span>
       </button>
@@ -140,8 +142,10 @@ export function Chips<T extends string>({ value, onChange, chips }: { value: T; 
   );
 }
 
-export function Pager({ page, pageSize, total, totalPages, onPage, onSize }: { page: number; pageSize: number; total: number; totalPages: number; onPage: (p: number) => void; onSize: (n: number) => void }) {
+/** `variant` picks the button styles: the merchant portal's, or the operator console's (admin/ has its own look on purpose). */
+export function Pager({ page, pageSize, total, totalPages, onPage, onSize, variant = 'portal' }: { page: number; pageSize: number; total: number; totalPages: number; onPage: (p: number) => void; onSize: (n: number) => void; variant?: 'portal' | 'admin' }) {
   if (total === 0) return null;
+  const b = variant === 'admin' ? 'admin-btn' : 'portal-btn';
   const from = (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
 
@@ -160,13 +164,13 @@ export function Pager({ page, pageSize, total, totalPages, onPage, onSize }: { p
     <div className="lk-pager">
       <span className="lk-pager-count">Showing {from.toLocaleString()}&ndash;{to.toLocaleString()} of {total.toLocaleString()}</span>
       <div className="lk-pager-pages">
-        <button type="button" className="portal-btn portal-btn-outline portal-btn-sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>&lsaquo; Prev</button>
+        <button type="button" className={`${b} ${b}-outline ${b}-sm`} disabled={page <= 1} onClick={() => onPage(page - 1)}>&lsaquo; Prev</button>
         {items.map((it, i) => it === 'gap'
           ? <span key={`g${i}`} className="lk-pager-gap">&hellip;</span>
           : (
-            <button key={it} type="button" className={`portal-btn portal-btn-sm${it === page ? '' : ' portal-btn-outline'}`} aria-current={it === page ? 'page' : undefined} onClick={() => onPage(it)}>{it}</button>
+            <button key={it} type="button" className={`${b} ${b}-sm${it === page ? '' : ` ${b}-outline`}`} aria-current={it === page ? 'page' : undefined} onClick={() => onPage(it)}>{it}</button>
           ))}
-        <button type="button" className="portal-btn portal-btn-outline portal-btn-sm" disabled={page >= totalPages} onClick={() => onPage(page + 1)}>Next &rsaquo;</button>
+        <button type="button" className={`${b} ${b}-outline ${b}-sm`} disabled={page >= totalPages} onClick={() => onPage(page + 1)}>Next &rsaquo;</button>
       </div>
       <label className="lk-pager-size">
         Rows

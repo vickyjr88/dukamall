@@ -1,5 +1,6 @@
 /** Plain-English names for the actions recorded in the admin audit log. */
 export const ACTION_LABEL: Record<string, string> = {
+  'shop.created': 'Shop created',
   'shop.status_changed': 'Status changed',
   'shop.impersonated': 'Viewed as shop',
   'shop.exported': 'Data exported',
@@ -28,6 +29,7 @@ export function describeMetadata(action: string, metadata: unknown): string | nu
   const m = metadata as Record<string, unknown>;
   if (action === 'admin.super_admin_changed' && m.targetEmail) return `${String(m.targetEmail)}: ${m.to ? 'made admin' : 'removed'}`;
   if (action === 'shop.products_copied' && m.sourceName) return `${String(m.products)} products from ${String(m.sourceName)}`;
+  if (action === 'shop.created' && m.ownerEmail) return `${String(m.ownerEmail)}${m.newAccount ? ' (new account)' : ' (existing account)'}`;
   if (action === 'user.reset_sent' && m.email) return String(m.email);
   if (action === 'staff.role_changed' && m.email) return `${String(m.email)}: ${String(m.from).toLowerCase()} → ${String(m.to).toLowerCase()}`;
   if (action === 'shop.details_updated' && Array.isArray(m.fields)) return `changed ${(m.fields as string[]).join(', ')}`;

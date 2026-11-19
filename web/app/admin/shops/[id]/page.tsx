@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { adminFetch, ADMIN_API_BASE, adminAuthHeaders } from '../../admin-api';
 import { ACTION_LABEL, describeMetadata } from '../../audit-labels';
+import { viewAsShop } from '../../view-as';
+import { Coverage, Feature, FeatureGrid, Legend } from '../features';
 
 type Theme = {
   primaryColor: string; accentColor: string; logoUrl: string | null;
@@ -17,7 +19,7 @@ type ShopDetail = {
   id: string; slug: string; name: string; customDomain: string | null;
   status: 'TRIAL' | 'ACTIVE' | 'SUSPENDED'; currency: string; whatsappNumber: string | null; orderPrefix: string; notificationEmail: string | null;
   pendingDomain: string | null; domainVerifiedAt: string | null; createdAt: string;
-  paymentReady: boolean;
+  paymentReady: boolean; storefrontUrl: string; features: Feature[]; coverage: Coverage;
   billingPlan: BillingPlan; trialEndsAt: string | null; billingNotes: string | null; trialExpiringSoon: boolean;
   theme: Theme | null;
   staff: StaffRow[];
@@ -171,21 +173,9 @@ export default function ShopDetailPage() {
     setError(null);
     setImpersonating(true);
     try {
-      const res = await adminFetch(`/admin/shops/${shop.id}/impersonate`, { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.message || 'Could not view as this shop');
-      // Cross-origin: the admin console and a shop's own portal are
-      // different hosts, so localStorage can't be set here directly for
-      // that origin. The token rides in the URL *fragment* to a portal page
-      // that stores it and redirects -- see portal/sso/page.tsx. A fragment
-      // is never sent to the server, so unlike a query string it can't end up
-      // in access logs or a Referer header.
-      // A verified custom domain is the host that's actually configured to
-      // resolve to this shop; only fall back to the platform subdomain when
-      // there is none.
-      const host = shop.customDomain || `${data.shopSlug}.${process.env.NEXT_PUBLIC_PLATFORM_DOMAIN || 'localhost:3203'}`;
-      const portalBase = `${window.location.protocol}//${host}`;
-      window.open(`${portalBase}/portal/sso#token=${encodeURIComponent(data.access_token)}`, '_blank', 'noopener');
+      // The token rides in the URL fragment to the shop's own host (see view-as.ts), never in a query string.
+      const problem = await viewAsShop(shop.id, shop.storefrontUrl);
+      if (problem) throw new Error(problem);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -375,7 +365,7 @@ export default function ShopDetailPage() {
           <span className={`admin-badge ${BADGE_CLASS[shop.status]}`} style={{ marginBottom: 8, display: 'inline-block' }}>{shop.status}</span>
           <h3>{shop.name}</h3>
           <p style={{ color: 'var(--a-muted)', fontSize: 13 }}>
-            {shop.slug} &middot; {shop.customDomain ?? `${shop.slug}.dukamall.app`}
+            {shop.slug} &middot; <a href={shop.storefrontUrl} target="_blank" rel="noopener noreferrer">{shop.storefrontUrl.replace(/^https?:\/\//, '')} &#8599;</a>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -397,6 +387,19 @@ export default function ShopDetailPage() {
       </div>
 
       {notice ? <div className={`admin-alert ${notice.ok ? 'is-success' : 'is-error'}`}>{notice.text}</div> : null}
+
+      <div className="admin-card" style={{ marginBottom: 12 }}>
+        <h4 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+          Features
+          <span style={{ fontSize: 12, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+            {shop.coverage.basics.done} of {shop.coverage.basics.total} basics &middot; {shop.coverage.extras.on} of {shop.coverage.extras.total} extras on
+            {shop.coverage.problems ? <strong style={{ color: 'var(--a-danger)' }}> &middot; {shop.coverage.problems} problem{shop.coverage.problems === 1 ? '' : 's'}</strong> : null}
+          </span>
+        </h4>
+        <FeatureGrid features={shop.features} />
+        <Legend />
+        <p style={{ fontSize: 12, color: 'var(--a-muted)', marginTop: 8 }}>Counts cover the last 30 days. Basics are what a shop needs to take an order; the rest are growth tools. &ldquo;Off&rdquo; is fine for anything optional.</p>
+      </div>
 
       <div className="admin-card" style={{ marginBottom: 12 }}>
         <h4 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
