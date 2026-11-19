@@ -772,7 +772,16 @@
 .pl-tag { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; background: var(--p-paper); color: var(--p-muted); border: 1px solid var(--p-line); }
 .pl-tag.is-offer { background: var(--p-warn-bg); border-color: transparent; color: var(--p-warn); }
 @media (max-width: 1000px) { .pl-hide-md { display: none; } }
-@media (max-width: 800px) { .pl-hide-sm { display: none; } .pl-product { min-width: 190px; } }
+@media (max-width: 800px) {
+  .pl-hide-sm, .pl-secondary { display: none; }
+  .pl-product { min-width: 0; gap: 10px; }
+  .pl-thumb { width: 44px; height: 44px; }
+  .pl-table td, .pl-table th { padding: 8px 8px; }
+  .lk-toolbar .lk-field { flex: 1 1 45%; }
+  .lk-toolbar .lk-field select, .lk-toolbar .lk-field input { width: 100%; min-width: 0; }
+  .lk-toolbar .lk-search { flex-basis: 100%; }
+  .sh-btns { gap: 4px; }
+}
 
 /* Number cards with a change and a trend line (analytics/kpi.tsx), and the overview's layout */
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 16px; }

@@ -300,8 +300,8 @@ function Row({ p, selected, onSelect, onToggle }: { p: Product; selected: boolea
       <td className="pl-num pl-hide-md">{p.views30 || <span className="pl-sub">&ndash;</span>}</td>
       <td className="pl-keep">
         <div className="pl-actions">
-          <Link href={`/portal/share?product=${encodeURIComponent(p.slug)}`} className="portal-btn portal-btn-sm portal-btn-outline" title="Share this product on WhatsApp and social media">Share</Link>
-          <button type="button" className="portal-btn portal-btn-sm portal-btn-outline" onClick={onToggle}>{p.isActive ? 'Hide' : 'Show'}</button>
+          <Link href={`/portal/share?product=${encodeURIComponent(p.slug)}`} className="portal-btn portal-btn-sm portal-btn-outline pl-secondary" title="Share this product on WhatsApp and social media">Share</Link>
+          <button type="button" className="portal-btn portal-btn-sm portal-btn-outline pl-secondary" onClick={onToggle}>{p.isActive ? 'Hide' : 'Show'}</button>
           <Link href={`/portal/products/${p.id}`} className="portal-btn portal-btn-sm">Edit</Link>
         </div>
       </td>
