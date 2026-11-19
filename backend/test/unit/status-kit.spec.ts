@@ -1,7 +1,7 @@
 import sharp from 'sharp';
 import { PostableProduct, buildStatusCaption, postLink, statusDetails } from '../../src/social/social-post';
 import { fetchPhoto, isPrivateAddress } from '../../src/social/photo-fetch';
-import { STATUS_HEIGHT, STATUS_WIDTH, drawable, readablePhone, renderStatusImage, statusOverlay, wordmark } from '../../src/social/status-image';
+import { FOOT_TOP, STATUS_HEIGHT, STATUS_WIDTH, badgeFor, drawable, readablePhone, renderStatusImage, sizeChips, statusOverlay, statusTrust, wordmark } from '../../src/social/status-image';
 import { contrast, parseHex, statusPalette } from '../../src/social/status-palette';
 
 const product = (over: Partial<PostableProduct> = {}): PostableProduct => ({
@@ -85,26 +85,57 @@ describe('what can be drawn', () => {
 });
 
 describe('the layout never runs into the call to action', () => {
-  const FOOT = 1738;
   const cases: Array<[string, PostableProduct]> = [
     ['a watch in one form', product()],
     ['shoes with sizes', product({ name: 'Nike Air Force 1', options: [sizes] })],
     ['a phone with storage and colour', product({ name: 'iPhone 13', options: [storage, colour, condition] })],
-    ['the worst case: a long name, an offer, two option lines, a price range', product({ name: 'Adidas Originals Superstar Foundation Leather Low Top Sneakers Limited Edition Gold', offer: { price: 7900, was: 10900 }, options: [{ key: 'size', label: 'Size', values: Array.from({ length: 30 }, (_, i) => `EUR ${30 + i}`) }, { key: 'colour', label: 'Colour', values: ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Grey', 'Brown', 'Beige', 'Navy'] }] })],
+    ['the worst case: a long name, an offer, two option lines, a price range', product({ name: 'Adidas Originals Superstar Foundation Leather Low Top Sneakers Limited Edition Gold', brand: 'Adidas Originals', offer: { price: 7900, was: 10900 }, options: [{ key: 'size', label: 'Size', values: Array.from({ length: 30 }, (_, i) => `EUR ${30 + i}`) }, { key: 'colour', label: 'Colour', values: ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Grey', 'Brown', 'Beige', 'Navy'] }] })],
     ['a name with no letters the font knows', product({ name: '🔥🔥🔥' })],
   ];
   it.each(cases)('%s', (_label, p) => {
-    const { svg, photoHeight, textBottom } = statusOverlay(p, facts());
-    expect(Number.isInteger(photoHeight)).toBe(true);
-    expect(photoHeight).toBeGreaterThanOrEqual(760);
-    expect(photoHeight).toBeLessThanOrEqual(1080);
-    expect(170 + photoHeight).toBeLessThan(FOOT);
-    expect(textBottom).toBeLessThan(FOOT - 10);
-    expect(svg.startsWith('<svg')).toBe(true);
+    const o = statusOverlay(p, { ...facts(), location: 'Dubai Merchants Mall, Nairobi', trust: ['We deliver', 'Secure online payment'] });
+    expect(Number.isInteger(o.plate.h)).toBe(true);
+    expect(o.plate.h).toBeGreaterThanOrEqual(640);
+    expect(o.plate.h).toBeLessThanOrEqual(940);
+    // The plate, then the text, then the button: in that order, with room between.
+    expect(o.plate.y + o.plate.h).toBeLessThan(o.textBottom);
+    expect(o.textBottom).toBeLessThan(FOOT_TOP - 10);
+    expect(o.svg.startsWith('<svg')).toBe(true);
+    expect(o.photoHeight).toBe(o.plate.h);
   });
-  it('a product with nothing to list gets the biggest photo; one with a lot gets a smaller one', () => {
-    expect(statusOverlay(product(), facts()).photoHeight).toBe(1080);
-    expect(statusOverlay(product({ offer: { price: 1, was: 2 }, options: [sizes, colour] }), facts()).photoHeight).toBeLessThan(1080);
+  it('a product with little to say gets the tallest plate; one with a lot gets a shorter one', () => {
+    expect(statusOverlay(product(), facts()).plate.h).toBe(940);
+    expect(statusOverlay(product({ offer: { price: 1, was: 2 }, options: [sizes, colour] }), facts()).plate.h).toBeLessThan(940);
+  });
+  it('draws the shop’s place and promises only when it has them', () => {
+    const bare = statusOverlay(product(), facts()).svg;
+    const full = statusOverlay(product(), { ...facts(), location: 'Moi Avenue, Nairobi', trust: ['We deliver'] }).svg;
+    expect(full.length).toBeGreaterThan(bare.length);
+  });
+});
+
+describe('what the picture claims is true of the shop', () => {
+  it('promises only what the shop’s own settings back', () => {
+    expect(statusTrust({})).toEqual(['We deliver', 'Every order confirmed with you']);
+    expect(statusTrust({ freeDeliveryOverKes: 5000, paystackSecretKey: 'sk', paystackPublicKey: 'pk', whatsappNumber: '254700000000' })).toEqual(['Free delivery over KES 5,000', 'Secure online payment', 'Order on WhatsApp']);
+    expect(statusTrust({ paystackSecretKey: 'sk' })[1]).toBe('Every order confirmed with you'); // half a key is not a working payment
+    expect(statusTrust({ address: 'Moi Avenue' })).toEqual(['We deliver', 'Every order confirmed with you', 'Visit us in store']);
+  });
+  it('says "Save" only for a real saving, and "New in" only for a recent product', () => {
+    const now = new Date('2026-11-19T12:00:00Z');
+    expect(badgeFor({ offer: { price: 7500, was: 10000 }, createdAt: new Date('2026-01-01') }, now)).toBe('SAVE 25%');
+    expect(badgeFor({ offer: { price: 9800, was: 10000 }, createdAt: new Date('2026-01-01') }, now)).toBe('ON OFFER');
+    expect(badgeFor({ offer: { price: 10000, was: 9000 }, createdAt: new Date('2026-01-01') }, now)).toBeNull(); // a "was" price below the price is no offer
+    expect(badgeFor({ offer: null, createdAt: new Date('2026-11-10T00:00:00Z') }, now)).toBe('NEW IN');
+    expect(badgeFor({ offer: null, createdAt: new Date('2026-10-01T00:00:00Z') }, now)).toBeNull();
+    expect(badgeFor({ offer: null, createdAt: new Date('2026-12-25T00:00:00Z') }, now)).toBeNull(); // a date in the future is not "new in"
+  });
+  it('shows sizes as chips, without repeating the unit, and not at all when there are too many', () => {
+    expect(sizeChips({ options: [sizes] })).toEqual({ unit: 'EUR', values: ['36', '37', '38', '41'] });
+    expect(sizeChips({ options: [{ key: 'size', label: 'Size', values: ['S', 'M', 'L'] }] })).toEqual({ unit: '', values: ['S', 'M', 'L'] });
+    expect(sizeChips({ options: [{ key: 'size', label: 'Size', values: ['EUR 40', 'US 9'] }] })?.values).toEqual(['EUR 40', 'US 9']);
+    expect(sizeChips({ options: [{ key: 'size', label: 'Size', values: Array.from({ length: 15 }, (_, i) => `${i}`) }] })).toBeNull();
+    expect(sizeChips({ options: [colour] })).toBeNull();
   });
 });
 

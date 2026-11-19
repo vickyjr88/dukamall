@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PostableProductsService } from './postable-products.service';
 import { fetchPhoto } from './photo-fetch';
 import { PostableProduct, buildStatusCaption, isPostable, nairobiParts, pickProduct } from './social-post';
-import { renderStatusImage } from './status-image';
+import { renderStatusImage, statusTrust } from './status-image';
 import { statusPalette } from './status-palette';
 
 const CHANNEL = 'STATUS';
@@ -112,8 +112,16 @@ export class StatusKitService {
     const row = await this.row(shopId, id);
     const product = (await this.candidates(shopId)).find((p) => p.id === row.productId);
     if (!product) throw new NotFoundException('That product is no longer in stock with a photo. Swap it for another.');
-    const [ctx, theme] = await Promise.all([this.products.contextFor(shopId), this.prisma.shopTheme.findUnique({ where: { shopId } })]);
-    return renderStatusImage(product, await fetchPhoto(product.imageUrl), { shopName: ctx.shopName, whatsapp: ctx.whatsapp, site: ctx.origin, palette: statusPalette(theme?.primaryColor, theme?.accentColor) });
+    const [ctx, theme, shop] = await Promise.all([
+      this.products.contextFor(shopId),
+      this.prisma.shopTheme.findUnique({ where: { shopId } }),
+      this.prisma.shop.findUniqueOrThrow({ where: { id: shopId }, select: { freeDeliveryOverKes: true, paystackSecretKey: true, paystackPublicKey: true, whatsappNumber: true, address: true } }),
+    ]);
+    return renderStatusImage(product, await fetchPhoto(product.imageUrl), {
+      shopName: ctx.shopName, whatsapp: ctx.whatsapp, site: ctx.origin, palette: statusPalette(theme?.primaryColor, theme?.accentColor),
+      // Where the shop is, and the promises its own settings back: nothing is claimed that the shop has not set up.
+      location: ctx.location, trust: statusTrust(shop),
+    });
   }
 
   /** Replaces one item with the next product in line. */

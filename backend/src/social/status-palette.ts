@@ -3,7 +3,16 @@
  * the shop's primary colour, and the highlight (the price) is its accent colour, lightened when needed until it can be read on that background.
  * Whatever colours a shop picks, the text keeps a contrast of at least 4.5 : 1 (WCAG AA).
  */
-export type StatusPalette = { bg: string; ink: string; muted: string; accent: string; rule: string };
+export type StatusPalette = {
+  bg: string; ink: string; muted: string; accent: string; rule: string;
+  /** The accent at half strength, for hairlines, frames and chip outlines (decoration, never text). */
+  accentSoft: string;
+  /** The accent lighter and a touch darker, for a foil-like gradient on the price and the button. Large type and fills only, never small text. */
+  accentHi: string;
+  accentLo: string;
+  /** A soft light of the shop's own colours, for the glow behind the product. Never used for text. */
+  glow: string;
+};
 
 type Rgb = [number, number, number];
 
@@ -51,5 +60,9 @@ export function statusPalette(primaryHex?: string | null, accentHex?: string | n
     muted: toHex(readable(mix(INK, bg, 0.35), WHITE, bg, 4.5)),
     accent: toHex(readable(accent, WHITE, bg, 4.5)),
     rule: toHex(mix(bg, WHITE, 0.14)),
+    accentSoft: toHex(mix(accent, bg, 0.5)),
+    accentHi: toHex(mix(readable(accent, WHITE, bg, 4.5), WHITE, 0.3)),
+    accentLo: toHex(mix(readable(accent, WHITE, bg, 4.5), BLACK, 0.14)),
+    glow: toHex(mix(mix(primary, accent, 0.45), bg, 0.25)),
   };
 }
