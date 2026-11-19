@@ -38,6 +38,7 @@ import { PortalCustomerModule } from './portal-customer/portal-customer.module';
 import { PortalCategoryModule } from './portal-category/portal-category.module';
 import { PortalCatalogHealthModule } from './portal-catalog-health/portal-catalog-health.module';
 import { PortalAnalyticsModule } from './portal-analytics/portal-analytics.module';
+import { PortalShareModule } from './portal-share/portal-share.module';
 import { StorefrontEventsModule } from './storefront-events/storefront-events.module';
 import { AdminAnalyticsModule } from './admin-analytics/admin-analytics.module';
 import { EmailModule } from './email/email.module';
@@ -85,6 +86,7 @@ import { PortalDiscountModule } from './portal-discount/portal-discount.module';
     PortalCategoryModule,
     PortalCatalogHealthModule,
     PortalAnalyticsModule,
+    PortalShareModule,
     StorefrontEventsModule,
     AdminAnalyticsModule,
     EmailModule,

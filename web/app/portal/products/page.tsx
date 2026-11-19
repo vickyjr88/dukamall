@@ -75,6 +75,17 @@ export default function ProductsPage() {
   useEffect(() => { if (ready) void load(); }, [ready, load]);
   useEffect(() => { portalFetch('/portal/products/categories').then((r) => r.json()).then(setCategories).catch(() => {}); }, []);
 
+  async function bulkFeatured(isFeatured: boolean) {
+    const ids = Array.from(selection.ids);
+    const res = await portalFetch('/portal/products/bulk-featured', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, isFeatured }),
+    });
+    if (!res.ok) { setError('Could not change those products'); return; }
+    setNotice(`${ids.length} product${ids.length === 1 ? '' : 's'} ${isFeatured ? 'featured' : 'no longer featured'}.`);
+    selection.clear();
+    await load();
+  }
+
   async function bulk(isActive: boolean) {
     const ids = Array.from(selection.ids);
     const res = await portalFetch('/portal/products/bulk-active', {
@@ -200,6 +211,8 @@ export default function ProductsPage() {
           <strong>{selection.ids.size} selected</strong>
           <button type="button" className="portal-btn portal-btn-sm portal-btn-outline" onClick={() => bulk(true)}>Show in shop</button>
           <button type="button" className="portal-btn portal-btn-sm portal-btn-outline" onClick={() => bulk(false)}>Hide from shop</button>
+          <button type="button" className="portal-btn portal-btn-sm portal-btn-outline" onClick={() => bulkFeatured(true)}>Feature</button>
+          <button type="button" className="portal-btn portal-btn-sm portal-btn-outline" onClick={() => bulkFeatured(false)}>Unfeature</button>
           <span style={{ flex: 1 }} />
           <button type="button" className="portal-btn-ghost" style={{ color: '#fff' }} onClick={selection.clear}>Clear selection</button>
         </div>

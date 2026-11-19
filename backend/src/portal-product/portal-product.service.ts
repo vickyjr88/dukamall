@@ -134,6 +134,13 @@ export class PortalProductService {
     return { products, total: paged.total, page: paged.page, pageSize: paged.pageSize, totalPages: paged.totalPages, sort, facets };
   }
 
+  /** Feature or unfeature several products at once. Featured products come first on the storefront and in the Share list. */
+  async setFeaturedMany(shopId: string, ids: string[], isFeatured: boolean) {
+    const unique = Array.from(new Set(ids.filter((id) => typeof id === 'string'))).slice(0, 500);
+    const result = await this.prisma.product.updateMany({ where: { shopId, id: { in: unique } }, data: { isFeatured } });
+    return { updated: result.count, notFound: unique.length - result.count };
+  }
+
   /** Show or hide several products at once -- only this shop's own; ids that are not found are counted, not an error. */
   async setActiveMany(shopId: string, ids: string[], isActive: boolean) {
     const unique = Array.from(new Set(ids.filter((id) => typeof id === 'string'))).slice(0, 500);

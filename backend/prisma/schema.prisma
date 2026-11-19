@@ -123,6 +123,7 @@ model Shop {
   staff         UserShop[]
   integrations  ShopIntegration[]
   whatsappContacts   WhatsappContact[]
+  shareEvents        ShareEvent[]
   whatsappOutreach   WhatsappOutreach[]
   whatsappStatuses   WhatsappMessageStatus[]
   facebookReplies    FacebookCommentReply[]
@@ -1095,4 +1096,23 @@ model SocialPost {
   @@index([shopId, productId, channel, status])
   @@index([shopId, createdAt])
   @@index([status, updatedAt])
+}
+
+/// A tap on a share button in the portal's Share page: where it went and what was shared. It counts the intention, not the arrival (the networks tell a website nothing about what happened next); what a share brought in is read from the tagged link's visits in Analytics.
+model ShareEvent {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  /// The portal user's email, as the Status kit records who did something.
+  userEmail   String
+  /// whatsapp | facebook | x | telegram | share (the phone's share sheet) | link (copied) | download
+  channel     String
+  /// PRODUCT | CATALOGUE | LINK | QR
+  kind        String
+  productSlug String?
+  /// How many products a catalogue message carried.
+  itemCount   Int      @default(1)
+  createdAt   DateTime @default(now())
+
+  @@index([shopId, createdAt])
 }

@@ -57,3 +57,21 @@ Analytics has four tabs: **Overview**, **Visits & ads**, **Products & stock**, *
   lifetime value, and a list of buyers who have gone quiet with a WhatsApp link ready to send.
 
 Migration `20261111090000_add_cost_and_ad_spend` is additive.
+
+## Overview and Dashboard (one read, compared with the period before)
+
+`GET /portal/analytics/overview?from=&to=` (owner only) feeds the Analytics **Overview** tab and the owner's **Dashboard**:
+
+- **This period against the one before it** (same length, ending the moment this one starts): sales, paid, orders, items, average order, visits, WhatsApp taps, and how much each moved. A rise from zero is shown as "New", not as a percentage.
+- **Sales** here are every order that was not cancelled (what customers committed to); **Paid** is the part already received. The old "revenue" card counted paid only, which disagreed with the Money section.
+- **A trend with no gaps**: a bucket for every day (up to 35 days), week (up to about four months) or month, zeros where nothing happened, so a quiet week is visible.
+- **Every day is a Nairobi day** (UTC+3, no daylight saving): an order at 23:30 on Tuesday is Tuesday's; a date picked as "to" ends at 23:59 Nairobi time. `portal-analytics/overview.ts` holds the rules; `test/unit/analytics-overview.spec.ts` the tests.
+- **When people buy** (by weekday, Monday first, and by hour), **where orders come from** (website, WhatsApp, in person), **payment** split, and **best sellers with photo, units, revenue and page views**.
+
+`GET /portal/dashboard/attention` (staff and owner, no takings in it): unpaid for over 2 days, waiting to ship, new leads, running low (3 or fewer), sold out, shown without a photo; each is one click from the list that fixes it (the Orders, Leads and Products screens read the filter from the address).
+
+## Lists
+
+Every list in the portal shares one toolkit (`web/app/portal/list-kit.tsx`): search with a short pause, a sort menu and clickable column headings, filter chips with counts, a pager that says "Showing 26 to 50 of 151" with a rows-per-page choice. A list's state is in the address (`?q=&sort=&page=&size=`), so a refresh, the back button or a link to a colleague lands on the same page of the same search. Products, Orders, Leads and Customers page on the server; Discounts and Categories, which are short, do it in the browser.
+
+The Products list ranks by price, stock, sales or views over a product's sizes, which the database cannot do over a relation without raw SQL per filter. It loads the shop's light rows once and ranks them in `portal-product/product-list.ts` (tested), then fetches only the page shown in full. Fine for hundreds or a few thousand products per shop.

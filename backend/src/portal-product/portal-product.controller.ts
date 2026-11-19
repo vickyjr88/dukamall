@@ -100,6 +100,11 @@ export class PortalProductController {
     return this.portalProductService.setActiveMany(shopId, Array.isArray(body?.ids) ? body.ids : [], body?.isActive === true);
   }
 
+  @Patch('bulk-featured')
+  setFeaturedMany(@ShopId() shopId: string, @Body() body: { ids?: string[]; isFeatured?: boolean }) {
+    return this.portalProductService.setFeaturedMany(shopId, Array.isArray(body?.ids) ? body.ids : [], body?.isFeatured === true);
+  }
+
   @Get(':id')
   get(@ShopId() shopId: string, @Param('id') id: string) {
     return this.portalProductService.get(shopId, id);
